@@ -28,7 +28,7 @@
 - 增加自动取首帧 poster
 - 修复了 stagger-reveal animation 与 inline `opacity:` 冲突的关键 bug
 
-没有这个底座我们不可能在三周内把 62 页 Keynote 自动化转出来。**Hat tip 🎩 to 杰森。**
+**Hat tip 🎩 to 杰森。**
 
 这个项目某种意义上是 **飞书团队** 和 **RollingAI 团队** 共同进化的结晶——一边把 16:9 HTML deck 的渲染底座打磨得越来越稳，一边把 AI 原生的内容生产链路接上去。代码是技术合作的载体，但更重要的，它也是 **两支队伍长期友谊的象征**。👬
 
