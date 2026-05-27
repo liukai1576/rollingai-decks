@@ -7,11 +7,6 @@ __pycache__/
 .rolling-deck-workspace/
 platform/web/dist/
 
-# Large / confidential / non-source content excluded from the public repo:
-#   imports/    — client decks (康师傅 etc.). Source material, ~4 GB,
-#                 commercially confidential. Stays on workstations only.
-#   _reference/ — local copy of upstream feishu-deck-h5 kept for diff-reading
-#                 during the fork. Not referenced at runtime. Upstream:
-#                 https://github.com/FuQiang/feishu-deck-h5
+# Client decks — ~4 GB of source material, commercially confidential.
+# Stays on workstations only, never enters the public repo.
 imports/
-_reference/
