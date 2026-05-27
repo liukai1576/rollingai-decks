@@ -36,17 +36,9 @@
 
 ## 2. 版本迭代日志
 
-完整 changelog 见 [`plugin/CHANGELOG.md`](plugin/CHANGELOG.md)。本节做高维度回顾。
+完整 changelog 见 [`plugin/CHANGELOG.md`](plugin/CHANGELOG.md)。本节做高维度回顾——**只记录 skill / 渲染器代码变更，不记录单个 deck 的内容微调**。
 
-### v0.17 · 当前 — 渲染器交互打磨 + 单页精修
-- **底部 pill 模式切换**：原"全屏按钮"(`.ctl.fs`)替换为演示↔浏览模式 toggle（`.ctl.mode`），浏览模式下 pill 仍可见，可来回切换；浏览器全屏改用 F 键
-- **Page 52 视频蒙版同步**：移除 `loop`，video `play` → 蒙版 / 文字 `opacity:0` 渐隐，`ended` → 浮现
-- **Page 38 redesign**：六边形雷达图（5 层网格 + 刻度 + 双层呼吸动画）+ 粉红色折线连接器（带 stroke-dashoffset 入场动画）
-- **Page 39 redesign**：三层 clip-path 梯形漏斗，每层 = 一个生命周期阶段（获客 / 留存 / 复购），上下结构按 grid-template-rows 精确分配
-- **Page 6 严格瀑布流**：奇偶列 50% 卡片高度错位（永久保持），所有卡 `flex: 0 0 430px` 锁死防 flex-shrink
-- 大量单页 verbatim / aspect / nowrap 微调（详见 [`plugin/SESSION-NOTES.md`](plugin/SESSION-NOTES.md)）
-
-### v0.16 — 架构拆分 + 多媒体 / 多版式文字
+### v0.16 · 当前 — 架构拆分 + 多媒体 / 多版式文字
 - **Plugin 拆分为 4 个解耦 skill**（见下文）。中间格式统一为 `deck.json`
 - Keynote `.key`（Keynote 14.5+ 的 zip 单文件格式）原生支持，UTF-8 文件名修复
 - 多 run 文字提取（同一 text box 内多字体 / 字号 / 颜色）
