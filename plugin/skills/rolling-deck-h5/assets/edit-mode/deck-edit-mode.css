@@ -1,0 +1,308 @@
+/* deck-edit-mode.css — visual chrome for in-browser edit mode.
+ * Scoped under body.deck-edit-mode so it ONLY applies in edit mode. */
+
+/* Top-right control bar */
+.edit-bar {
+  position: fixed;
+  top: 12px; right: 12px;
+  z-index: 2147483647;
+  display: flex; align-items: center; gap: 12px;
+  padding: 10px 14px;
+  background: rgba(12, 18, 36, 0.96);
+  color: #fff;
+  border: 1px solid rgba(60, 127, 255, 0.55);
+  border-radius: 10px;
+  box-shadow: 0 0 0 1px rgba(60, 127, 255, 0.20),
+              0 8px 24px -8px rgba(0, 0, 0, 0.6);
+  font: 500 13px/1 -apple-system, BlinkMacSystemFont, "PingFang SC",
+        "Hiragino Sans GB", "Microsoft YaHei", sans-serif;
+}
+.edit-bar-label {
+  color: #FFE7B0;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+}
+.edit-bar-hint {
+  color: rgba(255, 255, 255, 0.70);
+  font-size: 12px;
+}
+.edit-bar-btn {
+  background: rgba(60, 127, 255, 0.20);
+  color: #fff;
+  border: 1px solid rgba(60, 127, 255, 0.45);
+  padding: 6px 12px;
+  border-radius: 6px;
+  cursor: pointer;
+  font: 500 13px/1 inherit;
+  transition: background 0.15s;
+}
+.edit-bar-btn:hover { background: rgba(60, 127, 255, 0.40); }
+.edit-bar-exit { padding: 6px 10px; }
+
+/* Toast */
+.edit-toast {
+  position: fixed;
+  top: 64px; right: 12px;
+  z-index: 2147483647;
+  padding: 8px 14px;
+  background: rgba(20, 60, 40, 0.96);
+  color: #fff;
+  border: 1px solid rgba(51, 214, 192, 0.55);
+  border-radius: 8px;
+  font: 500 13px/1.4 -apple-system, "PingFang SC", sans-serif;
+  box-shadow: 0 8px 20px -8px rgba(0, 0, 0, 0.6);
+  animation: edit-toast-in 0.18s ease-out;
+}
+@keyframes edit-toast-in {
+  from { opacity: 0; transform: translateX(8px); }
+  to   { opacity: 1; transform: translateX(0); }
+}
+
+/* In edit mode: dashed outline on slide-frames to signal draggability */
+body.deck-edit-mode .slide-frame {
+  position: relative;           /* anchor for drop-indicator pseudos */
+  outline: 1px dashed rgba(60, 127, 255, 0.35);
+  outline-offset: -1px;
+  cursor: grab;
+  transition: outline-color 0.15s;
+}
+body.deck-edit-mode .slide-frame:hover {
+  outline-color: rgba(60, 127, 255, 0.70);
+}
+body.deck-edit-mode .slide-frame.dragging {
+  opacity: 0.5;
+  cursor: grabbing;
+}
+/* Insertion-point indicator: a horizontal line in the GAP between two
+ * frames showing exactly where the dragged slide will land. The line sits
+ * just above (drop-above) or just below (drop-below) the hovered frame,
+ * with a centered "↳" badge labelling the gap. */
+body.deck-edit-mode .slide-frame.drop-above::before,
+body.deck-edit-mode .slide-frame.drop-below::after {
+  content: '';
+  position: absolute;
+  left: 0; right: 0;
+  height: 4px;
+  background: #33D6C0;
+  border-radius: 2px;
+  /* allow:drop-shadow — editor chrome (drag-reorder drop indicator).
+     Not slide content; R12 + gate-scan exempt. */
+  box-shadow: 0 0 12px rgba(51, 214, 192, 0.85),
+              0 0 0 1px rgba(51, 214, 192, 0.35);
+  z-index: 100;
+  pointer-events: none;
+}
+body.deck-edit-mode .slide-frame.drop-above::before { top: -14px; }
+body.deck-edit-mode .slide-frame.drop-below::after  { bottom: -14px; }
+
+/* Editable text feedback */
+body.deck-edit-mode [contenteditable="true"] {
+  cursor: text;
+  border-radius: 3px;
+  transition: background 0.12s, box-shadow 0.12s;
+}
+body.deck-edit-mode [contenteditable="true"]:hover {
+  background: rgba(255, 200, 60, 0.07);
+  box-shadow: inset 0 0 0 1px rgba(255, 200, 60, 0.4);
+}
+body.deck-edit-mode [contenteditable="true"]:focus {
+  outline: none;
+  background: rgba(60, 127, 255, 0.10);
+  box-shadow: inset 0 0 0 2px rgba(60, 127, 255, 0.7);
+}
+
+/* Suppress the present-mode chrome in edit mode for a cleaner overview */
+body.deck-edit-mode .deck-ui { opacity: 0 !important; pointer-events: none; }
+
+/* In edit mode, push body content right to make room for the 260px
+ * sidebar. The framework's scroll mode (we set data-mode="scroll" via JS)
+ * already handles slide scaling via its own ResizeObserver — don't fight
+ * it with our own positioning overrides. */
+body.deck-edit-mode { padding-left: 260px; box-sizing: border-box; }
+body.deck-edit-mode .deck[data-mode="scroll"] {
+  max-width: none;             /* fill the available space, minus sidebar */
+  padding: 16px 24px !important;
+}
+
+/* ── left sidebar with slide list ────────────────────────────────────── */
+.edit-sidebar {
+  position: fixed;
+  top: 0; left: 0; bottom: 0;
+  width: 260px;
+  z-index: 2147483646;       /* below edit-bar */
+  background: rgba(8, 12, 24, 0.97);
+  color: #fff;
+  border-right: 1px solid rgba(60, 127, 255, 0.40);
+  display: flex; flex-direction: column;
+  font: 500 13px/1.4 -apple-system, BlinkMacSystemFont, "PingFang SC",
+        "Hiragino Sans GB", "Microsoft YaHei", sans-serif;
+}
+.edit-sidebar-header {
+  display: flex; align-items: center; gap: 8px;
+  padding: 14px 14px 10px;
+  border-bottom: 1px solid rgba(60, 127, 255, 0.20);
+}
+.edit-sidebar-header .es-title {
+  color: #FFE7B0;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  font-size: 12px;
+  flex: 1;
+}
+.edit-sidebar-header .es-count {
+  background: rgba(60, 127, 255, 0.22);
+  border: 1px solid rgba(60, 127, 255, 0.40);
+  padding: 2px 8px;
+  border-radius: 10px;
+  color: #fff;
+  font-size: 11px;
+  font-weight: 600;
+}
+.edit-sidebar-header .es-refresh {
+  background: transparent;
+  color: rgba(255, 255, 255, 0.55);
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  width: 24px; height: 24px;
+  border-radius: 6px;
+  cursor: pointer;
+  font: 600 13px/1 inherit;
+}
+.edit-sidebar-header .es-refresh:hover {
+  color: #fff; border-color: rgba(60, 127, 255, 0.6);
+}
+.edit-sidebar-list {
+  list-style: none;
+  margin: 0; padding: 6px 0;
+  overflow-y: auto;
+  flex: 1;
+}
+.edit-sidebar-list::-webkit-scrollbar { width: 6px; }
+.edit-sidebar-list::-webkit-scrollbar-thumb {
+  background: rgba(60, 127, 255, 0.30); border-radius: 3px;
+}
+.es-item {
+  display: grid;
+  grid-template-columns: 30px 1fr;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 14px;
+  cursor: grab;
+  border-left: 3px solid transparent;
+  transition: background 0.12s, border-color 0.12s;
+  user-select: none;
+}
+.es-item:hover {
+  background: rgba(60, 127, 255, 0.10);
+  border-left-color: rgba(60, 127, 255, 0.45);
+}
+.es-item.is-active {
+  background: rgba(60, 127, 255, 0.18);
+  border-left-color: var(--fs-blue, #3C7FFF);
+}
+.es-item.dragging { opacity: 0.45; cursor: grabbing; }
+/* Sidebar drop indicator — horizontal line in the gap, mirrors the
+ * slide-frame indicator on the main canvas. */
+.es-item.drop-above::before,
+.es-item.drop-below::after {
+  content: '';
+  position: absolute;
+  left: 8px; right: 8px;
+  height: 3px;
+  background: #33D6C0;
+  border-radius: 2px;
+  box-shadow: 0 0 8px rgba(51, 214, 192, 0.75);
+  z-index: 100;
+  pointer-events: none;
+}
+.es-item.drop-above::before { top: -1px; }
+.es-item.drop-below::after  { bottom: -1px; }
+.es-item { position: relative; }     /* anchor for pseudo indicators */
+.es-num {
+  color: rgba(255, 255, 255, 0.45);
+  font: 600 11px/1 inherit;
+  text-align: right;
+}
+.es-label {
+  color: #fff;
+  font-size: 13px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.edit-sidebar-foot {
+  padding: 10px 14px;
+  border-top: 1px solid rgba(60, 127, 255, 0.20);
+  color: rgba(255, 255, 255, 0.45);
+  font-size: 11px;
+}
+
+/* Push the edit-bar so it doesn't overlap the sidebar header at narrow
+ * windows — bar sits top-right, sidebar sits top-left, no conflict in
+ * normal viewport widths. (No CSS needed; both are top-anchored.) */
+
+/* ── first-save help overlay (⌘⇧G + path-paste instructions) ────────── */
+.edit-help-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 2147483645;
+  background: rgba(8, 12, 24, 0.65);
+  backdrop-filter: blur(6px);
+  display: flex; align-items: center; justify-content: center;
+  padding: 24px;
+  font: 500 14px/1.5 -apple-system, BlinkMacSystemFont, "PingFang SC",
+        "Hiragino Sans GB", "Microsoft YaHei", sans-serif;
+}
+.eho-card {
+  max-width: 560px;
+  background: rgba(12, 18, 36, 0.98);
+  border: 1.5px solid rgba(60, 127, 255, 0.55);
+  border-radius: 14px;
+  padding: 28px 32px;
+  color: #fff;
+  box-shadow: 0 24px 64px -16px rgba(0, 0, 0, 0.7);
+}
+.eho-title {
+  color: #FFE7B0;
+  font: 700 18px/1.3 inherit;
+  margin-bottom: 18px;
+  letter-spacing: 0.02em;
+}
+.eho-steps {
+  margin: 0 0 18px 24px;
+  padding: 0;
+  color: rgba(255, 255, 255, 0.92);
+  font-size: 14px;
+  line-height: 1.7;
+}
+.eho-steps li { margin-bottom: 4px; }
+.eho-steps kbd {
+  display: inline-block;
+  padding: 2px 8px;
+  background: rgba(60, 127, 255, 0.22);
+  border: 1px solid rgba(60, 127, 255, 0.45);
+  border-radius: 5px;
+  color: #fff;
+  font: 600 12px/1 ui-monospace, "SF Mono", Menlo, monospace;
+  margin: 0 1px;
+}
+.eho-path-wrap {
+  background: rgba(8, 12, 24, 0.6);
+  border: 1px solid rgba(60, 127, 255, 0.20);
+  border-radius: 8px;
+  padding: 12px 14px;
+}
+.eho-path-label {
+  color: #33D6C0;
+  font: 600 11px/1 inherit;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  margin-bottom: 6px;
+}
+.eho-path {
+  display: block;
+  color: rgba(255, 255, 255, 0.95);
+  font: 500 12px/1.4 ui-monospace, "SF Mono", Menlo, monospace;
+  word-break: break-all;
+  white-space: pre-wrap;
+}

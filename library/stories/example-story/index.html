@@ -1,0 +1,84 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <title>Example · 4-page narrative</title>
+  <style>
+    /* rolling-deck · minimal placeholder styles
+       (RollingAI's real design tokens will go here later) */
+    :root {
+      --bg: #0a0a0c;
+      --fg: #ffffff;
+      --fg-muted: rgba(255,255,255,.65);
+      --accent: #4f8cff;
+      --hairline: rgba(255,255,255,.1);
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    html, body { background: var(--bg); color: var(--fg); font-family: -apple-system, "PingFang SC", system-ui, sans-serif; }
+    .deck { display: flex; flex-direction: column; gap: 24px; padding: 32px; }
+    .slide-frame {
+      width: 100%;
+      aspect-ratio: 16/9;
+      background: var(--bg);
+      border: 1px solid var(--hairline);
+      border-radius: 8px;
+      overflow: hidden;
+      position: relative;
+    }
+    .slide {
+      width: 1920px;
+      height: 1080px;
+      transform-origin: top left;
+      padding: 80px 96px;
+      display: flex;
+      flex-direction: column;
+      gap: 32px;
+    }
+    .slide[data-layout="cover"]   { justify-content: center; }
+    .slide[data-layout="end"]     { justify-content: center; align-items: center; text-align: center; }
+    .slide[data-layout="replica"] { padding: 0; }
+    .slide[data-layout="replica"] img { width: 100%; height: 100%; object-fit: contain; display: block; }
+    h1 { font-size: 88px; font-weight: 700; line-height: 1.1; }
+    h2 { font-size: 52px; font-weight: 600; line-height: 1.1; }
+    .body { font-size: 28px; color: var(--fg-muted); line-height: 1.5; }
+    .footer { position: absolute; bottom: 32px; left: 96px; right: 96px;
+              display: flex; justify-content: space-between;
+              color: var(--fg-muted); font-size: 16px; }
+    .wordmark { position: absolute; top: 32px; right: 96px; color: var(--accent); font-weight: 600; }
+  </style>
+</head>
+<body>
+  <div class="deck">
+    <div class="slide-frame"><div class="slide" data-layout="cover" data-slide-key="cover" data-screen-label="01"><h1>示例小故事</h1><div class="body">RollingAI · 2026-05</div><div class="footer"><span>RollingAI</span><span>01 / 04</span></div></div></div>
+<div class="slide-frame"><div class="slide" data-layout="content" data-slide-key="context" data-screen-label="02"><div class="wordmark">RollingAI</div><h2>1. 背景</h2><div class="body">这是一个 4 页的示例 story，用来让管理平台的 block view 有东西可显示。</div><div class="footer"><span>RollingAI</span><span>02 / 04</span></div></div></div>
+<div class="slide-frame"><div class="slide" data-layout="content" data-slide-key="insight" data-screen-label="03"><div class="wordmark">RollingAI</div><h2>2. 关键洞察</h2><div class="body">story 不是 slide — 是一个有起承转合的叙事单元。</div><div class="footer"><span>RollingAI</span><span>03 / 04</span></div></div></div>
+<div class="slide-frame"><div class="slide" data-layout="end" data-slide-key="end" data-screen-label="04"><h1>更换内容即可复用</h1><div class="footer"><span>RollingAI</span><span>04 / 04</span></div></div></div>
+  </div>
+  <script>
+    // Scale each slide to fit its 16:9 frame.
+    function fit() {
+      document.querySelectorAll('.slide-frame').forEach(frame => {
+        const slide = frame.querySelector('.slide');
+        if (!slide) return;
+        const scale = Math.min(frame.clientWidth / 1920, frame.clientHeight / 1080);
+        slide.style.transform = `scale(${scale})`;
+      });
+    }
+    window.addEventListener('resize', fit);
+    window.addEventListener('load', fit);
+    fit();
+
+    // Restart videos on scroll-into-view so each slide's media plays from the top.
+    const io = new IntersectionObserver(entries => {
+      entries.forEach(e => {
+        e.target.querySelectorAll('video').forEach(v => {
+          if (e.isIntersecting) { v.currentTime = 0; v.play?.().catch(() => {}); }
+          else v.pause?.();
+        });
+      });
+    }, { threshold: 0.5 });
+    document.querySelectorAll('.slide-frame').forEach(f => io.observe(f));
+  </script>
+</body>
+</html>

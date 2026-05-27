@@ -1,0 +1,1024 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="fs-language" content="zh-only">
+<meta name="fs-deck-mode" content="inline">
+<title>Layout Proposal · 8 new layouts for feishu-deck-h5</title>
+<link rel="stylesheet" href="../assets/feishu-deck.css">
+<style>
+/* =============================================================
+   PROPOSAL CSS · 8 candidate layouts for the skill's next version
+   ============================================================= */
+
+/* ===== 1. 2x2 Matrix / Quadrant ===== */
+.slide[data-layout="matrix-2x2"] .stage {
+  position: absolute; top: 200px; left: 96px; right: 96px; bottom: 100px;
+  display: grid;
+  grid-template-columns: 80px 1fr 1fr;
+  grid-template-rows: 1fr 1fr 60px;
+  gap: 6px;
+}
+.slide[data-layout="matrix-2x2"] .y-axis {
+  grid-row: 1 / 3; grid-column: 1;
+  display: flex; flex-direction: column;
+  justify-content: space-between; align-items: center;
+  padding: 20px 0;
+}
+.slide[data-layout="matrix-2x2"] .y-axis .label {
+  font: italic 600 16px/1 var(--fs-font-latin);
+  color: rgba(255,255,255,0.55);
+  letter-spacing: 0.06em;
+}
+.slide[data-layout="matrix-2x2"] .y-axis .name {
+  /* allow:body-floor — axis NAME is chrome (an axis label), not body. */
+  writing-mode: vertical-rl;
+  font: 500 16px/1 var(--fs-font-cjk);
+  color: rgba(255,255,255,0.85);
+  letter-spacing: 0.4em;
+}
+.slide[data-layout="matrix-2x2"] .x-axis {
+  grid-row: 3; grid-column: 2 / 4;
+  display: grid; grid-template-columns: auto 1fr auto;
+  align-items: center; gap: 16px;
+  padding: 24px 30px 0;
+}
+.slide[data-layout="matrix-2x2"] .x-axis .label {
+  font: italic 600 16px/1 var(--fs-font-latin);
+  color: rgba(255,255,255,0.55);
+  letter-spacing: 0.06em;
+}
+.slide[data-layout="matrix-2x2"] .x-axis .name {
+  /* allow:body-floor — axis NAME is chrome. */
+  font: 500 16px/1 var(--fs-font-cjk);
+  color: rgba(255,255,255,0.85);
+  letter-spacing: 0.4em;
+  text-align: center;
+}
+.slide[data-layout="matrix-2x2"] .quad {
+  border-radius: 16px;
+  padding: 26px 30px;
+  display: flex; flex-direction: column; gap: 14px;
+  border: 1.5px solid rgba(255,255,255,0.10);
+  background: rgba(8,14,40,0.45);
+  min-width: 0; min-height: 0;
+}
+.slide[data-layout="matrix-2x2"] .quad.q-tl {
+  border-color: rgba(51,214,192,0.70);
+  background: rgba(51,214,192,0.08);
+}
+.slide[data-layout="matrix-2x2"] .quad.q-tr {
+  border-color: rgba(60,127,255,0.70);
+  background: rgba(60,127,255,0.08);
+}
+.slide[data-layout="matrix-2x2"] .quad.q-bl {
+  border-color: rgba(255,255,255,0.20);
+  background: rgba(255,255,255,0.03);
+}
+.slide[data-layout="matrix-2x2"] .quad.q-br {
+  border-color: rgba(254,127,0,0.50);
+  background: rgba(254,127,0,0.05);
+}
+.slide[data-layout="matrix-2x2"] .quad h3 {
+  display: flex; align-items: baseline; gap: 12px;
+  font: 600 24px/1.2 var(--fs-font-cjk);
+  color: #fff;
+}
+.slide[data-layout="matrix-2x2"] .quad h3 .ord {
+  font: italic 700 28px/1 var(--fs-font-latin);
+  color: var(--fs-blue);
+}
+.slide[data-layout="matrix-2x2"] .quad.q-tl h3 .ord { color: var(--fs-teal); }
+.slide[data-layout="matrix-2x2"] .quad.q-br h3 .ord { color: var(--fs-orange); }
+.slide[data-layout="matrix-2x2"] .quad.q-bl h3 .ord { color: rgba(255,255,255,0.55); }
+.slide[data-layout="matrix-2x2"] .quad ul {
+  list-style: none; padding: 0; margin: 0;
+  display: flex; flex-direction: column; gap: 10px;
+}
+.slide[data-layout="matrix-2x2"] .quad li {
+  display: flex; align-items: baseline; gap: 12px;
+  font: 500 24px/1.4 var(--fs-font-cjk);
+  color: rgba(255,255,255,0.92);
+}
+.slide[data-layout="matrix-2x2"] .quad li::before {
+  content: '';
+  flex: 0 0 auto;
+  width: 8px; height: 8px;
+  border-radius: 50%;
+  background: var(--fs-blue);
+  align-self: center;
+}
+.slide[data-layout="matrix-2x2"] .quad.q-tl li::before { background: var(--fs-teal); }
+.slide[data-layout="matrix-2x2"] .quad.q-br li::before { background: var(--fs-orange); }
+.slide[data-layout="matrix-2x2"] .quad.q-bl li::before { background: rgba(255,255,255,0.55); }
+
+/* ===== 2. Executive Summary ===== */
+.slide[data-layout="exec-summary"] .stage {
+  position: absolute; top: 200px; left: 96px; right: 96px; bottom: 110px;
+  display: flex; flex-direction: column; gap: 32px;
+}
+.slide[data-layout="exec-summary"] .thesis {
+  font: 600 28px/1.4 var(--fs-font-cjk);
+  color: #fff;
+  padding: 22px 32px;
+  border-left: 4px solid var(--fs-teal);
+  background: rgba(51,214,192,0.06);
+  border-radius: 0 12px 12px 0;
+}
+.slide[data-layout="exec-summary"] .takeaways {
+  display: grid; grid-template-columns: repeat(3, 1fr); gap: 24px;
+}
+.slide[data-layout="exec-summary"] .take {
+  padding: 28px 28px;
+  border-radius: 16px;
+  border: 1.5px solid rgba(60,127,255,0.40);
+  background: rgba(8,14,40,0.55);
+  display: flex; flex-direction: column; gap: 14px;
+}
+.slide[data-layout="exec-summary"] .take .head {
+  display: flex; align-items: baseline; gap: 14px;
+}
+.slide[data-layout="exec-summary"] .take .head .n {
+  font: italic 700 48px/1 var(--fs-font-latin);
+  color: var(--fs-blue);
+}
+.slide[data-layout="exec-summary"] .take .head .t {
+  font: 700 24px/1.2 var(--fs-font-cjk); color: #fff;
+}
+.slide[data-layout="exec-summary"] .take .body {
+  font: 500 24px/1.4 var(--fs-font-cjk);
+  color: rgba(255,255,255,0.92);
+}
+.slide[data-layout="exec-summary"] .take .kpi {
+  margin-top: auto;
+  display: flex; align-items: baseline; gap: 8px;
+}
+.slide[data-layout="exec-summary"] .take .kpi .v {
+  font: 700 48px/1 var(--fs-font-latin); color: var(--fs-teal);
+  letter-spacing: -0.02em;
+}
+.slide[data-layout="exec-summary"] .take .kpi .l {
+  font: 500 16px/1 var(--fs-font-cjk);
+  color: rgba(255,255,255,0.72);
+}
+.slide[data-layout="exec-summary"] .actions {
+  display: flex; align-items: center; gap: 20px;
+  padding: 20px 32px;
+  border-radius: 12px;
+  background: linear-gradient(90deg, rgba(60,127,255,0.16), rgba(60,127,255,0.04));
+  border: 1px solid rgba(60,127,255,0.30);
+}
+.slide[data-layout="exec-summary"] .actions .label {
+  font: 700 16px/1 var(--fs-font-cjk); color: var(--fs-blue);
+  letter-spacing: 0.04em;
+}
+.slide[data-layout="exec-summary"] .actions .items {
+  font: 500 24px/1.4 var(--fs-font-cjk);
+  color: rgba(255,255,255,0.92);
+}
+
+/* ===== 3. Waterfall / 桥图 (v2 · adds dashed connectors) ===== */
+.slide[data-layout="waterfall"] .stage {
+  position: absolute; top: 200px; left: 96px; right: 96px; bottom: 130px;
+}
+.slide[data-layout="waterfall"] .chart {
+  position: relative; width: 100%; height: 100%;
+  display: grid;
+  grid-template-columns: repeat(5, 1fr);
+  gap: 32px;
+  align-items: end;
+  padding-bottom: 80px;
+}
+.slide[data-layout="waterfall"] .chart::after {
+  content: ''; position: absolute;
+  left: 0; right: 0; bottom: 80px;
+  height: 1px;
+  background: linear-gradient(90deg, rgba(60,127,255,0.55), rgba(60,127,255,0.10));
+}
+.slide[data-layout="waterfall"] .connectors {
+  position: absolute; inset: 0; pointer-events: none;
+}
+.slide[data-layout="waterfall"] .connectors line {
+  stroke: rgba(255,255,255,0.32);
+  stroke-width: 1.5;
+  stroke-dasharray: 6 6;
+}
+.slide[data-layout="waterfall"] .bar {
+  display: flex; flex-direction: column;
+  align-items: center; gap: 12px;
+  position: relative;
+}
+.slide[data-layout="waterfall"] .bar .value {
+  font: 700 48px/1 var(--fs-font-latin); color: #fff;
+  letter-spacing: -0.01em;
+}
+.slide[data-layout="waterfall"] .bar .delta {
+  font: 700 16px/1 var(--fs-font-latin);
+  color: var(--fs-teal);
+}
+.slide[data-layout="waterfall"] .bar.is-neg .delta { color: var(--fs-orange); }
+.slide[data-layout="waterfall"] .bar.is-base .delta,
+.slide[data-layout="waterfall"] .bar.is-end .delta { color: rgba(255,255,255,0.50); font-weight: 500; }
+.slide[data-layout="waterfall"] .bar .col {
+  width: 100%; max-width: 180px;
+  border-radius: 8px 8px 0 0;
+}
+.slide[data-layout="waterfall"] .bar.is-base .col {
+  background: linear-gradient(180deg, rgba(255,255,255,0.30), rgba(255,255,255,0.10));
+  height: 320px;
+}
+.slide[data-layout="waterfall"] .bar.is-pos .col {
+  background: linear-gradient(180deg, var(--fs-blue), rgba(60,127,255,0.40));
+}
+.slide[data-layout="waterfall"] .bar.is-neg .col {
+  background: linear-gradient(180deg, var(--fs-orange), rgba(254,127,0,0.40));
+}
+.slide[data-layout="waterfall"] .bar.is-end .col {
+  background: linear-gradient(180deg, var(--fs-teal), rgba(51,214,192,0.40));
+  height: 480px;
+}
+.slide[data-layout="waterfall"] .bar .label {
+  font: 600 24px/1.3 var(--fs-font-cjk); color: rgba(255,255,255,0.92);
+  text-align: center; margin-top: 8px;
+}
+.slide[data-layout="waterfall"] .bar .sublabel {
+  font: 500 16px/1.3 var(--fs-font-latin);
+  color: rgba(255,255,255,0.55);
+  letter-spacing: 0.04em;
+  margin-top: 2px;
+}
+
+/* ===== 4. Issue tree / MECE (v2 · root hero) ===== */
+.slide[data-layout="issue-tree"] .stage {
+  position: absolute; top: 200px; left: 96px; right: 96px; bottom: 110px;
+  display: grid;
+  grid-template-columns: 320px 100px 1fr;
+  align-items: center;
+  gap: 0;
+}
+.slide[data-layout="issue-tree"] .root {
+  padding: 32px 28px;
+  border-radius: 16px;
+  background: linear-gradient(135deg, rgba(60,127,255,0.30), rgba(92,63,251,0.22));
+  border: 2px solid rgba(60,127,255,0.85);
+  box-shadow: 0 0 0 4px rgba(60,127,255,0.15);
+}
+.slide[data-layout="issue-tree"] .root .q {
+  font: 700 28px/1.3 var(--fs-font-cjk); color: #fff;
+}
+.slide[data-layout="issue-tree"] .root .why {
+  margin-top: 14px;
+  padding-top: 12px;
+  border-top: 1px solid rgba(255,255,255,0.18);
+  font: 600 24px/1.3 var(--fs-font-cjk);
+  color: rgba(255,255,255,0.85);
+}
+.slide[data-layout="issue-tree"] .root .why em {
+  font-style: normal; color: var(--fs-teal); font-weight: 700;
+}
+.slide[data-layout="issue-tree"] .connector {
+  height: 100%; position: relative;
+}
+.slide[data-layout="issue-tree"] .connector svg {
+  position: absolute; inset: 0; width: 100%; height: 100%;
+}
+.slide[data-layout="issue-tree"] .branches {
+  display: flex; flex-direction: column; gap: 16px;
+}
+.slide[data-layout="issue-tree"] .branch {
+  display: grid;
+  grid-template-columns: 340px 80px 1fr;
+  align-items: center; gap: 0;
+}
+.slide[data-layout="issue-tree"] .branch .b1 {
+  padding: 16px 22px;
+  border-radius: 12px;
+  background: rgba(8,14,40,0.55);
+  border: 1.5px solid rgba(60,127,255,0.45);
+}
+.slide[data-layout="issue-tree"] .branch .b1 .ord {
+  display: inline-block;
+  font: italic 700 24px/1 var(--fs-font-latin);
+  color: var(--fs-blue); margin-right: 10px;
+}
+.slide[data-layout="issue-tree"] .branch .b1 .t {
+  font: 600 24px/1.2 var(--fs-font-cjk); color: #fff;
+}
+.slide[data-layout="issue-tree"] .branch .leaves {
+  display: flex; flex-direction: column; gap: 6px;
+}
+.slide[data-layout="issue-tree"] .branch .leaf {
+  padding: 10px 18px;
+  border-radius: 8px;
+  background: rgba(255,255,255,0.03);
+  border-left: 3px solid var(--fs-teal);
+  font: 500 24px/1.3 var(--fs-font-cjk);
+  color: rgba(255,255,255,0.88);
+}
+.slide[data-layout="issue-tree"] .branch .b1-conn {
+  height: 100%; position: relative;
+}
+.slide[data-layout="issue-tree"] .branch .b1-conn svg {
+  position: absolute; inset: 0; width: 100%; height: 100%;
+}
+
+/* ===== 5. Architecture Stack ===== */
+.slide[data-layout="arch-stack"] .stage {
+  position: absolute; top: 200px; left: 96px; right: 96px; bottom: 110px;
+  display: flex; flex-direction: column; gap: 14px;
+}
+.slide[data-layout="arch-stack"] .layer {
+  flex: 1; min-height: 0;
+  display: grid; grid-template-columns: 280px 1fr;
+  align-items: center; gap: 32px;
+  padding: 20px 32px;
+  border-radius: 14px;
+  border: 1.5px solid rgba(255,255,255,0.10);
+}
+.slide[data-layout="arch-stack"] .layer.is-l1 {
+  background: linear-gradient(90deg, rgba(60,127,255,0.18), rgba(60,127,255,0.04));
+  border-color: rgba(60,127,255,0.60);
+}
+.slide[data-layout="arch-stack"] .layer.is-l2 {
+  background: linear-gradient(90deg, rgba(51,214,192,0.16), rgba(51,214,192,0.03));
+  border-color: rgba(51,214,192,0.55);
+}
+.slide[data-layout="arch-stack"] .layer.is-l3 {
+  background: linear-gradient(90deg, rgba(92,63,251,0.18), rgba(92,63,251,0.04));
+  border-color: rgba(92,63,251,0.55);
+}
+.slide[data-layout="arch-stack"] .layer.is-l4 {
+  background: linear-gradient(90deg, rgba(255,255,255,0.08), rgba(255,255,255,0.02));
+  border-color: rgba(255,255,255,0.25);
+}
+.slide[data-layout="arch-stack"] .layer .name {
+  display: flex; flex-direction: column; gap: 6px;
+}
+.slide[data-layout="arch-stack"] .layer .name .title {
+  font: 700 28px/1.2 var(--fs-font-cjk); color: #fff;
+}
+.slide[data-layout="arch-stack"] .layer .name .sub {
+  /* allow:body-floor — layer subtitle is chrome (Latin label like "APPS · 面向终端用户"), not body. */
+  font: 500 16px/1.3 var(--fs-font-latin);
+  color: rgba(255,255,255,0.55); letter-spacing: 0.06em;
+}
+.slide[data-layout="arch-stack"] .layer .modules {
+  display: flex; flex-wrap: wrap; gap: 10px;
+  align-items: center;
+}
+.slide[data-layout="arch-stack"] .layer .m {
+  font: 500 24px/1 var(--fs-font-cjk);
+  color: #fff;
+  padding: 10px 18px;
+  border-radius: 999px;
+  background: rgba(0,0,0,0.30);
+  border: 1px solid rgba(255,255,255,0.20);
+}
+.slide[data-layout="arch-stack"] .layer.is-l1 .m { border-color: rgba(60,127,255,0.55); }
+.slide[data-layout="arch-stack"] .layer.is-l2 .m { border-color: rgba(51,214,192,0.55); }
+.slide[data-layout="arch-stack"] .layer.is-l3 .m { border-color: rgba(92,63,251,0.55); }
+
+/* ===== 6. Logo Wall ===== */
+.slide[data-layout="logo-wall"] .stage {
+  position: absolute; top: 200px; left: 96px; right: 96px; bottom: 110px;
+  display: flex; flex-direction: column; gap: 28px;
+}
+.slide[data-layout="logo-wall"] .lede {
+  font: 600 28px/1.4 var(--fs-font-cjk);
+  color: #fff;
+  padding: 16px 28px;
+  border-left: 4px solid var(--fs-blue);
+  background: rgba(60,127,255,0.06);
+  border-radius: 0 8px 8px 0;
+}
+.slide[data-layout="logo-wall"] .lede em {
+  font-style: normal; font-weight: 700; color: var(--fs-teal);
+}
+.slide[data-layout="logo-wall"] .industries {
+  display: flex; flex-direction: column; gap: 20px;
+  flex: 1; min-height: 0;
+}
+.slide[data-layout="logo-wall"] .industry {
+  display: grid; grid-template-columns: 200px 1fr; align-items: center;
+  gap: 24px;
+}
+.slide[data-layout="logo-wall"] .ind-name {
+  font: 600 16px/1.3 var(--fs-font-cjk);
+  color: rgba(255,255,255,0.85);
+  letter-spacing: 0.05em;
+  padding: 6px 14px;
+  border-radius: 999px;
+  background: rgba(60,127,255,0.10);
+  border: 1px solid rgba(60,127,255,0.30);
+  text-align: center;
+}
+.slide[data-layout="logo-wall"] .logos {
+  display: grid; grid-template-columns: repeat(8, 1fr); gap: 12px;
+}
+.slide[data-layout="logo-wall"] .logo {
+  height: 64px;
+  background-color: rgba(255,255,255,0.95);
+  background-position: center;
+  background-size: contain;
+  background-repeat: no-repeat;
+  border-radius: 8px;
+  padding: 6px;
+}
+
+/* ===== 7. Roadmap with Swim Lanes ===== */
+.slide[data-layout="roadmap-swim"] .stage {
+  position: absolute; top: 200px; left: 96px; right: 96px; bottom: 110px;
+  display: grid;
+  grid-template-rows: 60px 1fr 1fr 1fr 1fr;
+  grid-template-columns: 200px repeat(4, 1fr);
+  gap: 4px;
+}
+.slide[data-layout="roadmap-swim"] .time-cell {
+  display: flex; align-items: center; justify-content: center;
+  font: 700 24px/1 var(--fs-font-cjk); color: #fff;
+  letter-spacing: 0.06em;
+  background: rgba(60,127,255,0.10);
+  border-bottom: 2px solid rgba(60,127,255,0.55);
+}
+.slide[data-layout="roadmap-swim"] .time-cell.empty { background: transparent; border-bottom: none; }
+.slide[data-layout="roadmap-swim"] .lane-name {
+  display: flex; align-items: center; padding: 0 18px;
+  font: 700 24px/1.2 var(--fs-font-cjk); color: #fff;
+  background: rgba(8,14,40,0.55);
+  border-left: 4px solid;
+  border-radius: 8px;
+}
+.slide[data-layout="roadmap-swim"] .lane-name.is-blue { border-left-color: var(--fs-blue); }
+.slide[data-layout="roadmap-swim"] .lane-name.is-teal { border-left-color: var(--fs-teal); }
+.slide[data-layout="roadmap-swim"] .lane-name.is-violet { border-left-color: var(--fs-violet, #5C3FFB); }
+.slide[data-layout="roadmap-swim"] .lane-name.is-orange { border-left-color: var(--fs-orange); }
+.slide[data-layout="roadmap-swim"] .lane-name .sub {
+  /* allow:body-floor — lane subtitle is chrome (Latin tagline). */
+  display: block; margin-top: 4px;
+  font: 500 16px/1 var(--fs-font-latin);
+  color: rgba(255,255,255,0.55); letter-spacing: 0.06em;
+}
+.slide[data-layout="roadmap-swim"] .ms {
+  margin: 8px 6px;
+  padding: 12px 16px;
+  border-radius: 10px;
+  background: rgba(8,14,40,0.55);
+  border: 1.5px solid;
+  display: flex; flex-direction: column; gap: 4px;
+  align-self: center;
+}
+.slide[data-layout="roadmap-swim"] .ms.is-blue { border-color: rgba(60,127,255,0.70); background: rgba(60,127,255,0.10); }
+.slide[data-layout="roadmap-swim"] .ms.is-teal { border-color: rgba(51,214,192,0.70); background: rgba(51,214,192,0.10); }
+.slide[data-layout="roadmap-swim"] .ms.is-violet { border-color: rgba(92,63,251,0.70); background: rgba(92,63,251,0.10); }
+.slide[data-layout="roadmap-swim"] .ms.is-orange { border-color: rgba(254,127,0,0.70); background: rgba(254,127,0,0.10); }
+.slide[data-layout="roadmap-swim"] .ms .t {
+  font: 700 24px/1.2 var(--fs-font-cjk); color: #fff;
+}
+.slide[data-layout="roadmap-swim"] .ms .d {
+  font: 500 24px/1.3 var(--fs-font-cjk);
+  color: rgba(255,255,255,0.78);
+}
+
+/* ===== 8. Before / After ===== */
+.slide[data-layout="before-after"] .stage {
+  position: absolute; top: 200px; left: 96px; right: 96px; bottom: 110px;
+  display: grid;
+  grid-template-columns: 1fr 220px 1fr;
+  align-items: stretch;
+  gap: 0;
+}
+.slide[data-layout="before-after"] .side {
+  padding: 32px 36px;
+  border-radius: 18px;
+  display: flex; flex-direction: column; gap: 18px;
+}
+.slide[data-layout="before-after"] .side.before {
+  background: rgba(255,255,255,0.04);
+  border: 1.5px solid rgba(255,255,255,0.15);
+}
+.slide[data-layout="before-after"] .side.after {
+  background: rgba(51,214,192,0.06);
+  border: 2px solid rgba(51,214,192,0.70);
+  box-shadow: 0 0 0 4px rgba(51,214,192,0.10);
+}
+.slide[data-layout="before-after"] .side .tag {
+  align-self: flex-start;
+  padding: 8px 16px;
+  border-radius: 999px;
+  font: 700 16px/1 var(--fs-font-cjk);
+  letter-spacing: 0.08em;
+}
+.slide[data-layout="before-after"] .side.before .tag {
+  background: rgba(255,255,255,0.08);
+  color: rgba(255,255,255,0.72);
+}
+.slide[data-layout="before-after"] .side.after .tag {
+  background: rgba(51,214,192,0.18);
+  color: var(--fs-teal);
+}
+.slide[data-layout="before-after"] .side ul {
+  list-style: none; padding: 0; margin: 0;
+  display: flex; flex-direction: column; gap: 14px;
+}
+.slide[data-layout="before-after"] .side li {
+  display: flex; align-items: baseline; gap: 14px;
+  padding: 12px 0;
+  border-bottom: 1px dashed rgba(255,255,255,0.08);
+  font: 500 24px/1.4 var(--fs-font-cjk);
+}
+.slide[data-layout="before-after"] .side.before li {
+  color: rgba(255,255,255,0.72);
+}
+.slide[data-layout="before-after"] .side.after li {
+  color: #fff;
+}
+.slide[data-layout="before-after"] .side .icon {
+  flex: 0 0 auto;
+  width: 24px; height: 24px;
+  display: flex; align-items: center; justify-content: center;
+  border-radius: 50%;
+}
+.slide[data-layout="before-after"] .side.before .icon {
+  background: rgba(255,255,255,0.08);
+  color: rgba(255,255,255,0.55);
+}
+.slide[data-layout="before-after"] .side.after .icon {
+  background: rgba(51,214,192,0.25);
+  color: var(--fs-teal);
+}
+.slide[data-layout="before-after"] .pivot {
+  display: flex; flex-direction: column;
+  align-items: center; justify-content: center; gap: 18px;
+}
+.slide[data-layout="before-after"] .pivot .arrow {
+  width: 120px; height: 120px;
+  border-radius: 50%;
+  background: linear-gradient(135deg, var(--fs-blue), var(--fs-teal));
+  display: flex; align-items: center; justify-content: center;
+  font: 700 48px/1 var(--fs-font-latin);
+  color: #fff;
+}
+.slide[data-layout="before-after"] .pivot .caption {
+  /* allow:body-floor */
+  /* .caption matches body-class heuristic but this is a chrome pill
+     below the pivot arrow — a 1-line label, not body content. */
+  font: 700 16px/1.3 var(--fs-font-cjk);
+  color: #fff;
+  text-align: center;
+  padding: 8px 16px;
+  background: rgba(60,127,255,0.18);
+  border-radius: 999px;
+  border: 1px solid rgba(60,127,255,0.45);
+}
+</style>
+</head>
+<body>
+<div class="deck">
+
+<!-- ============================================================
+     PROPOSAL 1 — 2×2 Matrix / Quadrant
+     ============================================================ -->
+<div class="slide-frame">
+  <div class="slide" data-layout="matrix-2x2" data-screen-label="01 Matrix-2x2" data-slide-key="proposal-matrix-2x2">
+    <div class="wordmark"></div>
+    <div class="header">
+      <h2 class="title-zh">战略选择 · 2026 H1 优先级矩阵</h2>
+    </div>
+    <div class="stage">
+      <div class="y-axis">
+        <span class="label">HIGH</span>
+        <span class="name">业务影响</span>
+        <span class="label">LOW</span>
+      </div>
+      <div class="quad q-tl">
+        <h3><span class="ord">A</span>立即做 · 快赢</h3>
+        <ul>
+          <li>飞书 AI · 内部助手扩面</li>
+          <li>客户成功 · 高 NPS 客户复购</li>
+          <li>销售工具 · 战区周报自动化</li>
+        </ul>
+      </div>
+      <div class="quad q-tr">
+        <h3><span class="ord">B</span>战略投入</h3>
+        <ul>
+          <li>飞书 Base · 大客户深度集成</li>
+          <li>多维表格 · 行业模板矩阵</li>
+          <li>视频会议 · 实时翻译/纪要</li>
+        </ul>
+      </div>
+      <div class="quad q-bl">
+        <h3><span class="ord">D</span>候选 · 季度复评</h3>
+        <ul>
+          <li>开发者社区 · OpenAPI 推广</li>
+          <li>合作伙伴 · ISV 生态</li>
+        </ul>
+      </div>
+      <div class="quad q-br">
+        <h3><span class="ord">C</span>不做 / 推迟</h3>
+        <ul>
+          <li>定制化中台 · ROI 低 + 投入大</li>
+          <li>消费级 IM · 偏离主线</li>
+        </ul>
+      </div>
+      <div class="x-axis">
+        <span class="label">LOW</span>
+        <span class="name">实施难度</span>
+        <span class="label">HIGH</span>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ============================================================
+     PROPOSAL 2 — Executive Summary
+     ============================================================ -->
+<div class="slide-frame">
+  <div class="slide" data-layout="exec-summary" data-screen-label="02 Exec-Summary" data-slide-key="proposal-exec-summary">
+    <div class="wordmark"></div>
+    <div class="header">
+      <h2 class="title-zh">Executive Summary · 本季三件事</h2>
+    </div>
+    <div class="stage">
+      <p class="thesis">飞书 2026 Q1 北区营收同比 +47%,核心驱动力是 AI 助手在 30+ 头部客户落地。 三件最关键的事,决定 Q2 能否继续翻倍。</p>
+      <div class="takeaways">
+        <div class="take">
+          <div class="head"><span class="n">01</span><span class="t">AI 助手已被验证</span></div>
+          <p class="body">30 家头部客户中,28 家把飞书 AI 内嵌进核心业务流,平均节省运营时长 32%。</p>
+          <div class="kpi"><span class="v">28<span style="font-size:24px;">/30</span></span><span class="l">客户深度使用</span></div>
+        </div>
+        <div class="take">
+          <div class="head"><span class="n">02</span><span class="t">销售效率结构性提升</span></div>
+          <p class="body">销售人效从 ¥820k/人 提升到 ¥1.18M,主要来自 AI 助手 + 战区数据看板组合。</p>
+          <div class="kpi"><span class="v">+44%</span><span class="l">销售人效</span></div>
+        </div>
+        <div class="take">
+          <div class="head"><span class="n">03</span><span class="t">续约率创新高</span></div>
+          <p class="body">大客户续约率从 84% 升到 96%,客户成功团队介入时机从交付后 3 月提前到 1 月。</p>
+          <div class="kpi"><span class="v">96%</span><span class="l">大客户续约率</span></div>
+        </div>
+      </div>
+      <div class="actions">
+        <span class="label">下一步 ▶</span>
+        <span class="items">Q2 扩 5 个区 · AI 助手深度版立项 · 客户成功提前介入机制全公司推广</span>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ============================================================
+     PROPOSAL 3 — Waterfall / 桥图 (v2 · with dashed connectors)
+     ============================================================ -->
+<div class="slide-frame">
+  <div class="slide" data-layout="waterfall" data-screen-label="03 Waterfall" data-slide-key="proposal-waterfall">
+    <div class="wordmark"></div>
+    <div class="header">
+      <h2 class="title-zh">营收增长拆解 · 2025 Q4 → 2026 Q1</h2>
+    </div>
+    <div class="stage">
+      <div class="chart">
+        <svg class="connectors" viewBox="0 0 100 100" preserveAspectRatio="none">
+          <!-- 4 dashed connectors between bar tops; each line spans 20% width × position -->
+          <line x1="10" y1="38"  x2="30" y2="38" />
+          <line x1="30" y1="14"  x2="50" y2="14" />
+          <line x1="50" y1="-2"  x2="70" y2="-2" />
+          <line x1="70" y1="2"   x2="90" y2="2" />
+        </svg>
+        <div class="bar is-base">
+          <div class="value">¥ 8.2M</div>
+          <div class="delta">起点</div>
+          <div class="col"></div>
+          <div class="label">Q4 营收</div>
+          <div class="sublabel">2025 Q4 BASELINE</div>
+        </div>
+        <div class="bar is-pos">
+          <div class="value">+ ¥ 2.4M</div>
+          <div class="delta">+ 29%</div>
+          <div class="col" style="height: 240px;"></div>
+          <div class="label">渠道扩展</div>
+          <div class="sublabel">新签 12 家头部</div>
+        </div>
+        <div class="bar is-pos">
+          <div class="value">+ ¥ 1.6M</div>
+          <div class="delta">+ 19%</div>
+          <div class="col" style="height: 160px;"></div>
+          <div class="label">单价提升</div>
+          <div class="sublabel">AI 包升级</div>
+        </div>
+        <div class="bar is-neg">
+          <div class="value">− ¥ 0.4M</div>
+          <div class="delta">− 5%</div>
+          <div class="col" style="height: 40px;"></div>
+          <div class="label">客户流失</div>
+          <div class="sublabel">2 家中型未续</div>
+        </div>
+        <div class="bar is-end">
+          <div class="value">¥ 11.8M</div>
+          <div class="delta">合计 + 44%</div>
+          <div class="col"></div>
+          <div class="label">Q1 营收</div>
+          <div class="sublabel">2026 Q1 ACTUAL</div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ============================================================
+     PROPOSAL 4 — Issue tree / MECE (v2 · root hero)
+     ============================================================ -->
+<div class="slide-frame">
+  <div class="slide" data-layout="issue-tree" data-screen-label="04 Issue-Tree" data-slide-key="proposal-issue-tree">
+    <div class="wordmark"></div>
+    <div class="header">
+      <h2 class="title-zh">ROI 未达预期 · 拆 3 个根因</h2>
+    </div>
+    <div class="stage">
+      <div class="root">
+        <div class="q">为什么 ROI<br>未达预期?</div>
+        <div class="why">实际 <em>1.8×</em> · 预期 <em>3.0×</em></div>
+      </div>
+      <div class="connector">
+        <svg viewBox="0 0 100 600" preserveAspectRatio="none">
+          <path d="M0,300 L50,300 L50,80 L100,80" stroke="rgba(60,127,255,0.55)" stroke-width="1.5" fill="none" stroke-dasharray="4 4"/>
+          <path d="M0,300 L50,300 L50,300 L100,300" stroke="rgba(60,127,255,0.55)" stroke-width="1.5" fill="none" stroke-dasharray="4 4"/>
+          <path d="M0,300 L50,300 L50,520 L100,520" stroke="rgba(60,127,255,0.55)" stroke-width="1.5" fill="none" stroke-dasharray="4 4"/>
+        </svg>
+      </div>
+      <div class="branches">
+        <div class="branch">
+          <div class="b1"><span class="ord">A</span><span class="t">客户深度使用率低</span></div>
+          <div class="b1-conn">
+            <svg viewBox="0 0 80 100" preserveAspectRatio="none">
+              <path d="M0,50 L40,50 L40,20 L80,20" stroke="rgba(51,214,192,0.55)" stroke-width="1.5" fill="none" stroke-dasharray="4 4"/>
+              <path d="M0,50 L40,50 L40,80 L80,80" stroke="rgba(51,214,192,0.55)" stroke-width="1.5" fill="none" stroke-dasharray="4 4"/>
+            </svg>
+          </div>
+          <div class="leaves">
+            <div class="leaf">仅 40% 用户进入核心业务流</div>
+            <div class="leaf">培训留存衰减,3 月后掉到 22%</div>
+          </div>
+        </div>
+        <div class="branch">
+          <div class="b1"><span class="ord">B</span><span class="t">产品 vs 业务的 fit 不够</span></div>
+          <div class="b1-conn">
+            <svg viewBox="0 0 80 100" preserveAspectRatio="none">
+              <path d="M0,50 L40,50 L40,20 L80,20" stroke="rgba(51,214,192,0.55)" stroke-width="1.5" fill="none" stroke-dasharray="4 4"/>
+              <path d="M0,50 L40,50 L40,80 L80,80" stroke="rgba(51,214,192,0.55)" stroke-width="1.5" fill="none" stroke-dasharray="4 4"/>
+            </svg>
+          </div>
+          <div class="leaves">
+            <div class="leaf">行业模板缺失,客户改 6 周才能用</div>
+            <div class="leaf">关键场景 (审批/汇报) 灵活度不够</div>
+          </div>
+        </div>
+        <div class="branch">
+          <div class="b1"><span class="ord">C</span><span class="t">客户成功覆盖不到</span></div>
+          <div class="b1-conn">
+            <svg viewBox="0 0 80 100" preserveAspectRatio="none">
+              <path d="M0,50 L40,50 L40,20 L80,20" stroke="rgba(51,214,192,0.55)" stroke-width="1.5" fill="none" stroke-dasharray="4 4"/>
+              <path d="M0,50 L40,50 L40,80 L80,80" stroke="rgba(51,214,192,0.55)" stroke-width="1.5" fill="none" stroke-dasharray="4 4"/>
+            </svg>
+          </div>
+          <div class="leaves">
+            <div class="leaf">CSM:客户 = 1:18,远超 1:8 业内标杆</div>
+            <div class="leaf">介入时机晚,问题 3 月后才发现</div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ============================================================
+     PROPOSAL 5 — Architecture Stack
+     ============================================================ -->
+<div class="slide-frame">
+  <div class="slide" data-layout="arch-stack" data-screen-label="05 Arch-Stack" data-slide-key="proposal-arch-stack">
+    <div class="wordmark"></div>
+    <div class="header">
+      <h2 class="title-zh">飞书企业 AI · 产品全景</h2>
+    </div>
+    <div class="stage">
+      <div class="layer is-l1">
+        <div class="name">
+          <div class="title">应用层</div>
+          <div class="sub">APPS · 面向终端用户</div>
+        </div>
+        <div class="modules">
+          <span class="m">飞书消息</span>
+          <span class="m">飞书文档</span>
+          <span class="m">多维表格</span>
+          <span class="m">视频会议</span>
+          <span class="m">飞书 AI 助手</span>
+          <span class="m">知识库</span>
+        </div>
+      </div>
+      <div class="layer is-l2">
+        <div class="name">
+          <div class="title">平台能力层</div>
+          <div class="sub">PLATFORM · 业务搭建 & 集成</div>
+        </div>
+        <div class="modules">
+          <span class="m">aPaaS</span>
+          <span class="m">妙搭</span>
+          <span class="m">aily 智能体</span>
+          <span class="m">集成平台</span>
+          <span class="m">OpenAPI</span>
+        </div>
+      </div>
+      <div class="layer is-l3">
+        <div class="name">
+          <div class="title">AI 引擎层</div>
+          <div class="sub">AI ENGINES · 通用智能能力</div>
+        </div>
+        <div class="modules">
+          <span class="m">豆包大模型</span>
+          <span class="m">RAG 知识引擎</span>
+          <span class="m">工作流编排</span>
+          <span class="m">语义检索</span>
+        </div>
+      </div>
+      <div class="layer is-l4">
+        <div class="name">
+          <div class="title">数据底座</div>
+          <div class="sub">DATA FOUNDATION · 一体化</div>
+        </div>
+        <div class="modules">
+          <span class="m">统一身份</span>
+          <span class="m">数据中台</span>
+          <span class="m">权限治理</span>
+          <span class="m">日志审计</span>
+          <span class="m">安全合规</span>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ============================================================
+     PROPOSAL 6 — Logo Wall
+     ============================================================ -->
+<div class="slide-frame">
+  <div class="slide" data-layout="logo-wall" data-screen-label="06 Logo-Wall" data-slide-key="proposal-logo-wall">
+    <div class="wordmark"></div>
+    <div class="header">
+      <h2 class="title-zh">50+ 头部企业 · 与飞书一起跑</h2>
+    </div>
+    <div class="stage">
+      <p class="lede">从新茶饮到家电零售、从顶级 PE 到投行,飞书在 <em>20+ 行业头部</em> 的真实业务流里持续运转。</p>
+      <div class="industries">
+        <div class="industry">
+          <span class="ind-name">新茶饮 / 餐饮连锁</span>
+          <div class="logos">
+            <div class="logo" style="background-image:url('../assets/shared/clientlogo/霸王茶姬.png')"></div>
+            <div class="logo" style="background-image:url('../assets/shared/clientlogo/蜜雪冰城.png')"></div>
+            <div class="logo" style="background-image:url('../assets/shared/clientlogo/瑞幸咖啡.png')"></div>
+            <div class="logo" style="background-image:url('../assets/shared/clientlogo/茶百道.png')"></div>
+            <div class="logo" style="background-image:url('../assets/shared/clientlogo/奈雪的茶.png')"></div>
+            <div class="logo" style="background-image:url('../assets/shared/clientlogo/海底捞.png')"></div>
+            <div class="logo" style="background-image:url('../assets/shared/clientlogo/巴奴毛肚火锅.png')"></div>
+            <div class="logo" style="background-image:url('../assets/shared/clientlogo/阿香米线.png')"></div>
+          </div>
+        </div>
+        <div class="industry">
+          <span class="ind-name">投资机构</span>
+          <div class="logos">
+            <div class="logo" style="background-image:url('../assets/shared/clientlogo/红杉中国.png')"></div>
+            <div class="logo" style="background-image:url('../assets/shared/clientlogo/IDG资本.png')"></div>
+            <div class="logo" style="background-image:url('../assets/shared/clientlogo/源码资本.png')"></div>
+            <div class="logo" style="background-image:url('../assets/shared/clientlogo/经纬创投.png')"></div>
+            <div class="logo" style="background-image:url('../assets/shared/clientlogo/KKR.png')"></div>
+            <div class="logo" style="background-image:url('../assets/shared/clientlogo/PAG.png')"></div>
+            <div class="logo" style="background-image:url('../assets/shared/clientlogo/中金公司.png')"></div>
+            <div class="logo" style="background-image:url('../assets/shared/clientlogo/CPE源峰.png')"></div>
+          </div>
+        </div>
+        <div class="industry">
+          <span class="ind-name">服饰 / 美妆 / 零售</span>
+          <div class="logos">
+            <div class="logo" style="background-image:url('../assets/shared/clientlogo/Mistine_1.png')"></div>
+            <div class="logo" style="background-image:url('../assets/shared/clientlogo/HBN颜究所.png')"></div>
+            <div class="logo" style="background-image:url('../assets/shared/clientlogo/ubras.png')"></div>
+            <div class="logo" style="background-image:url('../assets/shared/clientlogo/Babycare.png')"></div>
+            <div class="logo" style="background-image:url('../assets/shared/clientlogo/JACK_JONES_杰克琼斯.png')"></div>
+            <div class="logo" style="background-image:url('../assets/shared/clientlogo/Kappa中国.png')"></div>
+            <div class="logo" style="background-image:url('../assets/shared/clientlogo/PEAK_匹克.png')"></div>
+            <div class="logo" style="background-image:url('../assets/shared/clientlogo/ELLASSAY_歌力思.png')"></div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ============================================================
+     PROPOSAL 7 — Roadmap with Swim Lanes
+     ============================================================ -->
+<div class="slide-frame">
+  <div class="slide" data-layout="roadmap-swim" data-screen-label="07 Roadmap-Swim" data-slide-key="proposal-roadmap-swim">
+    <div class="wordmark"></div>
+    <div class="header">
+      <h2 class="title-zh">2026 飞书 AI · 4 条产品线并行路线</h2>
+    </div>
+    <div class="stage">
+      <!-- Row 1: time axis -->
+      <div class="time-cell empty"></div>
+      <div class="time-cell">Q1</div>
+      <div class="time-cell">Q2</div>
+      <div class="time-cell">Q3</div>
+      <div class="time-cell">Q4</div>
+
+      <!-- Lane 1: AI 助手 -->
+      <div class="lane-name is-blue">
+        飞书 AI 助手
+        <span class="sub">AI ASSISTANT</span>
+      </div>
+      <div style="display:contents">
+        <div></div>
+        <div><div class="ms is-blue"><div class="t">AI 助手 v2</div><div class="d">多模态 + 工作流</div></div></div>
+        <div></div>
+        <div><div class="ms is-blue"><div class="t">AI Workspace</div><div class="d">个人 AI 工作台</div></div></div>
+      </div>
+
+      <!-- Lane 2: Base -->
+      <div class="lane-name is-teal">
+        多维表格 Base
+        <span class="sub">BASE PLATFORM</span>
+      </div>
+      <div style="display:contents">
+        <div><div class="ms is-teal"><div class="t">行业模板矩阵</div><div class="d">30+ 模板</div></div></div>
+        <div></div>
+        <div><div class="ms is-teal"><div class="t">AI 公式</div><div class="d">自然语言生成</div></div></div>
+        <div></div>
+      </div>
+
+      <!-- Lane 3: 视频会议 -->
+      <div class="lane-name is-violet">
+        视频会议
+        <span class="sub">MEETINGS</span>
+      </div>
+      <div style="display:contents">
+        <div></div>
+        <div><div class="ms is-violet"><div class="t">实时翻译</div><div class="d">10+ 语种</div></div></div>
+        <div><div class="ms is-violet"><div class="t">AI 纪要 v2</div><div class="d">决策提取</div></div></div>
+        <div></div>
+      </div>
+
+      <!-- Lane 4: 平台 -->
+      <div class="lane-name is-orange">
+        集成平台
+        <span class="sub">PLATFORM</span>
+      </div>
+      <div style="display:contents">
+        <div><div class="ms is-orange"><div class="t">OpenAPI v3</div><div class="d">100+ 接口</div></div></div>
+        <div></div>
+        <div></div>
+        <div><div class="ms is-orange"><div class="t">ISV 生态</div><div class="d">合作伙伴上线</div></div></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ============================================================
+     PROPOSAL 8 — Before / After
+     ============================================================ -->
+<div class="slide-frame">
+  <div class="slide" data-layout="before-after" data-screen-label="08 Before-After" data-slide-key="proposal-before-after">
+    <div class="wordmark"></div>
+    <div class="header">
+      <h2 class="title-zh">用飞书 12 周后 · 5 个真实变化</h2>
+    </div>
+    <div class="stage">
+      <div class="side before">
+        <span class="tag">现状 · 痛点</span>
+        <ul>
+          <li><span class="icon">✕</span>关键决策需 3-5 天跨部门对齐</li>
+          <li><span class="icon">✕</span>客户沟通分散 6 个工具,信息丢</li>
+          <li><span class="icon">✕</span>销售周报手动汇总,T+2 才出</li>
+          <li><span class="icon">✕</span>新员工 3 周才能上手核心流程</li>
+          <li><span class="icon">✕</span>跨地区会议没纪要,行动项漏</li>
+        </ul>
+      </div>
+      <div class="pivot">
+        <div class="arrow">→</div>
+        <div class="caption">用飞书 12 周后</div>
+      </div>
+      <div class="side after">
+        <span class="tag">飞书 · 现在</span>
+        <ul>
+          <li><span class="icon">✓</span>关键决策对齐 &lt; 60 秒,Wiki 留痕</li>
+          <li><span class="icon">✓</span>消息 + 文档 + 表格 + 会议一体</li>
+          <li><span class="icon">✓</span>Base 自动汇总,T+0 实时看板</li>
+          <li><span class="icon">✓</span>新员工 3 天上手,模板沉淀</li>
+          <li><span class="icon">✓</span>AI 纪要自动出,行动项进 Base</li>
+        </ul>
+      </div>
+    </div>
+  </div>
+</div>
+
+</div>
+<script src="../assets/feishu-deck.js"></script>
+</body>
+</html>

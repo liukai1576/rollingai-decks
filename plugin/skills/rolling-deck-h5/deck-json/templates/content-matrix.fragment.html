@@ -1,0 +1,21 @@
+    <div class="slide-frame">
+      <div class="slide" data-layout="matrix-2x2" {{{ data_attrs }}} data-screen-label="{{ screen_label }}" data-slide-key="{{ slide_key }}">
+        <div class="wordmark">飞书</div>
+        <div class="header">
+          <h2 class="title-zh" data-text-id="slide-{{ slide_no_padded }}.title">{{ title }}</h2>
+        </div>
+        <div class="stage">
+          <div class="y-axis">
+            <span class="label">{{ axes.y.high_label }}</span>
+            <span class="name">{{ axes.y.name }}</span>
+            <span class="label">{{ axes.y.low_label }}</span>
+          </div>
+{{{ quadrants_html }}}
+          <div class="x-axis">
+            <span class="label">{{ axes.x.low_label }}</span>
+            <span class="name">{{ axes.x.name }}</span>
+            <span class="label">{{ axes.x.high_label }}</span>
+          </div>
+        </div>
+      </div>
+    </div>

@@ -1,0 +1,47 @@
+{
+  "version": "0.1",
+  "deck": {
+    "title": "Example · 4-page narrative",
+    "author": "RollingAI",
+    "date": "2026-05"
+  },
+  "story": {
+    "id": "example-story",
+    "title": "Example · 4-page narrative",
+    "tags": ["pillar/example", "form/narrative", "length/short"]
+  },
+  "slides": [
+    {
+      "key": "cover",
+      "layout": "cover",
+      "data": {
+        "title": "示例小故事",
+        "author": "RollingAI",
+        "date": "2026-05"
+      }
+    },
+    {
+      "key": "context",
+      "layout": "content",
+      "data": {
+        "title": "1. 背景",
+        "body": "这是一个 4 页的示例 story，用来让管理平台的 block view 有东西可显示。"
+      }
+    },
+    {
+      "key": "insight",
+      "layout": "content",
+      "data": {
+        "title": "2. 关键洞察",
+        "body": "story 不是 slide — 是一个有起承转合的叙事单元。"
+      }
+    },
+    {
+      "key": "end",
+      "layout": "end",
+      "data": {
+        "title": "更换内容即可复用"
+      }
+    }
+  ]
+}

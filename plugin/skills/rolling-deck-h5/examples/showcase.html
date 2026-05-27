@@ -1,0 +1,1063 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="fs-language" content="zh-only">
+<title>feishu-deck-h5 · 设计语言展示 · 飞书</title>
+<link rel="stylesheet" href="../assets/feishu-deck.css">
+<style>
+  /* Showcase chrome: a small annotation chip in the top-right of every
+     slide telling the reader which layout / pattern this slide demonstrates.
+     Excluded from data-text-id since it's meta-content about the showcase,
+     not deck copy. */
+  .slide .demo-tag {
+    position: absolute; top: 60px; right: 200px;
+    font: 600 16px/1 var(--fs-font-latin);
+    letter-spacing: 0.12em;
+    color: var(--fs-text-72);
+    padding: 8px 14px;
+    border: 1px solid var(--fs-text-16);
+    border-radius: 999px;
+    background: rgba(255,255,255,0.04);
+    z-index: 10;
+  }
+
+  /* Per-page CSS for slides that need bespoke layout — typography demo,
+     alignment demo, etc. All within 4-tier discipline. */
+
+  /* slide-03 · typography 4-tier table */
+  [data-page="3"] .slide .stage { display: flex; flex-direction: column; gap: 28px; justify-content: center; }
+  [data-page="3"] .slide .tier-row {
+    display: grid; grid-template-columns: 140px 120px 1fr;
+    align-items: center; gap: 32px;
+    padding: 20px 28px;
+    border: 1px solid var(--fs-text-16); border-radius: 14px;
+    background: rgba(255,255,255,0.04);
+  }
+  [data-page="3"] .slide .tier-row .t-label {
+    font: 700 24px/1 var(--fs-font-cjk);
+    color: var(--fs-blue); letter-spacing: 0.04em;
+  }
+  [data-page="3"] .slide .tier-row .t-px {
+    font: 800 28px/1 var(--fs-font-latin);
+    color: #fff;
+  }
+  [data-page="3"] .slide .tier-row.title .t-sample { font: 700 48px/1.2 var(--fs-font-cjk); color: #fff; }
+  [data-page="3"] .slide .tier-row.sub .t-sample { font: 700 28px/1.2 var(--fs-font-cjk); color: #fff; }
+  [data-page="3"] .slide .tier-row.body .t-sample { font: 500 24px/1.4 var(--fs-font-cjk); color: #fff; }
+  [data-page="3"] .slide .tier-row.foot .t-sample { font: 600 16px/1.2 var(--fs-font-cjk); color: var(--fs-text-72); }
+
+  /* slide-04 · alignment BF10-12 demo */
+  [data-page="4"] .slide .stage { display: flex; flex-direction: column; gap: 24px; justify-content: center; }
+  [data-page="4"] .slide .bf-row {
+    display: grid; grid-template-columns: 120px 1fr;
+    gap: 32px;
+    padding: 24px 28px;
+    border: 1px solid var(--fs-text-16); border-radius: 14px;
+    background: rgba(255,255,255,0.04);
+    align-items: center;
+  }
+  [data-page="4"] .slide .bf-row .bf-tag {
+    font: 700 24px/1 var(--fs-font-cjk);
+    letter-spacing: 0.04em;
+    color: var(--fs-teal);
+  }
+  [data-page="4"] .slide .bf-row .bf-content { display: flex; flex-direction: column; gap: 6px; }
+  [data-page="4"] .slide .bf-row .bf-title { font: 700 28px/1.2 var(--fs-font-cjk); color: #fff; }
+  [data-page="4"] .slide .bf-row .bf-desc { font: 500 24px/1.4 var(--fs-font-cjk); color: #fff; }
+
+  /* slide-07 · mock placeholder is a tertiary "where the screenshot goes" hint
+     in the visual column. Muted negative space, not content. */
+  [data-page="7"] .slide .mock-placeholder { /* allow:white-opacity */ height: 100%; display: grid; place-items: center; color: rgba(255,255,255,0.30); font: 500 24px/1 var(--fs-font-cjk); }
+
+  /* slide-09 · stats 4-up demo */
+  [data-page="9"] .slide .grid { grid-template-columns: repeat(4, 1fr); gap: 32px; }
+  [data-page="9"] .slide .col { padding: 0 24px; border-left: 1px solid var(--fs-text-16); display: flex; flex-direction: column; gap: 12px; }
+  [data-page="9"] .slide .col:first-child { border-left: 0; }
+  [data-page="9"] .slide .col .trend { font: 700 24px/1 var(--fs-font-cjk); color: var(--fs-teal); letter-spacing: 0.06em; }
+  [data-page="9"] .slide .col .num { /* allow:typescale — stats hero numeral, 88px. */ font: 800 88px/1 var(--fs-font-latin); color: #fff; background: var(--fs-grad-keyline); -webkit-background-clip: text; background-clip: text; color: transparent; letter-spacing: -0.02em; }
+  [data-page="9"] .slide .col .num .unit { /* allow:typescale — unit subscript of hero numeral. */ font-size: 36px; color: #fff; -webkit-text-fill-color: #fff; }
+  [data-page="9"] .slide .col .label { font: 500 24px/1.4 var(--fs-font-cjk); color: #fff; }
+  [data-page="9"] .slide .col .source { font: 500 16px/1.3 var(--fs-font-cjk); color: var(--fs-text-72); }
+
+  /* slide-10 · big-stat demo */
+  [data-page="10"] .slide .stage {
+    display: grid; grid-template-columns: 1fr 1fr;
+    align-items: center; gap: 80px;
+  }
+  [data-page="10"] .slide .num {
+    /* allow:typescale — big-stat hero numeral, 240px (canonical big-stat 132+). */
+    font: 800 240px/1 var(--fs-font-latin);
+    background: var(--fs-grad-keyline);
+    -webkit-background-clip: text; background-clip: text; color: transparent;
+    letter-spacing: -0.02em;
+  }
+  [data-page="10"] .slide .num .unit {
+    /* allow:typescale — unit subscript of hero numeral. */
+    font-size: 96px; -webkit-text-fill-color: #fff; color: #fff;
+  }
+  [data-page="10"] .slide .copy h3 { font: 700 48px/1.15 var(--fs-font-cjk); color: #fff; margin-bottom: 16px; }
+  [data-page="10"] .slide .copy p { font: 500 24px/1.55 var(--fs-font-cjk); color: #fff; max-width: 600px; }
+
+  /* slide-11 · image-text demo (color block stand-in for photo) */
+  [data-page="11"] .slide { background: linear-gradient(135deg, #0A2540 0%, #1B3A5B 50%, #2D5582 100%); }
+  [data-page="11"] .slide .stage { padding: 120px 96px; }
+  [data-page="11"] .slide .lede { font: 500 28px/1.4 var(--fs-font-cjk); color: #fff; opacity: 0.85; margin-top: 16px; max-width: 700px; }
+
+  /* slide-12 · table demo */
+  [data-page="12"] .slide .table-wrap { padding: 0 96px; }
+  [data-page="12"] .slide table { width: 100%; border-collapse: collapse; }
+  [data-page="12"] .slide thead th { font: 700 24px/1.2 var(--fs-font-cjk); color: var(--fs-blue); text-align: left; padding: 18px 20px; border-bottom: 2px solid var(--fs-blue); }
+  [data-page="12"] .slide tbody td { font: 500 24px/1.45 var(--fs-font-cjk); color: #fff; padding: 18px 20px; border-bottom: 1px solid var(--fs-text-16); }
+  [data-page="12"] .slide tbody td:first-child { color: #fff; font-weight: 600; }
+
+  /* slide-13 · timeline — framework defaults; only override column count to 5 */
+  [data-page="13"] .slide .nodes { --cols: 5; }
+
+  /* slide-14 · process */
+  [data-page="14"] .slide .flow { display: grid; grid-template-columns: repeat(4, 1fr); gap: 28px; padding: 0 96px; }
+  [data-page="14"] .slide .step {
+    padding: 28px 24px;
+    border: 1px solid var(--fs-text-16); border-radius: 14px;
+    background: linear-gradient(180deg, rgba(60,127,255,0.10), rgba(8,12,24,0.40));
+    display: flex; flex-direction: column; gap: 12px; position: relative;
+  }
+  [data-page="14"] .slide .step:not(:last-child)::after {
+    content: '→'; position: absolute; right: -22px; top: 50%; transform: translateY(-50%);
+    font: 700 28px/1 var(--fs-font-cjk); color: var(--fs-blue);
+  }
+  [data-page="14"] .slide .step .stnum { font: 700 48px/1 var(--fs-font-latin); color: var(--fs-blue); letter-spacing: 0.02em; }
+  [data-page="14"] .slide .step p { font: 500 24px/1.5 var(--fs-font-cjk); color: #fff; }
+
+  /* slide-15 · Pattern N — 5-up overview hero numerals */
+  [data-page="15"] .slide .stage { padding: 0 96px; display: flex; justify-content: center; align-items: center; }
+  [data-page="15"] .slide .overview-grid {
+    display: grid; grid-template-columns: repeat(5, 1fr); gap: 24px; width: 100%;
+  }
+  [data-page="15"] .slide .overview-card {
+    padding: 36px 28px 32px;
+    display: flex; flex-direction: column; gap: 18px;
+    min-height: 320px;
+    border-radius: 16px;
+    border: 1px solid var(--fs-text-16);
+    background: rgba(255,255,255,0.04);
+  }
+  [data-page="15"] .slide .overview-card .ov-num {
+    /* allow:typescale — Hero numeral, 88px (>1.8× Title 48 per Goldilocks). */
+    font: 500 88px/0.95 var(--fs-font-latin);
+    letter-spacing: -0.01em;
+    color: color-mix(in srgb, var(--fs-accent) 55%, transparent);
+  }
+  [data-page="15"] .slide .overview-card .ov-name { font: 700 48px/1.15 var(--fs-font-cjk); color: #fff; }
+  [data-page="15"] .slide .overview-card .ov-desc { font: 500 24px/1.5 var(--fs-font-cjk); color: #fff; opacity: 0.92; margin-top: auto; }
+  [data-page="15"] .slide .overview-card.is-c1 { border-color: rgba(60,127,255,0.55); background: linear-gradient(180deg, rgba(60,127,255,0.12) 0%, rgba(8,12,24,0.50) 100%); }
+  [data-page="15"] .slide .overview-card.is-c1 .ov-num { color: color-mix(in srgb, var(--fs-blue) 55%, transparent); }
+  [data-page="15"] .slide .overview-card.is-c2 { border-color: rgba(159,111,241,0.55); background: linear-gradient(180deg, rgba(159,111,241,0.14) 0%, rgba(8,12,24,0.50) 100%); }
+  [data-page="15"] .slide .overview-card.is-c2 .ov-num { color: color-mix(in srgb, var(--fs-violet) 55%, transparent); }
+  [data-page="15"] .slide .overview-card.is-c3 { border-color: rgba(51,214,192,0.55); background: linear-gradient(180deg, rgba(51,214,192,0.12) 0%, rgba(8,12,24,0.50) 100%); }
+  [data-page="15"] .slide .overview-card.is-c3 .ov-num { color: color-mix(in srgb, var(--fs-teal) 55%, transparent); }
+  [data-page="15"] .slide .overview-card.is-c4 { border-color: rgba(254,127,0,0.50); background: linear-gradient(180deg, rgba(254,127,0,0.14) 0%, rgba(8,12,24,0.50) 100%); }
+  [data-page="15"] .slide .overview-card.is-c4 .ov-num { color: color-mix(in srgb, var(--fs-orange) 55%, transparent); }
+  [data-page="15"] .slide .overview-card.is-c5 { border-color: rgba(255,255,255,0.30); background: linear-gradient(180deg, rgba(255,255,255,0.06) 0%, rgba(8,12,24,0.50) 100%); }
+  [data-page="15"] .slide .overview-card.is-c5 .ov-num { /* allow:white-opacity */ color: rgba(255,255,255,0.55); }
+
+  /* slide-16 · Pattern L — north-star-map */
+  [data-page="16"] .slide .north-star-map { display: grid; grid-template-columns: repeat(4, 1fr); gap: 22px; padding: 0 96px; }
+  [data-page="16"] .slide .ns-card {
+    padding: 32px 28px 28px; border-radius: 16px;
+    border: 1px solid var(--fs-text-16);
+    background: rgba(255,255,255,0.04);
+    display: flex; flex-direction: column; gap: 12px;
+  }
+  [data-page="16"] .slide .ns-card .idx { /* allow:typescale — hero numeral 88, anchors the card */ font: 500 88px/0.95 var(--fs-font-latin); color: color-mix(in srgb, var(--fs-accent) 55%, transparent); letter-spacing: -0.01em; }
+  [data-page="16"] .slide .ns-card h4 { font: 700 48px/1.1 var(--fs-font-cjk); color: #fff; margin: 0 0 6px; }
+  [data-page="16"] .slide .ns-card .star-label, [data-page="16"] .slide .ns-card .core-label { font: 700 24px/1 var(--fs-font-cjk); color: currentColor; letter-spacing: 0.04em; margin-top: 8px; }
+  [data-page="16"] .slide .ns-card .star, [data-page="16"] .slide .ns-card .core { font: 500 24px/1.4 var(--fs-font-cjk); color: #fff; }
+  [data-page="16"] .slide .ns-card.is-blue { border-color: rgba(60,127,255,0.55); color: var(--fs-blue); }
+  [data-page="16"] .slide .ns-card.is-blue .idx { color: color-mix(in srgb, var(--fs-blue) 55%, transparent); }
+  [data-page="16"] .slide .ns-card.is-violet { border-color: rgba(159,111,241,0.55); color: var(--fs-violet); }
+  [data-page="16"] .slide .ns-card.is-violet .idx { color: color-mix(in srgb, var(--fs-violet) 55%, transparent); }
+  [data-page="16"] .slide .ns-card.is-teal { border-color: rgba(51,214,192,0.55); color: var(--fs-teal); }
+  [data-page="16"] .slide .ns-card.is-teal .idx { color: color-mix(in srgb, var(--fs-teal) 55%, transparent); }
+  [data-page="16"] .slide .ns-card.is-orange { border-color: rgba(254,127,0,0.50); color: var(--fs-orange); }
+  [data-page="16"] .slide .ns-card.is-orange .idx { color: color-mix(in srgb, var(--fs-orange) 55%, transparent); }
+
+  /* slide-17 · Pattern M — scene-grid */
+  [data-page="17"] .slide .scene-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 22px; padding: 0 96px; }
+  [data-page="17"] .slide .scene-card {
+    padding: 28px 24px; border-radius: 14px;
+    border: 1px solid var(--fs-text-16);
+    background: rgba(255,255,255,0.04);
+    display: flex; flex-direction: column; gap: 14px;
+    border-top-width: 3px;
+  }
+  [data-page="17"] .slide .scene-card .sc-name { font: 700 24px/1.2 var(--fs-font-cjk); color: #fff; }
+  [data-page="17"] .slide .scene-card hr { border: 0; height: 1px; background: var(--fs-text-16); margin: 0; }
+  [data-page="17"] .slide .scene-card .sc-label { font: 700 24px/1 var(--fs-font-cjk); color: currentColor; letter-spacing: 0.04em; }
+  [data-page="17"] .slide .scene-card .sc-obj { font: 600 24px/1.4 var(--fs-font-cjk); color: #fff; }
+  [data-page="17"] .slide .scene-card .sc-lever { font: 500 24px/1.4 var(--fs-font-cjk); color: #fff; padding: 10px 12px; border-radius: 8px; background: rgba(255,255,255,0.025); }
+  [data-page="17"] .slide .scene-card .sc-lever em { font-style: normal; font-weight: 800; color: #fff; }
+  [data-page="17"] .slide .scene-card.is-blue { border-top-color: var(--fs-blue); color: var(--fs-blue); }
+  [data-page="17"] .slide .scene-card.is-violet { border-top-color: var(--fs-violet); color: var(--fs-violet); }
+  [data-page="17"] .slide .scene-card.is-teal { border-top-color: var(--fs-teal); color: var(--fs-teal); }
+
+  /* slide-18 · Pattern D — boundary band */
+  [data-page="18"] .slide .grid { grid-template-columns: 1fr 1fr; gap: 36px; padding: 0 96px; }
+  [data-page="18"] .slide .side { padding: 32px 32px; border-radius: 16px; display: flex; flex-direction: column; gap: 18px; }
+  [data-page="18"] .slide .side.is-no { border: 1.5px dashed rgba(254,127,0,0.55); background: rgba(254,127,0,0.06); }
+  [data-page="18"] .slide .side.is-yes { border: 1.5px solid rgba(51,214,192,0.55); background: rgba(51,214,192,0.08); }
+  [data-page="18"] .slide .side .column-pill { padding: 10px 22px; border-radius: 999px; font: 700 28px/1 var(--fs-font-cjk); letter-spacing: 0.06em; align-self: flex-start; }
+  [data-page="18"] .slide .side.is-no .column-pill { background: rgba(254,127,0,0.22); color: var(--fs-orange); }
+  [data-page="18"] .slide .side.is-yes .column-pill { background: rgba(51,214,192,0.22); color: var(--fs-teal); }
+  [data-page="18"] .slide .side p { font: 500 24px/1.5 var(--fs-font-cjk); color: #fff; }
+  [data-page="18"] .slide .side.is-no p { text-decoration: line-through; opacity: 0.75; }
+  [data-page="18"] .slide .side.is-yes b { font-weight: 700; color: var(--fs-teal); }
+
+  /* slide-19 · Pattern J — principle band 3-color */
+  [data-page="19"] .slide .stage { display: flex; flex-direction: column; gap: 32px; justify-content: center; }
+  [data-page="19"] .slide .principle-band { display: flex; gap: 32px; padding: 24px 32px; border-radius: 14px; background: rgba(255,255,255,0.03); border: 1px solid var(--fs-text-16); justify-self: center; flex-wrap: wrap; }
+  [data-page="19"] .slide .principle { display: inline-flex; align-items: center; gap: 10px; font: 700 28px/1 var(--fs-font-cjk); }
+  [data-page="19"] .slide .principle::before { content: ''; width: 10px; height: 10px; border-radius: 999px; background: currentColor; }
+  [data-page="19"] .slide .principle[data-color="teal"] { color: var(--fs-teal); }
+  [data-page="19"] .slide .principle[data-color="blue"] { color: var(--fs-blue); }
+  [data-page="19"] .slide .principle[data-color="violet"] { color: var(--fs-violet); }
+  [data-page="19"] .slide .desc { font: 500 24px/1.5 var(--fs-font-cjk); color: #fff; padding: 0 96px; }
+
+  /* slide-20 · Pattern H+ — two-hand-arch */
+  [data-page="20"] .slide .stage { padding: 0 96px; }
+  [data-page="20"] .slide .arch-top { text-align: center; font: 700 28px/1.3 var(--fs-font-cjk); color: #fff; margin-bottom: 20px; }
+  [data-page="20"] .slide .arch-top svg { width: 28px; height: 28px; vertical-align: middle; margin-right: 8px; color: var(--fs-accent); }
+  [data-page="20"] .slide .arch-hands { display: grid; grid-template-columns: 1fr 1fr; gap: 32px; }
+  [data-page="20"] .slide .arch-hand { padding: 28px 28px; border-radius: 16px; border: 1.5px solid; }
+  [data-page="20"] .slide .arch-hand.left { background: linear-gradient(160deg, rgba(60,127,255,0.16), rgba(60,127,255,0.02)); border-color: rgba(60,127,255,0.45); }
+  [data-page="20"] .slide .arch-hand.right { background: linear-gradient(160deg, rgba(51,214,192,0.16), rgba(51,214,192,0.02)); border-color: rgba(51,214,192,0.45); }
+  [data-page="20"] .slide .arch-hand-title { display: flex; align-items: baseline; gap: 16px; margin-bottom: 8px; }
+  [data-page="20"] .slide .arch-hand-title h3 { font: 700 28px/1.2 var(--fs-font-cjk); color: #fff; }
+  [data-page="20"] .slide .arch-hand-title .em { font: 600 24px/1 var(--fs-font-latin); letter-spacing: 0.18em; color: var(--fs-text-72); }
+  [data-page="20"] .slide .arch-hand .sub { font: 500 24px/1.4 var(--fs-font-cjk); color: var(--fs-text-72); margin-bottom: 18px; }
+  [data-page="20"] .slide .arch-items { display: flex; flex-direction: column; gap: 10px; }
+  [data-page="20"] .slide .arch-item { padding: 14px 16px; border-radius: 10px; background: rgba(255,255,255,0.05); font: 500 24px/1.4 var(--fs-font-cjk); color: #fff; display: flex; align-items: center; gap: 14px; }
+  [data-page="20"] .slide .arch-item .n { width: 30px; height: 30px; border-radius: 8px; display: grid; place-items: center; font: 700 16px/1 var(--fs-font-cjk); color: #fff; }
+  [data-page="20"] .slide .arch-hand.left .arch-item .n { background: var(--fs-blue); }
+  [data-page="20"] .slide .arch-hand.right .arch-item .n { background: var(--fs-teal); color: #0A0E1B; }
+
+  /* slide-21 · Pattern I — 5-stage pipeline (chevron-connected solid boxes,
+     visually distinct from slide-13 timeline which is dotted-rail). */
+  [data-page="21"] .slide .stage { padding: 0 64px; display: flex; flex-direction: column; gap: 32px; justify-content: center; }
+  [data-page="21"] .slide .pipe-row { display: grid; grid-template-columns: repeat(5, 1fr) ; gap: 12px; align-items: stretch; }
+  [data-page="21"] .slide .pipe-box {
+    position: relative;
+    padding: 28px 26px;
+    border-radius: 14px;
+    background: linear-gradient(160deg, rgba(60,127,255,0.18), rgba(60,127,255,0.04));
+    border: 1.5px solid rgba(60,127,255,0.45);
+    display: flex; flex-direction: column; gap: 12px;
+    min-height: 280px;
+  }
+  [data-page="21"] .slide .pipe-box:nth-child(2) { background: linear-gradient(160deg, rgba(96,143,255,0.20), rgba(96,143,255,0.05)); border-color: rgba(96,143,255,0.55); }
+  [data-page="21"] .slide .pipe-box:nth-child(3) { background: linear-gradient(160deg, rgba(120,180,238,0.20), rgba(120,180,238,0.05)); border-color: rgba(120,180,238,0.55); }
+  [data-page="21"] .slide .pipe-box:nth-child(4) { background: linear-gradient(160deg, rgba(81,205,213,0.20), rgba(81,205,213,0.05)); border-color: rgba(81,205,213,0.55); }
+  [data-page="21"] .slide .pipe-box:nth-child(5) { background: linear-gradient(160deg, rgba(51,214,192,0.22), rgba(51,214,192,0.05)); border-color: rgba(51,214,192,0.55); }
+  [data-page="21"] .slide .pipe-box:not(:last-child)::after {
+    content: '';
+    position: absolute; right: -18px; top: 50%;
+    width: 24px; height: 24px;
+    border-top: 3px solid var(--fs-blue);
+    border-right: 3px solid var(--fs-blue);
+    transform: translateY(-50%) rotate(45deg);
+    z-index: 2;
+  }
+  [data-page="21"] .slide .pipe-box:nth-child(4)::after { border-top-color: var(--fs-teal); border-right-color: var(--fs-teal); }
+  [data-page="21"] .slide .pipe-box .num {
+    /* allow:typescale — hero numeral anchor for the stage */
+    font: 500 88px/0.9 var(--fs-font-latin);
+    color: color-mix(in srgb, var(--fs-blue) 60%, transparent);
+    letter-spacing: -0.01em;
+  }
+  [data-page="21"] .slide .pipe-box:nth-child(2) .num { color: color-mix(in srgb, #608FFF 60%, transparent); }
+  [data-page="21"] .slide .pipe-box:nth-child(3) .num { color: color-mix(in srgb, #78B4EE 60%, transparent); }
+  [data-page="21"] .slide .pipe-box:nth-child(4) .num { color: color-mix(in srgb, #51CDD5 60%, transparent); }
+  [data-page="21"] .slide .pipe-box:nth-child(5) .num { color: color-mix(in srgb, var(--fs-teal) 60%, transparent); }
+  [data-page="21"] .slide .pipe-box .title-zh { font: 700 48px/1.1 var(--fs-font-cjk); color: #fff; }
+  [data-page="21"] .slide .pipe-box .out-label { font: 700 24px/1 var(--fs-font-cjk); color: var(--fs-blue); letter-spacing: 0.04em; margin-top: auto; }
+  [data-page="21"] .slide .pipe-box:nth-child(5) .out-label { color: var(--fs-teal); }
+  [data-page="21"] .slide .pipe-box .out { font: 500 24px/1.4 var(--fs-font-cjk); color: #fff; }
+
+  /* slide-22 · Pattern B — verdict pill matrix */
+  [data-page="22"] .slide .grid { grid-template-columns: repeat(3, 1fr); gap: 24px; padding: 0 96px; }
+  [data-page="22"] .slide .verdict-card { padding: 32px 32px 28px; border-radius: 14px; display: flex; flex-direction: column; gap: 16px; border: 1.5px solid; border-top-width: 5px; }
+  /* badge moved inline as a self-aligned pill at the card top — was absolute
+     and overlapping border + title at low resolutions. 24 body so it reads. */
+  [data-page="22"] .slide .verdict-card .badge { align-self: flex-start; font: 700 24px/1 var(--fs-font-cjk); letter-spacing: 0.04em; padding: 10px 20px; border-radius: 999px; color: #fff; }
+  [data-page="22"] .slide .verdict-card .ctitle { font: 700 48px/1.15 var(--fs-font-cjk); color: #fff; }
+  [data-page="22"] .slide .verdict-card .cbody { font: 500 24px/1.45 var(--fs-font-cjk); color: #fff; }
+  [data-page="22"] .slide .verdict-card[data-verdict="go"] { border-color: var(--fs-teal); background: rgba(51,214,192,0.08); }
+  [data-page="22"] .slide .verdict-card[data-verdict="go"] .badge { background: var(--fs-teal); color: #0A0E1B; }
+  [data-page="22"] .slide .verdict-card[data-verdict="conditional"] { border-color: var(--fs-violet); background: rgba(159,111,241,0.08); }
+  [data-page="22"] .slide .verdict-card[data-verdict="conditional"] .badge { background: var(--fs-violet); }
+  [data-page="22"] .slide .verdict-card[data-verdict="nogo"] { border-color: var(--fs-orange); background: rgba(254,127,0,0.08); }
+  [data-page="22"] .slide .verdict-card[data-verdict="nogo"] .badge { background: var(--fs-orange); color: #0A0E1B; }
+
+  /* slide-23 · Pattern C — north-star chip */
+  [data-page="23"] .slide .stage { display: flex; flex-direction: column; gap: 28px; justify-content: center; padding: 0 96px; }
+  [data-page="23"] .slide .north-star {
+    align-self: flex-start;
+    display: inline-flex; align-items: center; gap: 12px;
+    padding: 14px 24px; border-radius: 999px;
+    border: 1px dashed var(--fs-teal);
+    font: 700 24px/1 var(--fs-font-cjk); color: var(--fs-teal);
+    background: rgba(51,214,192,0.08);
+  }
+  [data-page="23"] .slide .north-star::before { content: '★'; font-size: 28px; }
+  [data-page="23"] .slide .ns-explain { font: 500 24px/1.55 var(--fs-font-cjk); color: #fff; max-width: 1000px; }
+  [data-page="23"] .slide .ns-explain b { color: var(--fs-teal); font-weight: 700; }
+
+  /* slide-24 · Pattern F — evolution chip */
+  [data-page="24"] .slide .stage { display: flex; flex-direction: column; gap: 24px; justify-content: center; padding: 0 96px; }
+  [data-page="24"] .slide .evolution-chip {
+    display: grid; grid-template-columns: auto 1fr; gap: 14px 28px;
+    padding: 28px 32px; border-radius: 14px;
+    border: 1px dashed var(--fs-text-16);
+    background: rgba(255,255,255,0.03);
+    align-items: center;
+    align-self: flex-start;
+  }
+  [data-page="24"] .slide .evolution-chip .stage-tag { font: 700 24px/1 var(--fs-font-cjk); letter-spacing: 0.04em; color: var(--fs-teal); }
+  [data-page="24"] .slide .evolution-chip .stage-body { font: 500 28px/1.3 var(--fs-font-cjk); color: #fff; }
+  [data-page="24"] .slide .evolution-chip .stage-body.is-future { color: var(--fs-teal); font-weight: 700; }
+  [data-page="24"] .slide .why { font: 500 24px/1.55 var(--fs-font-cjk); color: #fff; max-width: 1200px; }
+
+  /* slide-25 · canonical-card recipe */
+  [data-page="25"] .slide .stage { padding: 0 96px; display: flex; flex-direction: column; gap: 24px; justify-content: center; }
+  [data-page="25"] .slide .canonical-row { display: grid; grid-template-columns: repeat(3, 1fr); gap: 22px; }
+
+  /* slide-26 · 3-tier tag taxonomy */
+  [data-page="26"] .slide .stage { padding: 0 96px; display: flex; flex-direction: column; gap: 22px; justify-content: center; }
+  [data-page="26"] .slide .tag-demo {
+    display: grid; grid-template-columns: 140px auto 1fr; gap: 24px;
+    align-items: center;
+    padding: 20px 28px;
+    border-radius: 14px;
+    border: 1px solid var(--fs-text-16);
+    background: rgba(255,255,255,0.04);
+  }
+  [data-page="26"] .slide .tag-demo .lbl { font: 700 24px/1 var(--fs-font-cjk); color: var(--fs-blue); letter-spacing: 0.04em; }
+  [data-page="26"] .slide .tag-demo .sample { display: flex; align-items: center; gap: 8px; }
+  [data-page="26"] .slide .tag-demo .note { font: 500 24px/1.4 var(--fs-font-cjk); color: #fff; }
+
+  /* slide-27 · CTA box + pullquote + voice-card */
+  [data-page="27"] .slide .stage { padding: 0 96px; display: flex; flex-direction: column; gap: 24px; justify-content: center; }
+  [data-page="27"] .slide .cta-box { display: flex; align-items: center; justify-content: space-between; gap: 32px; padding: 28px 36px; border-radius: 18px; border: 1.5px solid var(--fs-blue); background: linear-gradient(135deg, rgba(60,127,255,0.18), rgba(51,214,192,0.10)); }
+  [data-page="27"] .slide .cta-box .l h3 { font: 700 28px/1.3 var(--fs-font-cjk); color: #fff; margin-bottom: 6px; }
+  [data-page="27"] .slide .cta-box .l p { font: 500 24px/1.5 var(--fs-font-cjk); color: #fff; opacity: 0.92; }
+  [data-page="27"] .slide .cta-box .cta-btn { padding: 16px 32px; border-radius: 999px; border: 0; background: var(--fs-blue); color: #fff; font: 700 24px/1 var(--fs-font-cjk); }
+  [data-page="27"] .slide .pullquote { padding: 24px 32px; border-left: 4px solid var(--fs-teal); margin-left: -32px; font: 500 28px/1.4 var(--fs-font-cjk); color: #fff; font-style: italic; }
+  [data-page="27"] .slide .voice-card { display: flex; flex-direction: column; gap: 8px; padding: 28px 32px; border-radius: 16px; border: 1px solid var(--fs-text-16); background: rgba(255,255,255,0.04); }
+  [data-page="27"] .slide .voice-card .q { font: 500 24px/1.5 var(--fs-font-cjk); color: #fff; }
+  [data-page="27"] .slide .voice-card .who { font: 700 24px/1 var(--fs-font-cjk); color: var(--fs-blue); letter-spacing: 0.04em; margin-top: 6px; }
+</style>
+</head>
+<body>
+<div class="deck">
+
+<!-- ============================================================
+     Section A · Framework Basics (slides 01-04)
+     ============================================================ -->
+
+<!-- 01 cover ============================================================== -->
+<div class="slide-frame" data-page="1">
+  <div class="slide" data-layout="cover" data-screen-label="01 Cover" data-slide-key="showcase-cover">
+    <div class="wordmark" data-text-id="slide-01.wordmark">飞书</div>
+    <div class="stage">
+      <h1 class="title title-zh" data-text-id="slide-01.title">feishu-deck-h5<br>设计语言展示</h1>
+    </div>
+    <div class="author">
+      <span data-text-id="slide-01.span">设计语言团队</span><br>
+      <span data-text-id="slide-01.span_02">2026.05.16</span>
+    </div>
+  </div>
+</div>
+
+<!-- 02 agenda ============================================================= -->
+<div class="slide-frame" data-page="2">
+  <div class="slide" data-layout="agenda" data-accent="blue" data-screen-label="02 Agenda" data-slide-key="showcase-agenda">
+    <div class="wordmark"></div>
+    <div class="toc">
+      <div class="item"><div class="n" data-text-id="slide-02.n">01</div><div class="title-zh" data-text-id="slide-02.title_zh">字号体系与对齐规则</div></div>
+      <div class="item"><div class="n" data-text-id="slide-02.n_02">02</div><div class="title-zh" data-text-id="slide-02.title_zh_02">十一种版式演示</div></div>
+      <div class="item"><div class="n" data-text-id="slide-02.n_03">03</div><div class="title-zh" data-text-id="slide-02.title_zh_03">十个叙事 pattern</div></div>
+      <div class="item"><div class="n" data-text-id="slide-02.n_04">04</div><div class="title-zh" data-text-id="slide-02.title_zh_04">富文本助手与卡片配方</div></div>
+    </div>
+  </div>
+</div>
+
+<!-- 03 typography 4-tier ================================================= -->
+<div class="slide-frame" data-page="3">
+  <div class="slide" data-layout="content-2col" data-accent="blue" data-screen-label="03 Typography" data-slide-key="showcase-typography">
+    <div class="wordmark"></div>
+    <div class="demo-tag" data-text-id="slide-03.demo_tag">字号体系</div>
+    <div class="header">
+      <h2 class="title-zh" data-text-id="slide-03.title_zh">4-tier 严格制 · 全 deck 只用 48 / 28 / 24 / 16</h2>
+    </div>
+    <div class="stage">
+      <div class="tier-row title">
+        <span class="t-label" data-text-id="slide-03.t_label">Title</span><span class="t-px" data-text-id="slide-03.t_px">48 px</span>
+        <span class="t-sample" data-text-id="slide-03.t_sample">飞书企业 AI 客户案例集</span>
+      </div>
+      <div class="tier-row sub">
+        <span class="t-label" data-text-id="slide-03.t_label_02">Sub</span><span class="t-px" data-text-id="slide-03.t_px_02">28 px</span>
+        <span class="t-sample" data-text-id="slide-03.t_sample_02">本季度增长 56% 的核心抓手</span>
+      </div>
+      <div class="tier-row body">
+        <span class="t-label" data-text-id="slide-03.t_label_03">Body</span><span class="t-px" data-text-id="slide-03.t_px_03">24 px</span>
+        <span class="t-sample" data-text-id="slide-03.t_sample_03">在 4 个一线门店做了 12 周实测,客单价提升 8.4%。</span>
+      </div>
+      <div class="tier-row foot">
+        <span class="t-label" data-text-id="slide-03.t_label_04">Foot</span><span class="t-px" data-text-id="slide-03.t_px_04">16 px</span>
+        <span class="t-sample" data-text-id="slide-03.t_sample_04">数据来源 · 内部 BI 系统 · 截至 2026 Q1 周报</span>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- 04 alignment BF10-12 ================================================ -->
+<div class="slide-frame" data-page="4">
+  <div class="slide" data-layout="content-2col" data-accent="teal" data-screen-label="04 Alignment" data-slide-key="showcase-alignment">
+    <div class="wordmark"></div>
+    <div class="demo-tag" data-text-id="slide-04.demo_tag">对齐默认</div>
+    <div class="header">
+      <h2 class="title-zh" data-text-id="slide-04.title_zh">对齐三大默认 · framework 自动应用</h2>
+    </div>
+    <div class="stage">
+      <div class="bf-row">
+        <span class="bf-tag" data-text-id="slide-04.bf_tag">BF10</span>
+        <div class="bf-content">
+          <span class="bf-title" data-text-id="slide-04.bf_title">混排大字小字默认 center,不要 baseline</span>
+          <span class="bf-desc" data-text-id="slide-04.bf_desc">字号比 &gt; 1.5× 的混排行(如 48 数字 + 24 中文)用 .mixed-row 工具类。</span>
+        </div>
+      </div>
+      <div class="bf-row">
+        <span class="bf-tag" data-text-id="slide-04.bf_tag_02">BF11</span>
+        <div class="bf-content">
+          <span class="bf-title" data-text-id="slide-04.bf_title_02">big-stat hero 居中(opt-in modifier)</span>
+          <span class="bf-desc" data-text-id="slide-04.bf_desc_02">2-col-hero 版式给 .hero 加 .is-centered,内容垂直水平居中,不再贴左边缘。</span>
+        </div>
+      </div>
+      <div class="bf-row">
+        <span class="bf-tag" data-text-id="slide-04.bf_tag_03">BF12</span>
+        <div class="bf-content">
+          <span class="bf-title" data-text-id="slide-04.bf_title_03">多卡 col 自动等高</span>
+          <span class="bf-desc" data-text-id="slide-04.bf_desc_03">col-text / col-visual 内有两张以上 canonical-card 时,通过 :has() 自动 flex column + flex:1。</span>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ============================================================
+     Section B · 11 Layouts (slides 05-13)
+     skipping cover (01) / agenda (02) / end (29) already covered elsewhere
+     ============================================================ -->
+
+<!-- 05 section ========================================================== -->
+<div class="slide-frame" data-page="5">
+  <div class="slide" data-layout="section" data-screen-label="05 Section" data-slide-key="showcase-section">
+    <div class="wordmark"></div>
+    <div class="demo-tag" data-text-id="slide-05.demo_tag">Layout · section</div>
+    <div class="chapter-num" data-text-id="slide-05.chapter_num">02.</div>
+    <h2 class="title title-zh" data-text-id="slide-05.title">先进团队的工作方式</h2>
+    <p class="lede" data-text-id="slide-05.lede">即时同步 · 共识对齐 · 闭环交付</p>
+    <div class="pills">
+      <span class="pill" data-text-id="slide-05.pill_01">飞书消息</span>
+      <span class="pill" data-text-id="slide-05.pill_02">飞书文档</span>
+      <span class="pill" data-text-id="slide-05.pill_03">多维表格</span>
+      <span class="pill" data-text-id="slide-05.pill_04">飞书会议</span>
+    </div>
+  </div>
+</div>
+
+<!-- 06 content-3up ====================================================== -->
+<div class="slide-frame" data-page="6">
+  <div class="slide" data-layout="content-3up" data-accent="blue" data-screen-label="06 Content 3-up" data-slide-key="showcase-content-3up">
+    <div class="wordmark"></div>
+    <div class="demo-tag" data-text-id="slide-06.demo_tag">Layout · content-3up</div>
+    <div class="header">
+      <h2 class="title-zh" data-text-id="slide-06.title_zh">先进团队的三大工作方式</h2>
+    </div>
+    <div class="stage">
+      <div class="grid">
+        <div class="card">
+          <div class="head"><div class="num" data-text-id="slide-06.num">01</div></div>
+          <h3 class="ctitle" data-text-id="slide-06.ctitle_01">即时同步</h3>
+          <p class="cbody" data-text-id="slide-06.cbody_01">30 万人组织 · 单条消息触达全员,平均三秒内已读。</p>
+        </div>
+        <div class="card">
+          <div class="head"><div class="num" data-text-id="slide-06.num_02">02</div></div>
+          <h3 class="ctitle" data-text-id="slide-06.ctitle_02">共识对齐</h3>
+          <p class="cbody" data-text-id="slide-06.cbody_02">所有讨论沉淀进 Wiki,决策可追溯,新成员第一天就能看到全貌。</p>
+        </div>
+        <div class="card">
+          <div class="head"><div class="num" data-text-id="slide-06.num_03">03</div></div>
+          <h3 class="ctitle" data-text-id="slide-06.ctitle_03">闭环交付</h3>
+          <p class="cbody" data-text-id="slide-06.cbody_03">从需求到上线 · 流程在多维表格中自动流转,每步都有责任人和时间戳。</p>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- 07 content-2col ===================================================== -->
+<div class="slide-frame" data-page="7">
+  <div class="slide" data-layout="content-2col" data-accent="blue" data-screen-label="07 Content 2-col" data-slide-key="showcase-content-2col">
+    <div class="wordmark"></div>
+    <div class="demo-tag" data-text-id="slide-07.demo_tag">Layout · content-2col</div>
+    <div class="header">
+      <h2 class="title-zh" data-text-id="slide-07.title_zh">让业务流程在表格里运转</h2>
+    </div>
+    <div class="stage">
+      <div class="grid">
+        <div class="col-text">
+          <p class="lede" data-text-id="slide-07.lede">多维表格把任务、工单、合同、人员、审批统一到一个可视化界面。</p>
+          <ul class="feature-list">
+            <li data-text-id="slide-07.li">看板 · 甘特 · 日历 · 卡片视图,一份数据多种视角</li>
+            <li data-text-id="slide-07.li_02">关联字段把分散的表打成网,数据不再孤立</li>
+            <li data-text-id="slide-07.li_03">触发器加自动化,把人工操作变成系统行为</li>
+            <li data-text-id="slide-07.li_04">开放 API · 与 ERP / CRM / 自研系统双向同步</li>
+          </ul>
+        </div>
+        <div class="col-visual">
+          <div class="mock-placeholder" data-text-id="slide-07.mock_placeholder">UI 截图 / 产品 mock 位置</div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- 08 quote ============================================================ -->
+<div class="slide-frame" data-page="8">
+  <div class="slide" data-layout="quote" data-accent="blue" data-screen-label="08 Quote" data-slide-key="showcase-quote">
+    <div class="wordmark"></div>
+    <div class="demo-tag" data-text-id="slide-08.demo_tag">Layout · quote</div>
+    <div class="stack">
+      <hr class="keyline">
+      <blockquote>飞书让 30 万人 <span class="accent-text" data-text-id="slide-08.accent_text">像一个团队</span> 一样工作</blockquote>
+      <div class="attrib" data-text-id="slide-08.attrib">某头部互联网公司 · CIO · 2026 Q1</div>
+    </div>
+  </div>
+</div>
+
+<!-- 09 stats ============================================================ -->
+<div class="slide-frame" data-page="9">
+  <div class="slide" data-layout="stats" data-accent="teal" data-screen-label="09 Stats 4-up" data-slide-key="showcase-stats">
+    <div class="wordmark"></div>
+    <div class="demo-tag" data-text-id="slide-09.demo_tag">Layout · stats</div>
+    <div class="header">
+      <h2 class="title-zh" data-text-id="slide-09.title_zh">飞书带来的可量化结果</h2>
+    </div>
+    <div class="stage">
+      <div class="grid">
+        <div class="col">
+          <span class="trend" data-text-id="slide-09.trend">↑ 触达</span>
+          <div class="num">3<span class="unit" data-text-id="slide-09.unit">秒</span></div>
+          <div class="label" data-text-id="slide-09.label">30 万人组织全员消息送达时延</div>
+          <div class="source" data-text-id="slide-09.source">数据来源 · 内部传输实测</div>
+        </div>
+        <div class="col">
+          <span class="trend" data-text-id="slide-09.trend_02">↑ 已读</span>
+          <div class="num">98<span class="unit" data-text-id="slide-09.unit_02">%</span></div>
+          <div class="label" data-text-id="slide-09.label_02">关键通知 30 分钟内已读率</div>
+          <div class="source" data-text-id="slide-09.source_02">数据来源 · 12 家头部企业平均</div>
+        </div>
+        <div class="col">
+          <span class="trend" data-text-id="slide-09.trend_03">↑ ROI</span>
+          <div class="num">3.2<span class="unit" data-text-id="slide-09.unit_03">×</span></div>
+          <div class="label" data-text-id="slide-09.label_03">部署 12 个月后协同 ROI 中位数</div>
+          <div class="source" data-text-id="slide-09.source_03">数据来源 · 行业白皮书</div>
+        </div>
+        <div class="col">
+          <span class="trend" data-text-id="slide-09.trend_04">↓ 决策</span>
+          <div class="num">60<span class="unit" data-text-id="slide-09.unit_04">秒</span></div>
+          <div class="label" data-text-id="slide-09.label_04">关键决策从发起到对齐时长</div>
+          <div class="source" data-text-id="slide-09.source_04">数据来源 · 客户访谈</div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- 10 big-stat ========================================================= -->
+<div class="slide-frame" data-page="10">
+  <div class="slide" data-layout="big-stat" data-accent="blue" data-screen-label="10 Big Stat" data-slide-key="showcase-big-stat">
+    <div class="wordmark"></div>
+    <div class="demo-tag" data-text-id="slide-10.demo_tag">Layout · big-stat</div>
+    <div class="stage">
+      <div class="num">30<span class="unit" data-text-id="slide-10.unit">万人</span></div>
+      <div class="copy">
+        <h3 data-text-id="slide-10.h3">单一组织 · 统一协同</h3>
+        <p data-text-id="slide-10.p">飞书的消息、文档、视频会议在 30 万人量级下保持秒级响应,无需私有部署。</p>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- 11 image-text ======================================================= -->
+<div class="slide-frame" data-page="11">
+  <div class="slide" data-layout="image-text" data-accent="blue" data-screen-label="11 Image-text" data-slide-key="showcase-image-text">
+    <div class="wordmark"></div>
+    <div class="demo-tag" data-text-id="slide-11.demo_tag">Layout · image-text</div>
+    <div class="stage">
+      <h2 class="title" data-text-id="slide-11.title">现场决策<br>从未离线</h2>
+      <p class="lede" data-text-id="slide-11.lede">门店 · 产线 · 出差 · 远程 — 飞书让每一处节点都能即时被看到、被对齐。</p>
+    </div>
+  </div>
+</div>
+
+<!-- 12 table ============================================================ -->
+<div class="slide-frame" data-page="12">
+  <div class="slide" data-layout="table" data-accent="blue" data-screen-label="12 Table" data-slide-key="showcase-table">
+    <div class="wordmark"></div>
+    <div class="demo-tag" data-text-id="slide-12.demo_tag">Layout · table</div>
+    <div class="header">
+      <h2 class="title-zh" data-text-id="slide-12.title_zh">飞书与传统办公套件对比</h2>
+    </div>
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr><th data-text-id="slide-12.th_01">能力</th><th data-text-id="slide-12.th_02">飞书</th><th data-text-id="slide-12.th_03">传统套件 A</th><th data-text-id="slide-12.th_04">传统套件 B</th></tr>
+        </thead>
+        <tbody>
+          <tr><td data-text-id="slide-12.td_01">消息 · 文档 · 表格 · 会议</td><td data-text-id="slide-12.td_02">原生集成</td><td data-text-id="slide-12.td_03">多产品拼接</td><td data-text-id="slide-12.td_04">多产品拼接</td></tr>
+          <tr><td data-text-id="slide-12.td_05">多维表格自动化</td><td data-text-id="slide-12.td_06">核心能力</td><td data-text-id="slide-12.td_07">第三方插件</td><td data-text-id="slide-12.td_08">不支持</td></tr>
+          <tr><td data-text-id="slide-12.td_09">30 万人级消息触达</td><td data-text-id="slide-12.td_10">3 秒内全员</td><td data-text-id="slide-12.td_11">未公开</td><td data-text-id="slide-12.td_12">未公开</td></tr>
+          <tr><td data-text-id="slide-12.td_13">开放 API · Webhook</td><td data-text-id="slide-12.td_14">全量开放</td><td data-text-id="slide-12.td_15">受限</td><td data-text-id="slide-12.td_16">受限</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+</div>
+
+<!-- 13 timeline ========================================================= -->
+<div class="slide-frame" data-page="13">
+  <div class="slide" data-layout="timeline" data-accent="blue" data-screen-label="13 Timeline" data-slide-key="showcase-timeline">
+    <div class="wordmark"></div>
+    <div class="demo-tag" data-text-id="slide-13.demo_tag">Layout · timeline</div>
+    <div class="header">
+      <h2 class="title-zh" data-text-id="slide-13.title_zh">12 周落地路径</h2>
+    </div>
+    <div class="axis"></div>
+    <div class="nodes">
+      <div class="node">
+        <div class="when" data-text-id="slide-13.when">W1-2</div>
+        <div class="what" data-text-id="slide-13.what">需求蓝图</div>
+        <div class="desc" data-text-id="slide-13.desc">访谈六个部门 · 输出协同地图与目标 KPI。</div>
+      </div>
+      <div class="node">
+        <div class="when" data-text-id="slide-13.when_02">W3-5</div>
+        <div class="what" data-text-id="slide-13.what_02">关键流程上线</div>
+        <div class="desc" data-text-id="slide-13.desc_02">销售 · HR · 财务三条核心流先跑通。</div>
+      </div>
+      <div class="node">
+        <div class="when" data-text-id="slide-13.when_03">W6-8</div>
+        <div class="what" data-text-id="slide-13.what_03">全员推广</div>
+        <div class="desc" data-text-id="slide-13.desc_03">分层培训 · 关键岗位 100% 接入。</div>
+      </div>
+      <div class="node">
+        <div class="when" data-text-id="slide-13.when_04">W9-10</div>
+        <div class="what" data-text-id="slide-13.what_04">数据搬迁</div>
+        <div class="desc" data-text-id="slide-13.desc_04">历史数据 / 工单系统切换完成。</div>
+      </div>
+      <div class="node">
+        <div class="when" data-text-id="slide-13.when_05">W11-12</div>
+        <div class="what" data-text-id="slide-13.what_05">复盘治理</div>
+        <div class="desc" data-text-id="slide-13.desc_05">复盘 KPI · 调整流程 · 形成长期治理机制。</div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- 14 process ========================================================== -->
+<div class="slide-frame" data-page="14">
+  <div class="slide" data-layout="process" data-accent="blue" data-screen-label="14 Process" data-slide-key="showcase-process">
+    <div class="wordmark"></div>
+    <div class="demo-tag" data-text-id="slide-14.demo_tag">Layout · process</div>
+    <div class="header">
+      <h2 class="title-zh" data-text-id="slide-14.title_zh">需求到交付 · 四步成型</h2>
+    </div>
+    <div class="flow">
+      <div class="step">
+        <span class="stnum" data-text-id="slide-14.stnum">01</span>
+        <h3 data-text-id="slide-14.h3">提出</h3>
+        <p data-text-id="slide-14.p">任意一线员工在飞书消息发起,自动落入工单队列。</p>
+      </div>
+      <div class="step">
+        <span class="stnum" data-text-id="slide-14.stnum_02">02</span>
+        <h3 data-text-id="slide-14.h3_02">对齐</h3>
+        <p data-text-id="slide-14.p_02">相关方在文档留痕讨论,关键决策沉淀到 Wiki。</p>
+      </div>
+      <div class="step">
+        <span class="stnum" data-text-id="slide-14.stnum_03">03</span>
+        <h3 data-text-id="slide-14.h3_03">交付</h3>
+        <p data-text-id="slide-14.p_03">负责人在多维表格流转 · 每步责任人 + 时间戳可追溯。</p>
+      </div>
+      <div class="step">
+        <span class="stnum" data-text-id="slide-14.stnum_04">04</span>
+        <h3 data-text-id="slide-14.h3_04">复盘</h3>
+        <p data-text-id="slide-14.p_04">会后自动生成纪要 · 关键指标进入下个周期。</p>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ============================================================
+     Section C · 10 Narrative Patterns (slides 15-24)
+     ============================================================ -->
+
+<!-- 15 Pattern N · 5-up overview hero numerals ========================= -->
+<div class="slide-frame" data-page="15">
+  <div class="slide" data-layout="content-3up" data-accent="blue" data-screen-label="15 Pattern N · 5-up Overview" data-slide-key="pattern-n">
+    <div class="wordmark"></div>
+    <div class="demo-tag" data-text-id="slide-15.demo_tag">Pattern N · 5-up Overview</div>
+    <div class="header">
+      <h2 class="title-zh" data-text-id="slide-15.title_zh">本周南区周会 · 五个推进方向</h2>
+    </div>
+    <div class="stage">
+      <div class="overview-grid">
+        <div class="overview-card is-c1"><span class="ov-num" data-text-id="slide-15.ov_num">01</span><span class="ov-name" data-text-id="slide-15.ov_name">商机管理</span><span class="ov-desc" data-text-id="slide-15.ov_desc">Q2/Q3 大扫除 · 周末截止</span></div>
+        <div class="overview-card is-c2"><span class="ov-num" data-text-id="slide-15.ov_num_02">02</span><span class="ov-name" data-text-id="slide-15.ov_name_02">AI 服务售卖</span><span class="ov-desc" data-text-id="slide-15.ov_desc_02">售前帮扛 SOP 难题</span></div>
+        <div class="overview-card is-c3"><span class="ov-num" data-text-id="slide-15.ov_num_03">03</span><span class="ov-name" data-text-id="slide-15.ov_name_03">新客建联</span><span class="ov-desc" data-text-id="slide-15.ov_desc_03">CXO 重点 · 56% 目标</span></div>
+        <div class="overview-card is-c4"><span class="ov-num" data-text-id="slide-15.ov_num_04">04</span><span class="ov-name" data-text-id="slide-15.ov_name_04">市场活动</span><span class="ov-desc" data-text-id="slide-15.ov_desc_04">五场密集落地</span></div>
+        <div class="overview-card is-c5"><span class="ov-num" data-text-id="slide-15.ov_num_05">05</span><span class="ov-name" data-text-id="slide-15.ov_name_05">售前支持</span><span class="ov-desc" data-text-id="slide-15.ov_desc_05">HTML5 风格成主流</span></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- 16 Pattern L · north-star-map ======================================== -->
+<div class="slide-frame" data-page="16">
+  <div class="slide" data-layout="content-3up" data-accent="blue" data-screen-label="16 Pattern L · North-Star Map" data-slide-key="pattern-l">
+    <div class="wordmark"></div>
+    <div class="demo-tag" data-text-id="slide-16.demo_tag">Pattern L · North-Star Map</div>
+    <div class="header">
+      <h2 class="title-zh" data-text-id="slide-16.title_zh">四个专项的北极星指标</h2>
+    </div>
+    <div class="stage">
+      <div class="north-star-map">
+        <div class="ns-card is-blue"><span class="idx" data-text-id="slide-16.idx">01</span><h4 data-text-id="slide-16.h4">门店管理</h4><span class="star-label" data-text-id="slide-16.star_label">北极星</span><span class="star" data-text-id="slide-16.star">门店坪效</span><span class="core-label" data-text-id="slide-16.core_label">核心售卖</span><span class="core" data-text-id="slide-16.core">千店千面个性化</span></div>
+        <div class="ns-card is-violet"><span class="idx" data-text-id="slide-16.idx_02">02</span><h4 data-text-id="slide-16.h4_02">内容营销</h4><span class="star-label" data-text-id="slide-16.star_label_02">北极星</span><span class="star" data-text-id="slide-16.star_02">投放 ROI</span><span class="core-label" data-text-id="slide-16.core_label_02">核心售卖</span><span class="core" data-text-id="slide-16.core_02">素材全生命周期</span></div>
+        <div class="ns-card is-teal"><span class="idx" data-text-id="slide-16.idx_03">03</span><h4 data-text-id="slide-16.h4_03">供应链</h4><span class="star-label" data-text-id="slide-16.star_label_03">北极星</span><span class="star" data-text-id="slide-16.star_03">报损率</span><span class="core-label" data-text-id="slide-16.core_label_03">核心售卖</span><span class="core" data-text-id="slide-16.core_03">异常识别自动化</span></div>
+        <div class="ns-card is-orange"><span class="idx" data-text-id="slide-16.idx_04">04</span><h4 data-text-id="slide-16.h4_04">组织治理</h4><span class="star-label" data-text-id="slide-16.star_label_04">北极星</span><span class="star" data-text-id="slide-16.star_04">决策时长</span><span class="core-label" data-text-id="slide-16.core_label_04">核心售卖</span><span class="core" data-text-id="slide-16.core_04">数字分身赋能</span></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- 17 Pattern M · scene-grid =========================================== -->
+<div class="slide-frame" data-page="17">
+  <div class="slide" data-layout="content-3up" data-accent="blue" data-screen-label="17 Pattern M · Scene Grid" data-slide-key="pattern-m">
+    <div class="wordmark"></div>
+    <div class="demo-tag" data-text-id="slide-17.demo_tag">Pattern M · Scene Grid</div>
+    <div class="header">
+      <h2 class="title-zh" data-text-id="slide-17.title_zh">单一原则 · 跨行业适用</h2>
+    </div>
+    <div class="stage">
+      <div class="scene-grid">
+        <div class="scene-card is-blue"><span class="sc-name" data-text-id="slide-17.sc_name">生鲜超市</span><hr><span class="sc-label" data-text-id="slide-17.sc_label">个性化对象</span><span class="sc-obj" data-text-id="slide-17.sc_obj">千店千策订货 · 调价</span><span class="sc-lever">经济杠杆 · <em data-text-id="slide-17.em">报损率 ↓1pp = 头部一年增利 1-2 亿</em></span></div>
+        <div class="scene-card is-violet"><span class="sc-name" data-text-id="slide-17.sc_name_02">便利店选品</span><hr><span class="sc-label" data-text-id="slide-17.sc_label_02">个性化对象</span><span class="sc-obj" data-text-id="slide-17.sc_obj_02">千店千策 SKU 组合</span><span class="sc-lever">经济杠杆 · <em data-text-id="slide-17.em_02">单店日销 ↑5%+</em></span></div>
+        <div class="scene-card is-teal"><span class="sc-name" data-text-id="slide-17.sc_name_03">连锁餐饮</span><hr><span class="sc-label" data-text-id="slide-17.sc_label_03">个性化对象</span><span class="sc-obj" data-text-id="slide-17.sc_obj_03">门店营销活动配比</span><span class="sc-lever">经济杠杆 · <em data-text-id="slide-17.em_03">同店增长 ↑8 个百分点</em></span></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- 18 Pattern D · boundary band ========================================= -->
+<div class="slide-frame" data-page="18">
+  <div class="slide" data-layout="content-2col" data-accent="teal" data-screen-label="18 Pattern D · Boundary Band" data-slide-key="pattern-d">
+    <div class="wordmark"></div>
+    <div class="demo-tag" data-text-id="slide-18.demo_tag">Pattern D · Boundary Band</div>
+    <div class="header">
+      <h2 class="title-zh" data-text-id="slide-18.title_zh">不做 · 做 · 明确投入边界</h2>
+    </div>
+    <div class="stage">
+      <div class="grid">
+        <div class="side is-no">
+          <span class="column-pill" data-text-id="slide-18.column_pill">不做</span>
+          <p data-text-id="slide-18.p">为单点客户定制非通用功能</p>
+        </div>
+        <div class="side is-yes">
+          <span class="column-pill" data-text-id="slide-18.column_pill_02">做</span>
+          <p>投入到 <b data-text-id="slide-18.b">5+ 客户共有的</b> 通用能力</p>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- 19 Pattern J · principle band ======================================== -->
+<div class="slide-frame" data-page="19">
+  <div class="slide" data-layout="content-2col" data-accent="blue" data-screen-label="19 Pattern J · Principle Band" data-slide-key="pattern-j">
+    <div class="wordmark"></div>
+    <div class="demo-tag" data-text-id="slide-19.demo_tag">Pattern J · Principle Band</div>
+    <div class="header">
+      <h2 class="title-zh" data-text-id="slide-19.title_zh">三色原则带 · 战略选择的视觉钩子</h2>
+    </div>
+    <div class="stage">
+      <div class="principle-band">
+        <span class="principle" data-color="teal" data-text-id="slide-19.principle">专项优先</span>
+        <span class="principle" data-color="blue" data-text-id="slide-19.principle_02">相邻扩展</span>
+        <span class="principle" data-color="violet" data-text-id="slide-19.principle_03">战略例外</span>
+      </div>
+      <p class="desc" data-text-id="slide-19.desc">三色对应三种投入决策 · 每个原则配一色玻璃球前缀,让"为什么做这件事"在一行内说清。适用于战略层 / 资源分配 / 优先级讨论。</p>
+    </div>
+  </div>
+</div>
+
+<!-- 20 Pattern H+ · two-hand-arch ====================================== -->
+<div class="slide-frame" data-page="20">
+  <div class="slide" data-layout="content-2col" data-accent="blue" data-screen-label="20 Pattern H+ · Two-hand Arch" data-slide-key="pattern-h-plus">
+    <div class="wordmark"></div>
+    <div class="demo-tag" data-text-id="slide-20.demo_tag">Pattern H+ · Two-hand Arch</div>
+    <div class="header">
+      <h2 class="title-zh" data-text-id="slide-20.title_zh">两手抓 · 一个决策人 · 一个底座</h2>
+    </div>
+    <div class="stage">
+      <div class="arch-top">
+        <svg viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg>
+        品牌总部 · CEO / 销售 VP / 渠道总监
+      </div>
+      <div class="arch-hands">
+        <div class="arch-hand left">
+          <div class="arch-hand-title"><h3 data-text-id="slide-20.h3">左手 · 协同效率</h3></div>
+          <div class="sub" data-text-id="slide-20.sub">让每个一线节点都能被看到</div>
+          <div class="arch-items">
+            <div class="arch-item"><span class="n" data-text-id="slide-20.n">1</span>消息触达 3 秒</div>
+            <div class="arch-item"><span class="n" data-text-id="slide-20.n_02">2</span>文档共识可追溯</div>
+            <div class="arch-item"><span class="n" data-text-id="slide-20.n_03">3</span>会议自动纪要</div>
+          </div>
+        </div>
+        <div class="arch-hand right">
+          <div class="arch-hand-title"><h3 data-text-id="slide-20.h3_02">右手 · AI 落地</h3></div>
+          <div class="sub" data-text-id="slide-20.sub_02">把隐形经验萃取到企业 AI</div>
+          <div class="arch-items">
+            <div class="arch-item"><span class="n" data-text-id="slide-20.n_04">4</span>知识库自动沉淀</div>
+            <div class="arch-item"><span class="n" data-text-id="slide-20.n_05">5</span>智能体跑通业务</div>
+            <div class="arch-item"><span class="n" data-text-id="slide-20.n_06">6</span>大模型 API 私有化</div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- 21 Pattern I · 6-step pipeline (5-step variant for fit) ============ -->
+<div class="slide-frame" data-page="21">
+  <div class="slide" data-layout="content-2col" data-accent="blue" data-screen-label="21 Pattern I · 5-stage Pipeline" data-slide-key="pattern-i">
+    <div class="wordmark"></div>
+    <div class="demo-tag" data-text-id="slide-21.demo_tag">Pattern I · 5-stage Pipeline</div>
+    <div class="header">
+      <h2 class="title-zh" data-text-id="slide-21.title_zh">端到端项目五阶段</h2>
+    </div>
+    <div class="stage">
+      <div class="pipe-row">
+        <div class="pipe-box">
+          <span class="num" data-text-id="slide-21.num">01</span>
+          <span class="title-zh" data-text-id="slide-21.title_zh_02">访谈</span>
+          <span class="out-label">交付</span>
+          <span class="out" data-text-id="slide-21.out_01">六部门痛点输入</span>
+        </div>
+        <div class="pipe-box">
+          <span class="num" data-text-id="slide-21.num_02">02</span>
+          <span class="title-zh" data-text-id="slide-21.title_zh_03">蓝图</span>
+          <span class="out-label">交付</span>
+          <span class="out" data-text-id="slide-21.out_02">协同地图 + 目标 KPI</span>
+        </div>
+        <div class="pipe-box">
+          <span class="num" data-text-id="slide-21.num_03">03</span>
+          <span class="title-zh" data-text-id="slide-21.title_zh_04">试点</span>
+          <span class="out-label">交付</span>
+          <span class="out" data-text-id="slide-21.out_03">3 条核心流跑通</span>
+        </div>
+        <div class="pipe-box">
+          <span class="num" data-text-id="slide-21.num_04">04</span>
+          <span class="title-zh" data-text-id="slide-21.title_zh_05">推广</span>
+          <span class="out-label">交付</span>
+          <span class="out" data-text-id="slide-21.out_04">全员接入 + 数据搬迁</span>
+        </div>
+        <div class="pipe-box">
+          <span class="num" data-text-id="slide-21.num_05">05</span>
+          <span class="title-zh" data-text-id="slide-21.title_zh_06">治理</span>
+          <span class="out-label">交付</span>
+          <span class="out" data-text-id="slide-21.out_05">长期复盘机制</span>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- 22 Pattern B · verdict pill matrix ================================= -->
+<div class="slide-frame" data-page="22">
+  <div class="slide" data-layout="content-3up" data-accent="blue" data-screen-label="22 Pattern B · Verdict Matrix" data-slide-key="pattern-b">
+    <div class="wordmark"></div>
+    <div class="demo-tag" data-text-id="slide-22.demo_tag">Pattern B · Verdict Matrix</div>
+    <div class="header">
+      <h2 class="title-zh" data-text-id="slide-22.title_zh">三种客户 · 三类介入决策</h2>
+    </div>
+    <div class="stage">
+      <div class="grid">
+        <div class="verdict-card" data-verdict="go">
+          <span class="badge" data-text-id="slide-22.badge">立即接入</span>
+          <h3 class="ctitle" data-text-id="slide-22.ctitle_01">先进型客户</h3>
+          <p class="cbody" data-text-id="slide-22.cbody_01">流程已成熟 · 把飞书带进去即可放大效果。学过来 → 教别人。</p>
+        </div>
+        <div class="verdict-card" data-verdict="conditional">
+          <span class="badge" data-text-id="slide-22.badge_02">条件接入</span>
+          <h3 class="ctitle" data-text-id="slide-22.ctitle_02">中间型客户</h3>
+          <p class="cbody" data-text-id="slide-22.cbody_02">流程半成熟 · 需要先共创 1-2 个核心场景 · R&amp;D VP 接洽。</p>
+        </div>
+        <div class="verdict-card" data-verdict="nogo">
+          <span class="badge" data-text-id="slide-22.badge_03">暂缓</span>
+          <h3 class="ctitle" data-text-id="slide-22.ctitle_03">尚未就绪</h3>
+          <p class="cbody" data-text-id="slide-22.cbody_03">权限不到位 · 当下转化不可控 · 进入后续培育列表。</p>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- 23 Pattern C · north-star chip ====================================== -->
+<div class="slide-frame" data-page="23">
+  <div class="slide" data-layout="content-2col" data-accent="teal" data-screen-label="23 Pattern C · North-Star Chip" data-slide-key="pattern-c">
+    <div class="wordmark"></div>
+    <div class="demo-tag" data-text-id="slide-23.demo_tag">Pattern C · North-Star Chip</div>
+    <div class="header">
+      <h2 class="title-zh" data-text-id="slide-23.title_zh">每个专项页都先钉北极星</h2>
+    </div>
+    <div class="stage">
+      <span class="north-star" data-text-id="slide-23.north_star">北极星指标 · 关键决策时长 &lt; 60 秒</span>
+      <p class="ns-explain">所有项目的成败回到 <b data-text-id="slide-23.b">一个能量化的目标</b> 上。北极星 chip 钉在每张专项页的最前面,让所有讨论都对齐这条线 — 偏了立刻发现。</p>
+    </div>
+  </div>
+</div>
+
+<!-- 24 Pattern F · evolution chip ======================================= -->
+<div class="slide-frame" data-page="24">
+  <div class="slide" data-layout="content-2col" data-accent="blue" data-screen-label="24 Pattern F · Evolution Chip" data-slide-key="pattern-f">
+    <div class="wordmark"></div>
+    <div class="demo-tag" data-text-id="slide-24.demo_tag">Pattern F · Evolution Chip</div>
+    <div class="header">
+      <h2 class="title-zh" data-text-id="slide-24.title_zh">现阶段 → 未来 · 两行讲清演进</h2>
+    </div>
+    <div class="stage">
+      <div class="evolution-chip">
+        <span class="stage-tag" data-text-id="slide-24.stage_tag">现阶段</span><span class="stage-body" data-text-id="slide-24.stage_body">中心化协同 + 部门工作流</span>
+        <span class="stage-tag" data-text-id="slide-24.stage_tag_02">未来</span><span class="stage-body is-future" data-text-id="slide-24.stage_body_02">联邦化协同 + 跨域 AI 工作流</span>
+      </div>
+      <p class="why" data-text-id="slide-24.why">两行紧凑布局把"我们今天在哪 / 我们要去哪"说清。比四行文字更适合一线汇报中"路线图速览"的场景。</p>
+    </div>
+  </div>
+</div>
+
+<!-- ============================================================
+     Section D · Helpers (slides 25-27)
+     ============================================================ -->
+
+<!-- 25 canonical-card recipe =========================================== -->
+<div class="slide-frame" data-page="25">
+  <div class="slide" data-layout="content-2col" data-accent="blue" data-screen-label="25 Canonical Card Recipe" data-slide-key="helper-canonical-card">
+    <div class="wordmark"></div>
+    <div class="demo-tag" data-text-id="slide-25.demo_tag">Helper · canonical-card</div>
+    <div class="header">
+      <h2 class="title-zh" data-text-id="slide-25.title_zh">.canonical-card · "标签 + 标题 + 描述" 卡片配方</h2>
+    </div>
+    <div class="stage">
+      <div class="canonical-row">
+        <div class="canonical-card">
+          <span class="cc-tag" data-text-id="slide-25.cc_tag">全员 · 来自侯</span>
+          <h3 class="cc-title" data-text-id="slide-25.cc_title">商机大扫除</h3>
+          <p class="cc-body" data-text-id="slide-25.cc_body">清 Q2/Q3 不靠谱单 · 下次周会前完成。</p>
+        </div>
+        <div class="canonical-card is-hero">
+          <span class="cc-tag" data-text-id="slide-25.cc_tag_02">技能 · 杰森开源</span>
+          <h3 class="cc-title" data-text-id="slide-25.cc_title_02">本地部署 + API 接入</h3>
+          <p class="cc-body" data-text-id="slide-25.cc_body_02">收到后同步到 A1 群,大家学起来 · 火山引擎模型组合调用待研究。</p>
+        </div>
+        <div class="canonical-card is-urgent">
+          <span class="cc-tag" data-text-id="slide-25.cc_tag_03">行邵 → 庆豪</span>
+          <h3 class="cc-title" data-text-id="slide-25.cc_title_03">模型研究</h3>
+          <p class="cc-body" data-text-id="slide-25.cc_body_03">研究如何使用火山引擎模型 + Claude Code 的组合调用。</p>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- 26 tag taxonomy ===================================================== -->
+<div class="slide-frame" data-page="26">
+  <div class="slide" data-layout="content-2col" data-accent="blue" data-screen-label="26 Tag Taxonomy" data-slide-key="helper-tag-taxonomy">
+    <div class="wordmark"></div>
+    <div class="demo-tag" data-text-id="slide-26.demo_tag">Helper · 标签三分法</div>
+    <div class="header">
+      <h2 class="title-zh" data-text-id="slide-26.title_zh">标签三档 · 选对 class · 不再"小标签太小"</h2>
+    </div>
+    <div class="stage">
+      <div class="tag-demo">
+        <span class="lbl" data-text-id="slide-26.lbl">.pill</span>
+        <span class="sample"><span class="pill" data-text-id="slide-26.pill_01">辅助分页</span></span>
+        <span class="note" data-text-id="slide-26.note">真 chrome · 16 Foot · 翻页指示 / 真元信息</span>
+      </div>
+      <div class="tag-demo">
+        <span class="lbl" data-text-id="slide-26.lbl_02">.content-tag</span>
+        <span class="sample"><span class="content-tag" data-text-id="slide-26.content_tag">技能 · 杰森开源</span></span>
+        <span class="note" data-text-id="slide-26.note_02">承载内容的标签 · 24 Body 加粗品牌色 · 类别 / 状态 / 来源</span>
+      </div>
+      <div class="tag-demo">
+        <span class="lbl" data-text-id="slide-26.lbl_03">.column-pill</span>
+        <span class="sample"><span class="column-pill" data-text-id="slide-26.column_pill">困境</span></span>
+        <span class="note" data-text-id="slide-26.note_03">栏目标题级别的胶囊 · 28 Sub · 不做/做 / 困境/解法 / 重点客群</span>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- 27 CTA + pullquote + voice-card =================================== -->
+<div class="slide-frame" data-page="27">
+  <div class="slide" data-layout="content-2col" data-accent="blue" data-screen-label="27 CTA · Pullquote · Voice" data-slide-key="helper-cta-quote-voice">
+    <div class="wordmark"></div>
+    <div class="demo-tag" data-text-id="slide-27.demo_tag">Helper · CTA / Pullquote / Voice</div>
+    <div class="header">
+      <h2 class="title-zh" data-text-id="slide-27.title_zh">三类强调助手 · 把页面"重锤"加上去</h2>
+    </div>
+    <div class="stage">
+      <div class="cta-box">
+        <div class="l">
+          <h3 data-text-id="slide-27.h3">下一步 · 免费 90 分钟诊断工作坊</h3>
+          <p data-text-id="slide-27.p">架构师上门或线上 · 共同识别 1 个值得优先做的场景。</p>
+        </div>
+        <button class="cta-btn" data-text-id="slide-27.cta_btn">启动诊断 →</button>
+      </div>
+      <p class="pullquote" data-text-id="slide-27.pullquote">"不是让你再投一个大系统,而是先请几个不要工位的同事。"</p>
+      <div class="voice-card">
+        <p class="q" data-text-id="slide-27.q">以前每天 8 点打开微信群看 200 条问题,现在群里是空的。精英销售终于能把时间放在打单。</p>
+        <span class="who" data-text-id="slide-27.who">某饮料品牌 · 华东大区销售经理</span>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ============================================================
+     Section E · End (slide 28)
+     ============================================================ -->
+
+<!-- 28 end · slogan ==================================================== -->
+<div class="slide-frame" data-page="28">
+  <div class="slide" data-layout="end" data-screen-label="28 End" data-slide-key="showcase-end">
+    <div class="wordmark" data-text-id="slide-28.wordmark">飞书</div>
+    <div class="slogan" role="img" aria-label="先进团队 先用飞书"></div>
+    <div class="contact" data-text-id="slide-28.contact">设计语言 · feishu-deck-h5</div>
+  </div>
+</div>
+
+</div>
+<script src="../assets/feishu-deck.js"></script>
+</body>
+</html>

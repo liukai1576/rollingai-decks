@@ -1,0 +1,53 @@
+{
+  "generated_at": "2026-05-25T11:12:24.850799+00:00",
+  "story_count": 1,
+  "tag_axes": {
+    "form": [
+      {
+        "value": "narrative",
+        "tag": "form/narrative",
+        "count": 1
+      }
+    ],
+    "length": [
+      {
+        "value": "short",
+        "tag": "length/short",
+        "count": 1
+      }
+    ],
+    "pillar": [
+      {
+        "value": "example",
+        "tag": "pillar/example",
+        "count": 1
+      }
+    ]
+  },
+  "stories": [
+    {
+      "story_id": "example-story",
+      "title": "Example · 4-page narrative",
+      "tags": [
+        "pillar/example",
+        "form/narrative",
+        "length/short"
+      ],
+      "slide_count": 4,
+      "source": {
+        "kind": "manual",
+        "imported_from": null
+      },
+      "thumbnail": "stories/example-story/thumb.svg",
+      "deck_path": "stories/example-story/index.html",
+      "owners": [
+        "liukai"
+      ],
+      "created_at": "2026-05-25T00:00:00Z",
+      "checks": {
+        "ingest_passed": true,
+        "last_validated_at": "2026-05-25T00:00:00Z"
+      }
+    }
+  ]
+}

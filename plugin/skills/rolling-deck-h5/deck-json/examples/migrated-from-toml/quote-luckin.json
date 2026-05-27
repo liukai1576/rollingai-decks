@@ -1,0 +1,25 @@
+{
+  "version": "1.0",
+  "deck": {
+    "title": "瑞幸营建 · 客户原话",
+    "customer_slug": "luckin",
+    "language": "zh-only"
+  },
+  "slides": [
+    {
+      "key": "luckin-customer-voice",
+      "layout": "quote",
+      "decor": ["blue-glow"],
+      "screen_label": "01 瑞幸客户原话",
+      "data": {
+        "title": "瑞幸营建 · 客户原话",
+        "quote": {
+          "lead":   "老专家脑子里的经验,以前只能口口相传。现在飞书把它",
+          "accent": "萃取成 AI 知识库",
+          "tail":   ",新人遇到问题直接搜就有解法。"
+        },
+        "attribution": "瑞幸咖啡 · 营建团队负责人 · 2026"
+      }
+    }
+  ]
+}

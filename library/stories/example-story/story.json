@@ -1,0 +1,22 @@
+{
+  "story_id": "example-story",
+  "title": "Example · 4-page narrative",
+  "tags": [
+    "pillar/example",
+    "form/narrative",
+    "length/short"
+  ],
+  "slide_count": 4,
+  "deck_ref": "deck.json",
+  "source": {
+    "kind": "manual",
+    "imported_from": null
+  },
+  "thumbnail": "thumb.svg",
+  "owners": ["liukai"],
+  "created_at": "2026-05-25T00:00:00Z",
+  "checks": {
+    "ingest_passed": true,
+    "last_validated_at": "2026-05-25T00:00:00Z"
+  }
+}

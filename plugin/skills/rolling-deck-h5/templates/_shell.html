@@ -1,0 +1,67 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <!-- Language mode: zh-only (default) or zh-en. Validator R-LANG enforces. -->
+  <meta name="fs-language" content="zh-only">
+  <title>〔Deck title〕 · Lark Suite</title>
+
+  <!-- Option A: link the stylesheet (relative path).
+       Default path assumes the deck lives at  <repo>/runs/<ts>/output/index.html
+       per WORKSPACE LAYOUT. Adjust if you put the deck somewhere else. -->
+  <link rel="stylesheet" href="../../../skills/feishu-deck-h5/assets/feishu-deck.css">
+  <!-- Client-side edit mode (default on since 2026-05-21):
+       press E to enter, Esc to exit, Cmd/Ctrl+S to save. Zero deps,
+       runs from file:// — see assets/edit-mode/deck-edit-mode.js. -->
+  <link rel="stylesheet" href="../../../skills/feishu-deck-h5/assets/edit-mode/deck-edit-mode.css">
+  <!-- Option B (recommended for delivery): inline the contents of feishu-deck.css here -->
+  <!-- <style>/* paste feishu-deck.css */</style> -->
+</head>
+<body class="deck-edit-mode">
+
+  <div class="deck">
+
+    <!-- Every <div class="slide"> MUST carry data-slide-key (semantic kebab-case
+         slug, deck-internal unique, stable across reorder). Used by
+         feishu-slide-library to index the slide. Validator R-KEY enforces. -->
+
+    <!-- 01 · Cover (master 封面) — title + 发起人 + 日期, no subtitle, no team line -->
+    <div class="slide-frame">
+      <div class="slide" data-layout="cover"
+           data-screen-label="01 Cover"
+           data-slide-key="cover">
+        <div class="wordmark">飞书</div>
+        <div class="stage">
+          <h1 class="title title-zh" data-text-id="slide-01.title">〔主标题<br>第二行〕</h1>
+        </div>
+        <div class="author">
+          <span data-text-id="slide-01.author">〔发起人姓名〕</span><br>
+          <span data-text-id="slide-01.date">〔YYYY.MM.DD〕</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- 02 · Section divider (master 一级章节页) -->
+    <div class="slide-frame">
+      <div class="slide" data-layout="section"
+           data-screen-label="02 Section"
+           data-slide-key="section-1-divider">
+        <div class="wordmark">飞书</div>
+        <div class="chapter-num">01.</div>
+        <h2 class="title">〔章节标题〕</h2>
+        <p class="lede">〔副标题 · 一句话点题〕</p>
+      </div>
+    </div>
+
+    <!-- 〔add more <div class="slide-frame"> blocks here from templates/slide-recipes.html〕 -->
+
+  </div>
+
+  <!-- Option A: link the runtime (path matches the CSS link above) -->
+  <script src="../../../skills/feishu-deck-h5/assets/feishu-deck.js"></script>
+  <script src="../../../skills/feishu-deck-h5/assets/edit-mode/deck-edit-mode.js" defer></script>
+  <!-- Option B (recommended): inline the contents of feishu-deck.js here -->
+  <!-- <script>/* paste feishu-deck.js */</script> -->
+</body>
+</html>

@@ -1,0 +1,156 @@
+/* ===========================================================================
+ * feishu-deck-patterns.css — render.py Layer 1 pattern overrides
+ * ---------------------------------------------------------------------------
+ * Single source of truth for CSS that's specific to render.py templates
+ * (`.story-case` and friends). Both the standalone single-slide deck templates
+ * AND the multi-case-bundle shell `<link>` to this file, so visual updates to
+ * any pattern propagate everywhere automatically.
+ *
+ * Per-instance values (the scene image URL, scene position/fit) are inlined
+ * via `style="..."` on the slide markup, NOT here — bundles need each case's
+ * scene image at a unique filename (scene-03.png, scene-04.png, …) so they
+ * can't be hardcoded in CSS.
+ * ===========================================================================
+ */
+
+/* ----------------------------------------------------------------------------
+ * Defensive R48 re-assertions
+ *
+ * The validator audits every `<style>` block independently. When this file is
+ * inlined via the validator's link-resolution, it becomes its own block — so
+ * we restate centering for every fixed-shape layout here too. No-op visually
+ * (feishu-deck.css already has identical rules; CSS dedupes them), but it
+ * keeps `validate.py` happy regardless of how this file is included.
+ * ----------------------------------------------------------------------------
+ */
+.slide[data-layout="content-3up"]  .grid  { align-content: center; }
+.slide[data-layout="content-2col"] .grid  { align-content: center; }
+.slide[data-layout="stats"]        .grid  { align-content: center; }
+.slide[data-layout="agenda"]       .toc   { align-content: center; }
+.slide[data-layout="big-stat"]     .stage { align-items: center; }
+.slide[data-layout="quote"]        .stack { justify-content: center; }
+
+/* ============================================================================
+ * One-pager case — `.story-case` content-2col override (frozen at v2)
+ *
+ * v2 (2026-05-03): both columns top-align with shared row height equal to
+ *   the LEFT text column's natural height (image is no longer taller than
+ *   the text). Magazine-spread feel; the image is cropped via cover to fit
+ *   the height the text dictates.
+ * ============================================================================
+ */
+
+.slide.story-case[data-layout="content-2col"] .grid {
+  display: grid;
+  grid-template-columns: 1fr 1.3fr;
+  grid-template-rows: auto;          /* row sizes to content (was: 1fr → 770px) */
+  column-gap: 56px;
+  align-content: center;             /* center the auto-row vertically in stage */
+  align-items: stretch;              /* both cols share row height */
+}
+
+.slide.story-case .col-text {
+  display: flex; flex-direction: column;
+  gap: 28px;
+  min-width: 0;
+  /* removed v2: justify-content: center — content top-aligns inside the col
+     so its first element (industry-tag) defines the shared row top edge */
+}
+
+.slide.story-case .industry-tag {
+  display: inline-flex; align-items: center; gap: 10px;
+  align-self: flex-start;
+  padding: 10px 20px;
+  border: 1px solid rgba(60, 127, 255, 0.45);
+  border-radius: 999px;
+  background: rgba(60, 127, 255, 0.10);
+  /* 2026-05-21 · 16 → 24 (Body tier). industry-tag is content (case
+     category), not chrome. Hero-context label floor rule. */
+  font: 600 24px/1 var(--fs-font-cjk);
+  color: var(--fs-blue);
+  letter-spacing: 0.06em;
+}
+.slide.story-case .industry-tag::before {
+  content: "";
+  width: 6px; height: 6px; border-radius: 50%;
+  background: var(--fs-blue);
+}
+
+.slide.story-case .story-hook {
+  margin: 0;
+  font: 600 30px/1.45 var(--fs-font-cjk);
+  color: rgba(255, 255, 255, 0.95);
+  letter-spacing: -0.005em;
+}
+.slide.story-case .story-hook .accent { color: var(--fs-teal); }
+
+.slide.story-case .story-arc {
+  display: flex; flex-direction: column;
+  gap: 18px;
+  padding-top: 8px;
+  border-top: 1px solid rgba(255, 255, 255, 0.10);
+}
+.slide.story-case .story-arc .row {
+  display: grid;
+  grid-template-columns: 120px 1fr;
+  column-gap: 24px;
+  align-items: baseline;
+}
+.slide.story-case .story-arc .lbl {
+  /* 2026-05-21 · 16 → 24 (Body tier). Row labels are content
+     differentiation, not chrome — same case-content card as p (24).
+     Hierarchy preserved via bold weight + brand color. */
+  display: inline-flex; align-items: center;
+  padding: 4px 0 4px 14px;
+  font: 700 24px/1 var(--fs-font-cjk);
+  letter-spacing: 0.12em;
+  color: var(--fs-blue);
+  border-left: 3px solid var(--fs-blue);
+}
+.slide.story-case .story-arc .lbl.is-orange { color: #FE7F00; border-color: #FE7F00; }
+.slide.story-case .story-arc .lbl.is-teal   { color: var(--fs-teal); border-color: var(--fs-teal); }
+.slide.story-case .story-arc .lbl.is-violet { color: #9F6FF1; border-color: #9F6FF1; }
+.slide.story-case .story-arc p {
+  margin: 0;
+  /* 2026-05-20 · 22 → 24 (body floor). */
+  font: 500 24px/1.55 var(--fs-font-cjk);
+  color: rgba(255, 255, 255, 0.86);
+}
+.slide.story-case .story-arc p .accent {
+  color: var(--fs-teal);
+  font-weight: 600;
+}
+
+.slide.story-case .col-visual {
+  display: flex; align-items: stretch; justify-content: stretch;
+  min-width: 0; min-height: 0;
+}
+/* The per-instance background-image / position / size is inlined via style=""
+   on the .scene-frame element so bundles can reference per-case filenames.
+   Everything else (frame chrome) lives here.
+
+   v2: removed `min-height: 680px` — frame stretches to row height which now
+   matches the left text column's natural height (top-aligned magazine spread).
+   The 16:9 illustration is cropped via background-size: cover. */
+.slide.story-case .scene-frame {
+  position: relative;
+  flex: 1; width: 100%;
+  min-height: 360px;                  /* floor for very-short cases (avoid degeneracy) */
+  border-radius: 20px;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  background-color: rgba(8, 12, 24, 0.45);
+  background-repeat: no-repeat;
+  box-shadow: 0 24px 64px -24px rgba(0, 0, 0, 0.65),
+              0 0 0 1px rgba(60, 127, 255, 0.16);
+}
+.slide.story-case .scene-frame .scene-cap {
+  position: absolute; left: 18px; bottom: 18px;
+  padding: 8px 14px;
+  background: rgba(8, 12, 24, 0.72);
+  backdrop-filter: blur(8px);
+  border-radius: 10px;
+  border: 1px solid rgba(255, 255, 255, 0.10);
+  font: 500 16px/1.3 var(--fs-font-cjk);
+  color: rgba(255, 255, 255, 0.85);
+  letter-spacing: 0.04em;
+}

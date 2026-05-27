@@ -1,0 +1,11 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    {
+      "name": "deck",
+      "runtimeExecutable": "python3",
+      "runtimeArgs": ["-m", "http.server", "8765", "--directory", "imports/RollingAI分享-康师傅/render-output-full"],
+      "port": 8765
+    }
+  ]
+}

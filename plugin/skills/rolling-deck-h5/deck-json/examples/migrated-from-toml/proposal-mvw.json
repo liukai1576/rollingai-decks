@@ -1,0 +1,150 @@
+{
+  "version": "1.0",
+  "deck": {
+    "title": "Layout proposal · matrix-2x2 · waterfall · issue-tree dogfood",
+    "author": "杰森",
+    "date": "2026.05.20",
+    "language": "zh-only",
+    "customer_slug": "proposal-mvw"
+  },
+  "notes": "Dogfood for 3 new content/matrix · stats/waterfall · flow/tree variants. Source: examples/_layout-proposal.html slides 1, 3, 4. 1:1 transcription.",
+
+  "slides": [
+    {
+      "key": "proposal-matrix-2x2",
+      "layout": "content",
+      "variant": "matrix",
+      "screen_label": "01 Matrix-2x2",
+      "data": {
+        "title": "战略选择 · 2026 H1 优先级矩阵",
+        "axes": {
+          "y": { "name": "业务影响", "high_label": "HIGH", "low_label": "LOW" },
+          "x": { "name": "实施难度", "high_label": "HIGH", "low_label": "LOW" }
+        },
+        "quadrants": {
+          "tl": {
+            "ord": "A",
+            "title": "立即做 · 快赢",
+            "items": [
+              "飞书 AI · 内部助手扩面",
+              "客户成功 · 高 NPS 客户复购",
+              "销售工具 · 战区周报自动化"
+            ]
+          },
+          "tr": {
+            "ord": "B",
+            "title": "战略投入",
+            "items": [
+              "飞书 Base · 大客户深度集成",
+              "多维表格 · 行业模板矩阵",
+              "视频会议 · 实时翻译/纪要"
+            ]
+          },
+          "bl": {
+            "ord": "D",
+            "title": "候选 · 季度复评",
+            "items": [
+              "开发者社区 · OpenAPI 推广",
+              "合作伙伴 · ISV 生态"
+            ]
+          },
+          "br": {
+            "ord": "C",
+            "title": "不做 / 推迟",
+            "items": [
+              "定制化中台 · ROI 低 + 投入大",
+              "消费级 IM · 偏离主线"
+            ]
+          }
+        }
+      }
+    },
+
+    {
+      "key": "proposal-waterfall",
+      "layout": "stats",
+      "variant": "waterfall",
+      "screen_label": "03 Waterfall",
+      "data": {
+        "title": "营收增长拆解 · 2025 Q4 → 2026 Q1",
+        "bars": [
+          {
+            "kind":     "base",
+            "value":    "¥ 8.2M",
+            "delta":    "起点",
+            "label":    "Q4 营收",
+            "sublabel": "2025 Q4 BASELINE"
+          },
+          {
+            "kind":     "pos",
+            "value":    "+ ¥ 2.4M",
+            "delta":    "+ 29%",
+            "label":    "渠道扩展",
+            "sublabel": "新签 12 家头部"
+          },
+          {
+            "kind":     "pos",
+            "value":    "+ ¥ 1.6M",
+            "delta":    "+ 19%",
+            "label":    "单价提升",
+            "sublabel": "AI 包升级"
+          },
+          {
+            "kind":     "neg",
+            "value":    "− ¥ 0.4M",
+            "delta":    "− 5%",
+            "label":    "客户流失",
+            "sublabel": "2 家中型未续"
+          },
+          {
+            "kind":     "end",
+            "value":    "¥ 11.8M",
+            "delta":    "合计 + 44%",
+            "label":    "Q1 营收",
+            "sublabel": "2026 Q1 ACTUAL"
+          }
+        ]
+      }
+    },
+
+    {
+      "key": "proposal-issue-tree",
+      "layout": "flow",
+      "variant": "tree",
+      "screen_label": "04 Issue-Tree",
+      "data": {
+        "title": "ROI 未达预期 · 拆 3 个根因",
+        "root": {
+          "question": "为什么 ROI<br>未达预期?",
+          "why": "实际 <em>1.8×</em> · 预期 <em>3.0×</em>"
+        },
+        "branches": [
+          {
+            "ord": "A",
+            "title": "客户深度使用率低",
+            "leaves": [
+              "仅 40% 用户进入核心业务流",
+              "培训留存衰减,3 月后掉到 22%"
+            ]
+          },
+          {
+            "ord": "B",
+            "title": "产品 vs 业务的 fit 不够",
+            "leaves": [
+              "行业模板缺失,客户改 6 周才能用",
+              "关键场景 (审批/汇报) 灵活度不够"
+            ]
+          },
+          {
+            "ord": "C",
+            "title": "客户成功覆盖不到",
+            "leaves": [
+              "1 个 CSM 配 25 家客户,无法深度跟进",
+              "客户使用数据滞后,问题发现晚"
+            ]
+          }
+        ]
+      }
+    }
+  ]
+}

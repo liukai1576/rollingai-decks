@@ -1,0 +1,32 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="fs-language" content="{{ language }}">
+  <title>{{ title }} · 飞书</title>
+  <link rel="stylesheet" href="{{ asset_path }}/feishu-deck.css">
+  <!-- In-browser edit mode (press E to toggle). Optional but ships by
+       default so every rendered deck can be edited in the browser. -->
+  <link rel="stylesheet" href="{{ asset_path }}/edit-mode/deck-edit-mode.css">
+  <!-- Phase 1.c — extra layouts (matrix-2x2, waterfall, issue-tree, replica)
+       not yet in framework feishu-deck.css. Lives next to the renderer. -->
+  <link rel="stylesheet" href="{{ deck_json_templates_path }}/extra-layouts.css">
+{{{ patterns_css_link }}}
+  <style>
+    /* Defensive R48 re-assertions — validator audits each <style> block
+       independently. No-op visually. */
+    .slide[data-layout="content-3up"] .grid { align-content: center; }
+    .slide[data-layout="content-2col"] .grid { align-content: center; }
+    .slide[data-layout="agenda"] .toc { align-content: center; }
+    .slide[data-layout="quote"] .stack { justify-content: center; }
+  </style>
+</head>
+<body>
+  <div class="deck"{{{ deck_data_attrs }}}>
+{{{ slides_html }}}
+  </div>
+  <script src="{{ asset_path }}/feishu-deck.js"></script>
+  <script src="{{ asset_path }}/edit-mode/deck-edit-mode.js" defer></script>
+</body>
+</html>

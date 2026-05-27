@@ -1,0 +1,136 @@
+{
+  "version": "1.0",
+  "deck": {
+    "title": "让品牌总部对经销商:从「投钱」走向「经营」",
+    "author": "飞书企业服务团队",
+    "date": "2026.04",
+    "language": "zh-only",
+    "customer_slug": "feishu-consumption-q2"
+  },
+  "notes": "Excerpt of 5 slides from runs/20260430-212700/output/lark-feishu-consumption-q2-2026-04-30.html. Purpose: dogfood the Phase 0.1-extended schema (content/blocks variant + verdict-grid block).",
+
+  "slides": [
+    {
+      "key": "cover",
+      "layout": "cover",
+      "screen_label": "01 Cover",
+      "notes": "1:1 transcription preserves the original cover's subtitle + team author (off-modern-master but legal for legacy decks).",
+      "data": {
+        "title":    "让品牌总部对经销商\n从「投钱」走向「经营」",
+        "subtitle": "一手管透经销商的经营 · 一手把销冠的打法装进每位业务员口袋",
+        "author":   "飞书企业服务团队",
+        "date":     "大消费 Q2 共创提案 · 2026.04"
+      }
+    },
+
+    {
+      "key": "ceo-two-things",
+      "layout": "content",
+      "variant": "blocks",
+      "accent": "blue",
+      "decor": ["blue-glow"],
+      "screen_label": "02 CEO 命题",
+      "notes": "Original used data-layout='content-2col' to host 2 verdict-cards side by side. Schema variant 'blocks' captures this 'full-width body blocks' pattern that production decks use the 2-col layout for.",
+      "data": {
+        "title": "如果你是品牌 CEO,今年盯的其实就是<span class=\"hl\">两件事</span>",
+        "body_blocks": [
+          {
+            "type": "verdict-grid",
+            "cards": [
+              {
+                "verdict": "conditional",
+                "badge":   "命题 A · 费效真实性",
+                "title":   "每年打给经销商的钱,到底去了哪、办了没、有效没",
+                "body":    "「营销费按季度预拨,活动效果要等事后结案。我不是不愿投,是投了之后看不清。」",
+                "kpis": [
+                  { "value": "5–15%",   "label": "行业营销预算水漂占比" },
+                  { "value": "T+10 天", "label": "事后费效比出数周期" }
+                ]
+              },
+              {
+                "verdict": "go",
+                "badge":   "命题 B · 动销拉动力",
+                "title":   "2000 个业务员,为什么卖不出 1 个销冠的水平",
+                "body":    "「销冠离职一个,组织知识清零一块。新人拜访一次就烧掉一个高潜客户。」",
+                "kpis": [
+                  { "value": "40%",   "label": "精英销售沦为人肉客服时间", "tone": "teal" },
+                  { "value": "5–6 月", "label": "新人独立拜访达标周期",    "tone": "teal" }
+                ]
+              }
+            ]
+          },
+          {
+            "type": "pullquote",
+            "text": "我们只解决这两件事。其它的,今天不讲。",
+            "tone": "orange"
+          }
+        ],
+        "source_footer": "数据来源 · 大消费行业访谈 N=24 · 2025 Q4 内部口径"
+      }
+    },
+
+    {
+      "key": "monday-morning-pain",
+      "layout": "content",
+      "variant": "3up",
+      "accent": "blue",
+      "decor": ["aurora"],
+      "screen_label": "03 周一上午",
+      "data": {
+        "title": "你每周一上午,是不是也在<span class=\"hl\">对表,而不是对策</span>",
+        "cards": [
+          {
+            "num":   "09:00",
+            "icon":  "clock",
+            "title_zh":     "钱花了,效果是谜",
+            "body":         "上周 800 万区域促销,ROI 要等 T+5 天才算清。每年 5–15% 营销预算打水漂。",
+            "footer_label": "BUDGET · ROI"
+          },
+          {
+            "num":   "11:00",
+            "icon":  "layout-dashboard",
+            "title_zh":     "数据多,真假难辨",
+            "body":         "7 个大区 7 种格式 · Excel · 飞书表格 · PPT · 长微信。2300 家门店,几家真陈列了。",
+            "footer_label": "DATA · QUALITY"
+          },
+          {
+            "num":   "15:00",
+            "icon":  "users",
+            "title_zh":     "销冠带不走,新人带不起",
+            "body":         "销冠离职,十年打法话术底线全部带走。新人 6 个月才能独立拜访高潜客户。",
+            "footer_label": "KNOWLEDGE · LOSS"
+          }
+        ],
+        "body_blocks": [
+          {
+            "type": "pullquote",
+            "text": "「我花了钱,但不知道发生了什么。我看到了数据,但不知道真假。」",
+            "tone": "default"
+          }
+        ]
+      }
+    },
+
+    {
+      "key": "two-hand-architecture",
+      "layout": "raw",
+      "accent": "blue",
+      "decor": ["mix-glow", "grain"],
+      "screen_label": "06 心脏图",
+      "notes": "two-hand-arch is a single-deck pattern with complex SVG (curved dashed lines + 4-tier vertical structure + crown/base). Deferred to Phase 0.2 / Phase 1 as a first-class block — for now lives in `raw` escape hatch. Full HTML elided here for brevity; original at lark-feishu-consumption-q2-2026-04-30.html lines ~211-360.",
+      "data": {
+        "title": "两手架构 · 一只手管经销商 一只手装销冠",
+        "html":  "<!-- elided · see source HTML lines 211-360 for full markup. Includes: .arch-top (crown), .arch-lines (SVG), .arch-hands (two .arch-hand with .arch-items), .arch-base. ~150 lines of structured DOM. -->"
+      }
+    },
+
+    {
+      "key": "closing-next-step",
+      "layout": "end",
+      "screen_label": "07 End",
+      "data": {
+        "contact": "contact@feishu.cn  ·  feishu.cn"
+      }
+    }
+  ]
+}

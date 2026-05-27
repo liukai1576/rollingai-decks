@@ -1,0 +1,603 @@
+#!/usr/bin/env python3
+"""deck-cli.py — Phase 3 CLI editor for DeckJSON files.
+
+Operate on a deck.json by command — let Claude / programmers / future
+visual editor backends mutate decks without hand-editing JSON.
+
+USAGE
+  python3 deck-cli.py <deck.json> COMMAND [args...] [--yes] [--no-backup]
+
+Read commands (no backup needed):
+  list                        list slides as numbered table
+  get PATH                    print value at dotted path (e.g. slides.3.data.title)
+  lint                        validate against schema (wrap validate-deck.py)
+  show KEY                    pretty-print one slide's JSON
+
+Write commands (auto-backup + revalidate + rollback on schema fail):
+  set PATH VALUE              dotted-path set (VALUE auto-typed: int/bool/str/json)
+  set-accent KEY COLOR        slide.accent = COLOR
+  set-decor KEY TOKENS        slide.decor = TOKENS (comma-sep, e.g. "blue-glow,grain")
+  set-variant KEY VARIANT     for content/stats/flow only — also wipes data fields
+                              that don't belong to the new variant
+  reorder FROM TO             move slides[FROM] to position TO (1-indexed)
+  move-key KEY POSITION       safer than reorder — survives prior renumbering
+  insert POSITION L [V] KEY   insert a scaffold slide at POSITION
+  delete KEY                  remove slide. MANDATORY confirm + backup.
+  clone KEY NEW_KEY [POSITION]  duplicate KEY → NEW_KEY at POSITION (default after KEY)
+
+Render pipeline:
+  render OUTPUT_DIR [--inline] [--skip-...]   wrap render-deck.py
+
+Flags:
+  --yes        skip interactive confirms (for Claude / CI / batch use)
+  --no-backup  skip .bak-pre-<command>-<ts> backup (NOT recommended)
+
+Exit codes:
+  0 = success
+  1 = invalid args / unknown command
+  2 = deck.json read/parse error
+  3 = post-op schema validation failed (auto-rolled-back)
+  4 = user declined confirm
+  5 = render subprocess failed
+"""
+from __future__ import annotations
+
+import argparse
+import copy
+import json
+import os
+import shutil
+import subprocess
+import sys
+import time
+from pathlib import Path
+
+HERE          = Path(__file__).resolve().parent
+SCHEMA_FILE   = HERE / "deck-schema.json"
+VALIDATE_DECK = HERE / "validate-deck.py"
+RENDER_DECK   = HERE / "render-deck.py"
+
+
+# ---------------------------------------------------------------------------
+# Helpers — dotted-path get / set
+# ---------------------------------------------------------------------------
+
+def parse_value(s: str):
+    """Auto-type a CLI string. Try JSON parse first (handles ints/bools/null/
+    arrays/objects); fall back to raw string."""
+    s_stripped = s.strip()
+    # Pure JSON literals
+    try:
+        return json.loads(s_stripped)
+    except (ValueError, json.JSONDecodeError):
+        pass
+    return s
+
+
+def get_path(d, dotted: str):
+    """Walk a dotted path. Numeric segments index arrays.
+    Raises KeyError / IndexError on miss."""
+    cur = d
+    for seg in dotted.split("."):
+        if isinstance(cur, list):
+            idx = int(seg)
+            cur = cur[idx]
+        elif isinstance(cur, dict):
+            cur = cur[seg]
+        else:
+            raise KeyError(f"can't descend into {type(cur).__name__} at '{seg}'")
+    return cur
+
+
+def set_path(d, dotted: str, value):
+    """Set a dotted path. Creates intermediate dicts (NOT lists) as needed."""
+    segs = dotted.split(".")
+    cur = d
+    for seg in segs[:-1]:
+        if isinstance(cur, list):
+            idx = int(seg)
+            cur = cur[idx]
+        elif isinstance(cur, dict):
+            if seg not in cur or not isinstance(cur[seg], (dict, list)):
+                cur[seg] = {}
+            cur = cur[seg]
+        else:
+            raise KeyError(f"can't descend into {type(cur).__name__} at '{seg}'")
+    last = segs[-1]
+    if isinstance(cur, list):
+        cur[int(last)] = value
+    else:
+        cur[last] = value
+
+
+def find_slide_index(deck: dict, key: str) -> int:
+    for i, s in enumerate(deck.get("slides", [])):
+        if s.get("key") == key:
+            return i
+    raise KeyError(f"slide with key '{key}' not found")
+
+
+# ---------------------------------------------------------------------------
+# Backup + rollback
+# ---------------------------------------------------------------------------
+
+def backup_path(deck_path: Path, command: str) -> Path:
+    ts = time.strftime("%Y%m%d-%H%M%S")
+    return deck_path.with_suffix(f".json.bak-pre-{command}-{ts}")
+
+
+def write_deck_with_validation(deck_path: Path, deck: dict, command: str,
+                                no_backup: bool = False) -> bool:
+    """Write deck back to disk, re-validate. On schema fail: rollback, return False."""
+    # 1. Backup current state
+    bak = None
+    if not no_backup and deck_path.exists():
+        bak = backup_path(deck_path, command)
+        shutil.copy2(deck_path, bak)
+
+    # 2. Write
+    deck_path.write_text(json.dumps(deck, ensure_ascii=False, indent=2),
+                         encoding="utf-8")
+
+    # 3. Re-validate
+    rc = subprocess.run(
+        [sys.executable, str(VALIDATE_DECK), str(deck_path), "--strict"],
+        capture_output=True, text=True,
+    )
+    if rc.returncode != 0:
+        # Schema fail — roll back
+        print(f"deck-cli: post-{command} schema validation FAILED. Rolling back.",
+              file=sys.stderr)
+        print(rc.stdout, file=sys.stderr)
+        if bak and bak.exists():
+            shutil.copy2(bak, deck_path)
+            print(f"deck-cli: restored from {bak.name}", file=sys.stderr)
+        return False
+
+    if bak:
+        print(f"deck-cli: backup at {bak.name}")
+    return True
+
+
+def confirm(prompt: str, yes_flag: bool) -> bool:
+    if yes_flag:
+        return True
+    if not sys.stdin.isatty():
+        print(f"deck-cli: refusing non-interactive destructive op without --yes",
+              file=sys.stderr)
+        return False
+    try:
+        ans = input(f"{prompt} [y/N] ").strip().lower()
+    except (EOFError, KeyboardInterrupt):
+        return False
+    return ans in ("y", "yes")
+
+
+# ---------------------------------------------------------------------------
+# Read commands
+# ---------------------------------------------------------------------------
+
+def cmd_list(deck: dict, args) -> int:
+    slides = deck.get("slides", [])
+    print(f"{len(slides)} slides · deck='{deck.get('deck', {}).get('title', '<no title>')}'")
+    print(f"{'#':>3}  {'KEY':<35}  {'LAYOUT':<12}  {'VARIANT':<11}  SCREEN-LABEL")
+    print(f"{'-'*3}  {'-'*35}  {'-'*12}  {'-'*11}  {'-'*30}")
+    for i, s in enumerate(slides, start=1):
+        key = s.get("key", "<missing>")[:35]
+        layout = s.get("layout", "?")[:12]
+        variant = (s.get("variant") or "—")[:11]
+        label = s.get("screen_label", "")[:30]
+        print(f"{i:>3}  {key:<35}  {layout:<12}  {variant:<11}  {label}")
+    return 0
+
+
+def cmd_get(deck: dict, args) -> int:
+    try:
+        value = get_path(deck, args.path)
+    except (KeyError, IndexError, ValueError) as e:
+        print(f"deck-cli: path '{args.path}' not found ({e})", file=sys.stderr)
+        return 1
+    if isinstance(value, (dict, list)):
+        print(json.dumps(value, ensure_ascii=False, indent=2))
+    else:
+        print(value)
+    return 0
+
+
+def cmd_show(deck: dict, args) -> int:
+    try:
+        idx = find_slide_index(deck, args.key)
+    except KeyError as e:
+        print(f"deck-cli: {e}", file=sys.stderr); return 1
+    print(json.dumps(deck["slides"][idx], ensure_ascii=False, indent=2))
+    return 0
+
+
+def cmd_lint(deck_path: Path, args) -> int:
+    rc = subprocess.run(
+        [sys.executable, str(VALIDATE_DECK), str(deck_path),
+         *(["--strict"] if args.strict else [])],
+        text=True,
+    )
+    return rc.returncode
+
+
+# ---------------------------------------------------------------------------
+# Set commands
+# ---------------------------------------------------------------------------
+
+def cmd_set(deck: dict, args) -> tuple[int, dict | None]:
+    try:
+        old = get_path(deck, args.path)
+    except (KeyError, IndexError, ValueError):
+        old = "<unset>"
+    value = parse_value(args.value)
+    try:
+        set_path(deck, args.path, value)
+    except (KeyError, IndexError, ValueError) as e:
+        print(f"deck-cli: can't set '{args.path}': {e}", file=sys.stderr)
+        return 1, None
+    print(f"  {args.path}:")
+    print(f"    old: {old!r}")
+    print(f"    new: {value!r}")
+    return 0, deck
+
+
+def cmd_set_accent(deck: dict, args) -> tuple[int, dict | None]:
+    try:
+        idx = find_slide_index(deck, args.key)
+    except KeyError as e:
+        print(f"deck-cli: {e}", file=sys.stderr); return 1, None
+    old = deck["slides"][idx].get("accent", "<unset>")
+    deck["slides"][idx]["accent"] = args.color
+    print(f"  slides[{idx}] (key={args.key}) accent: {old!r} → {args.color!r}")
+    return 0, deck
+
+
+def cmd_set_decor(deck: dict, args) -> tuple[int, dict | None]:
+    try:
+        idx = find_slide_index(deck, args.key)
+    except KeyError as e:
+        print(f"deck-cli: {e}", file=sys.stderr); return 1, None
+    tokens = [t.strip() for t in args.tokens.split(",") if t.strip()]
+    old = deck["slides"][idx].get("decor", [])
+    deck["slides"][idx]["decor"] = tokens
+    print(f"  slides[{idx}] (key={args.key}) decor: {old} → {tokens}")
+    return 0, deck
+
+
+# Variant-data-shape map — used by set-variant to detect/wipe incompatible fields
+VARIANT_DATA_FIELDS = {
+    ("content", "3up"):         {"title", "cards", "lede", "body_blocks"},
+    ("content", "2col"):        {"title", "text", "visual"},
+    ("content", "story-case"):  {"title", "industry", "brand", "source", "hook", "arc", "scene"},
+    ("content", "blocks"):      {"title", "lede", "body_blocks", "source_footer"},
+    ("content", "matrix"):      {"title", "axes", "quadrants"},
+    ("stats",   "row"):         {"title", "cols", "footnote"},
+    ("stats",   "hero"):        {"title", "eyebrow", "stat", "heading", "body"},
+    ("stats",   "waterfall"):   {"title", "bars", "footnote", "cols"},
+    ("flow",    "timeline"):    {"title", "cols", "nodes"},
+    ("flow",    "process"):     {"title", "cols", "steps"},
+    ("flow",    "tree"):        {"title", "root", "branches"},
+}
+
+
+def cmd_set_variant(deck: dict, args) -> tuple[int, dict | None]:
+    try:
+        idx = find_slide_index(deck, args.key)
+    except KeyError as e:
+        print(f"deck-cli: {e}", file=sys.stderr); return 1, None
+    slide = deck["slides"][idx]
+    layout = slide.get("layout")
+    if layout not in ("content", "stats", "flow"):
+        print(f"deck-cli: set-variant only valid on multi-variant layouts (content/stats/flow); slide is '{layout}'",
+              file=sys.stderr)
+        return 1, None
+    new_variant = args.variant
+    if (layout, new_variant) not in VARIANT_DATA_FIELDS:
+        print(f"deck-cli: invalid variant '{new_variant}' for layout '{layout}'. "
+              f"Valid: {sorted(v for l, v in VARIANT_DATA_FIELDS if l == layout)}",
+              file=sys.stderr)
+        return 1, None
+
+    old_variant = slide.get("variant", "<unset>")
+    keep_fields = VARIANT_DATA_FIELDS[(layout, new_variant)]
+    data = slide.get("data", {}) or {}
+    dropped = [f for f in data if f not in keep_fields]
+    if dropped and not confirm(
+        f"set-variant will DROP data fields {dropped} (not used by {layout}/{new_variant}). Proceed?",
+        args.yes,
+    ):
+        return 4, None
+
+    # Drop incompatible fields
+    for f in dropped:
+        del data[f]
+    slide["data"] = data
+    slide["variant"] = new_variant
+    print(f"  slides[{idx}] (key={args.key}) variant: {old_variant!r} → {new_variant!r}")
+    if dropped:
+        print(f"    dropped fields: {dropped}")
+    print(f"    NOTE: required fields for {layout}/{new_variant} may now be missing — "
+          f"fill via set commands before render.")
+    return 0, deck
+
+
+# ---------------------------------------------------------------------------
+# Structural commands
+# ---------------------------------------------------------------------------
+
+def cmd_reorder(deck: dict, args) -> tuple[int, dict | None]:
+    slides = deck.get("slides", [])
+    n = len(slides)
+    if not (1 <= args.from_pos <= n) or not (1 <= args.to_pos <= n):
+        print(f"deck-cli: positions out of range (1..{n})", file=sys.stderr)
+        return 1, None
+    if args.from_pos == args.to_pos:
+        print("deck-cli: from == to, no-op"); return 0, None
+    slide = slides.pop(args.from_pos - 1)
+    slides.insert(args.to_pos - 1, slide)
+    print(f"  moved slides[{args.from_pos}] (key={slide.get('key')}) → position {args.to_pos}")
+    return 0, deck
+
+
+def cmd_move_key(deck: dict, args) -> tuple[int, dict | None]:
+    try:
+        idx = find_slide_index(deck, args.key)
+    except KeyError as e:
+        print(f"deck-cli: {e}", file=sys.stderr); return 1, None
+    n = len(deck.get("slides", []))
+    if not (1 <= args.position <= n):
+        print(f"deck-cli: position out of range (1..{n})", file=sys.stderr)
+        return 1, None
+    return cmd_reorder(deck, type("A", (), {"from_pos": idx + 1, "to_pos": args.position}))
+
+
+def cmd_insert(deck: dict, args) -> tuple[int, dict | None]:
+    slides = deck.get("slides", [])
+    n = len(slides)
+    if not (1 <= args.position <= n + 1):
+        print(f"deck-cli: position out of range (1..{n+1})", file=sys.stderr)
+        return 1, None
+    # Key uniqueness
+    if any(s.get("key") == args.key for s in slides):
+        print(f"deck-cli: key '{args.key}' already exists", file=sys.stderr)
+        return 1, None
+
+    # Build scaffold per layout/variant
+    scaffold = build_scaffold(args.layout, args.variant, args.key)
+    if scaffold is None:
+        print(f"deck-cli: unknown layout '{args.layout}'", file=sys.stderr)
+        return 1, None
+
+    slides.insert(args.position - 1, scaffold)
+    print(f"  inserted at position {args.position}: key={args.key} layout={args.layout}"
+          f"{'/' + args.variant if args.variant else ''}")
+    print(f"    NOTE: scaffold data is placeholder. Fill required fields via set commands "
+          f"before render or it will fail schema-fit check.")
+    return 0, deck
+
+
+def cmd_delete(deck: dict, args) -> tuple[int, dict | None]:
+    try:
+        idx = find_slide_index(deck, args.key)
+    except KeyError as e:
+        print(f"deck-cli: {e}", file=sys.stderr); return 1, None
+    slide = deck["slides"][idx]
+    print(f"deck-cli: about to delete:")
+    print(f"    slides[{idx}]  key={args.key}")
+    print(f"    layout: {slide.get('layout')}{'/' + slide['variant'] if slide.get('variant') else ''}")
+    print(f"    screen_label: {slide.get('screen_label', '')}")
+    if not confirm(f"DELETE this slide? (backup auto-created)", args.yes):
+        print("deck-cli: deletion cancelled.")
+        return 4, None
+    deck["slides"].pop(idx)
+    print(f"  deleted slides[{idx}] (key={args.key})")
+    return 0, deck
+
+
+def cmd_clone(deck: dict, args) -> tuple[int, dict | None]:
+    try:
+        idx = find_slide_index(deck, args.key)
+    except KeyError as e:
+        print(f"deck-cli: {e}", file=sys.stderr); return 1, None
+    if any(s.get("key") == args.new_key for s in deck["slides"]):
+        print(f"deck-cli: new key '{args.new_key}' already in use", file=sys.stderr)
+        return 1, None
+    cloned = copy.deepcopy(deck["slides"][idx])
+    cloned["key"] = args.new_key
+    position = args.position if args.position else idx + 2  # default: right after source
+    deck["slides"].insert(position - 1, cloned)
+    print(f"  cloned slides[{idx}] ({args.key}) → position {position} as '{args.new_key}'")
+    return 0, deck
+
+
+# ---------------------------------------------------------------------------
+# Scaffold templates
+# ---------------------------------------------------------------------------
+
+def build_scaffold(layout: str, variant: str | None, key: str) -> dict | None:
+    common = {"key": key, "layout": layout, "screen_label": f"{key} (TODO)"}
+    if variant:
+        common["variant"] = variant
+
+    SCAFFOLDS = {
+        ("cover", None):           {"title": "〔标题 TODO〕", "author": "〔姓名 TODO〕", "date": "2026.MM.DD"},
+        ("agenda", None):          {"items": [{"title_zh": "〔议程 1〕"}, {"title_zh": "〔议程 2〕"}]},
+        ("section", None):         {"chapter_num": "01.", "title": "〔章节标题 TODO〕"},
+        ("content", "3up"):        {"title": "〔标题 TODO〕", "cards": [
+                                       {"title_zh": "〔卡片 1〕", "body": "〔正文 TODO〕"},
+                                       {"title_zh": "〔卡片 2〕", "body": "〔正文 TODO〕"},
+                                       {"title_zh": "〔卡片 3〕", "body": "〔正文 TODO〕"}]},
+        ("content", "2col"):       {"title": "〔标题 TODO〕", "text": {"lede": "〔引言 TODO〕"},
+                                    "visual": {"type": "placeholder", "label": "〔visual TODO〕"}},
+        ("content", "story-case"): {"title": "〔案例标题 TODO〕", "industry": "〔行业 TODO〕",
+                                    "hook": {"lead": "〔前 ", "accent": "强调词", "tail": " 后〕"},
+                                    "arc": {"pain": "〔痛点 TODO TODO TODO〕",
+                                            "conflict": "〔冲突 TODO TODO TODO〕",
+                                            "solution": "〔解法 TODO TODO TODO〕",
+                                            "value": {"lead": "〔前 ", "accent": "强调", "tail": " 后〕"}},
+                                    "scene": {"image": "scene.png", "caption": "〔场景描述 TODO〕",
+                                              "alt": "〔图片 alt TODO〕"}},
+        ("content", "blocks"):     {"title": "〔标题 TODO〕", "body_blocks": [
+                                       {"type": "pullquote", "text": "〔金句 TODO〕"}]},
+        ("content", "matrix"):     {"title": "〔标题 TODO〕",
+                                    "axes": {"y": {"name": "〔Y 轴名 TODO〕"},
+                                             "x": {"name": "〔X 轴名 TODO〕"}},
+                                    "quadrants": {
+                                       "tl": {"ord": "A", "title": "〔象限 A〕", "items": ["〔条目 1〕"]},
+                                       "tr": {"ord": "B", "title": "〔象限 B〕", "items": ["〔条目 1〕"]},
+                                       "bl": {"ord": "D", "title": "〔象限 D〕", "items": ["〔条目 1〕"]},
+                                       "br": {"ord": "C", "title": "〔象限 C〕", "items": ["〔条目 1〕"]}}},
+        ("stats", "row"):          {"title": "〔标题 TODO〕", "cols": [
+                                       {"num": "0", "label": "〔标签 1 TODO〕"},
+                                       {"num": "0", "label": "〔标签 2 TODO〕"},
+                                       {"num": "0", "label": "〔标签 3 TODO〕"}]},
+        ("stats", "hero"):         {"stat": {"number": "0"}, "heading": "〔Heading TODO〕",
+                                    "body": "〔Body 描述 TODO TODO TODO〕"},
+        ("stats", "waterfall"):    {"title": "〔标题 TODO〕", "bars": [
+                                       {"kind": "base", "value": "100", "label": "〔起点〕"},
+                                       {"kind": "pos",  "value": "+20", "label": "〔正向〕"},
+                                       {"kind": "end",  "value": "120", "label": "〔终点〕"}]},
+        ("quote", None):           {"quote": {"lead": "〔前 ", "accent": "强调短语", "tail": " 后〕"},
+                                    "attribution": "〔归属 TODO〕"},
+        ("image-text", None):      {"image": {"src": "scene.png", "alt": "〔alt TODO〕"},
+                                    "title": "〔hero 标题 TODO〕"},
+        ("table", None):           {"title": "〔标题 TODO〕",
+                                    "headers": ["列1", "列2", "列3"],
+                                    "rows": [["a", "b", "c"]]},
+        ("flow", "timeline"):      {"title": "〔标题 TODO〕", "cols": 3, "nodes": [
+                                       {"when": "W1", "what": "〔阶段 1〕"},
+                                       {"when": "W2", "what": "〔阶段 2〕"},
+                                       {"when": "W3", "what": "〔阶段 3〕"}]},
+        ("flow", "process"):       {"title": "〔标题 TODO〕", "cols": 3, "steps": [
+                                       {"title": "〔步骤 1〕", "body": "〔描述〕"},
+                                       {"title": "〔步骤 2〕", "body": "〔描述〕"},
+                                       {"title": "〔步骤 3〕", "body": "〔描述〕"}]},
+        ("flow", "tree"):          {"title": "〔标题 TODO〕",
+                                    "root": {"question": "〔根问题?〕"},
+                                    "branches": [
+                                       {"ord": "A", "title": "〔分支 A〕", "leaves": ["〔叶子〕"]},
+                                       {"ord": "B", "title": "〔分支 B〕", "leaves": ["〔叶子〕"]}]},
+        ("end", None):             {},
+        ("replica", None):         {"page_image": "page-01.jpg"},
+        ("raw", None):             {"html": '<div class="slide" data-layout="raw" data-screen-label="〔TODO〕" data-slide-key="〔TODO〕"><div class="wordmark">飞书</div>〔自由内容 HTML〕</div>'},
+    }
+
+    scaffold_data = SCAFFOLDS.get((layout, variant))
+    if scaffold_data is None:
+        return None
+    common["data"] = scaffold_data
+    return common
+
+
+# ---------------------------------------------------------------------------
+# Render wrapper
+# ---------------------------------------------------------------------------
+
+def cmd_render(deck_path: Path, args) -> int:
+    cmd = [sys.executable, str(RENDER_DECK), str(deck_path), str(args.output_dir)]
+    if args.inline:           cmd.append("--inline")
+    if args.skip_copy_assets: cmd.append("--skip-copy-assets")
+    if args.skip_texts:       cmd.append("--skip-texts")
+    rc = subprocess.run(cmd)
+    return 5 if rc.returncode != 0 else 0
+
+
+# ---------------------------------------------------------------------------
+# CLI dispatch
+# ---------------------------------------------------------------------------
+
+def main(argv=None) -> int:
+    ap = argparse.ArgumentParser(prog="deck-cli.py", description=__doc__.split("\n")[0])
+    ap.add_argument("deck", type=Path, help="path to deck.json")
+    ap.add_argument("--yes", action="store_true", help="skip interactive confirms")
+    ap.add_argument("--no-backup", action="store_true", help="skip .bak-pre-* backup")
+
+    sub = ap.add_subparsers(dest="cmd", required=True)
+    sub.add_parser("list", help="list slides")
+    sp = sub.add_parser("get", help="get value at dotted path"); sp.add_argument("path")
+    sp = sub.add_parser("show", help="pretty-print one slide"); sp.add_argument("key")
+    sp = sub.add_parser("lint", help="validate against schema")
+    sp.add_argument("--strict", action="store_true", default=True)
+
+    sp = sub.add_parser("set", help="set value at dotted path")
+    sp.add_argument("path"); sp.add_argument("value")
+
+    sp = sub.add_parser("set-accent", help="set slide accent color")
+    sp.add_argument("key"); sp.add_argument("color")
+
+    sp = sub.add_parser("set-decor", help="set slide decor tokens (comma-sep)")
+    sp.add_argument("key"); sp.add_argument("tokens")
+
+    sp = sub.add_parser("set-variant", help="change variant of content/stats/flow slide")
+    sp.add_argument("key"); sp.add_argument("variant")
+
+    sp = sub.add_parser("reorder", help="move slide by position (1-indexed)")
+    sp.add_argument("from_pos", type=int); sp.add_argument("to_pos", type=int)
+
+    sp = sub.add_parser("move-key", help="move slide by key to position")
+    sp.add_argument("key"); sp.add_argument("position", type=int)
+
+    sp = sub.add_parser("insert", help="insert scaffold slide at position")
+    sp.add_argument("position", type=int)
+    sp.add_argument("layout"); sp.add_argument("variant", nargs="?", default=None)
+    sp.add_argument("key")
+
+    sp = sub.add_parser("delete", help="delete slide by key (confirm + backup mandatory)")
+    sp.add_argument("key")
+
+    sp = sub.add_parser("clone", help="duplicate slide by key")
+    sp.add_argument("key"); sp.add_argument("new_key")
+    sp.add_argument("position", type=int, nargs="?", default=None)
+
+    sp = sub.add_parser("render", help="render to HTML (wrap render-deck.py)")
+    sp.add_argument("output_dir", type=Path)
+    sp.add_argument("--inline", action="store_true")
+    sp.add_argument("--skip-copy-assets", action="store_true")
+    sp.add_argument("--skip-texts", action="store_true")
+
+    args = ap.parse_args(argv)
+
+    # Load deck
+    try:
+        deck = json.loads(args.deck.read_text(encoding="utf-8"))
+    except FileNotFoundError:
+        print(f"deck-cli: deck not found: {args.deck}", file=sys.stderr); return 2
+    except json.JSONDecodeError as e:
+        print(f"deck-cli: invalid JSON: {e}", file=sys.stderr); return 2
+
+    READ_CMDS = {"list": cmd_list, "get": cmd_get, "show": cmd_show}
+    if args.cmd in READ_CMDS:
+        return READ_CMDS[args.cmd](deck, args)
+    if args.cmd == "lint":
+        return cmd_lint(args.deck, args)
+    if args.cmd == "render":
+        return cmd_render(args.deck, args)
+
+    # Write commands return (rc, deck_or_None)
+    WRITE_CMDS = {
+        "set":         cmd_set,
+        "set-accent":  cmd_set_accent,
+        "set-decor":   cmd_set_decor,
+        "set-variant": cmd_set_variant,
+        "reorder":     cmd_reorder,
+        "move-key":    cmd_move_key,
+        "insert":      cmd_insert,
+        "delete":      cmd_delete,
+        "clone":       cmd_clone,
+    }
+    handler = WRITE_CMDS.get(args.cmd)
+    if not handler:
+        print(f"deck-cli: unknown command '{args.cmd}'", file=sys.stderr); return 1
+
+    rc, updated = handler(deck, args)
+    if rc != 0 or updated is None:
+        return rc
+
+    ok = write_deck_with_validation(args.deck, updated, args.cmd, args.no_backup)
+    return 0 if ok else 3
+
+
+if __name__ == "__main__":
+    sys.exit(main())

@@ -1,0 +1,18 @@
+    <div class="slide-frame">
+      <div class="slide" data-layout="issue-tree" {{{ data_attrs }}} data-screen-label="{{ screen_label }}" data-slide-key="{{ slide_key }}">
+        <div class="wordmark">飞书</div>
+        <div class="header">
+          <h2 class="title-zh" data-text-id="slide-{{ slide_no_padded }}.title">{{ title }}</h2>
+        </div>
+        <div class="stage">
+          <div class="root">
+            <div class="q" data-text-id="slide-{{ slide_no_padded }}.root.question">{{{ root.question }}}</div>
+{{{ root_why_html }}}
+          </div>
+          <div class="connector"></div>
+          <div class="branches">
+{{{ branches_html }}}
+          </div>
+        </div>
+      </div>
+    </div>

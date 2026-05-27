@@ -1,0 +1,16 @@
+{
+  "name": "rolling-deck",
+  "owner": {
+    "name": "RollingAI"
+  },
+  "plugins": [
+    {
+      "name": "rolling-deck",
+      "source": "./",
+      "description": "RollingAI Deck system — 4 decoupled skills for importing, redesigning, authoring, and rendering 1920×1080 HTML decks.",
+      "version": "0.2.0",
+      "category": "skill",
+      "tags": ["deck", "presentation", "html", "keynote", "rolling-ai"]
+    }
+  ]
+}

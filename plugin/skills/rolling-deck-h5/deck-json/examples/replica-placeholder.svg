@@ -1,0 +1,23 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1920 1080" preserveAspectRatio="xMidYMid meet">
+  <!-- "paper" page background -->
+  <rect width="1920" height="1080" fill="#F5F3EB"/>
+  <!-- page edge frame -->
+  <rect x="80" y="80" width="1760" height="920" fill="none" stroke="#C4BCA8" stroke-width="2"/>
+  <!-- header strip -->
+  <rect x="80" y="80" width="1760" height="100" fill="#22272F"/>
+  <text x="120" y="146" font-family="-apple-system, 'PingFang SC', sans-serif" font-size="32" fill="#F5F3EB" font-weight="700">REPLICA MODE · 整页作为图片</text>
+  <text x="1840" y="146" text-anchor="end" font-family="serif" font-size="26" fill="#C4BCA8" font-style="italic">page 1 of N</text>
+
+  <!-- main title -->
+  <text x="960" y="440" text-anchor="middle" font-family="-apple-system, 'PingFang SC', sans-serif" font-size="72" fill="#22272F" font-weight="700">这是一张「页面图」</text>
+  <text x="960" y="520" text-anchor="middle" font-family="-apple-system, 'PingFang SC', sans-serif" font-size="36" fill="#5C5C5C">replica 模式 = 整页作为图片 · 不渲染任何 stage 内容</text>
+
+  <!-- explanatory body -->
+  <text x="960" y="650" text-anchor="middle" font-family="serif" font-size="28" fill="#22272F" font-style="italic">用于把已有 PDF / PPT 提案 1:1 转成 HTML deck</text>
+  <text x="960" y="700" text-anchor="middle" font-family="serif" font-size="28" fill="#22272F" font-style="italic">页面图通常是 pdftoppm 导出的 1920px JPG</text>
+
+  <!-- bottom footer -->
+  <line x1="180" y1="940" x2="1740" y2="940" stroke="#C4BCA8" stroke-width="1"/>
+  <text x="960" y="980" text-anchor="middle" font-family="-apple-system, 'PingFang SC', sans-serif" font-size="20" fill="#888">phase-1c-extras smoke test · replica layout</text>
+</svg>

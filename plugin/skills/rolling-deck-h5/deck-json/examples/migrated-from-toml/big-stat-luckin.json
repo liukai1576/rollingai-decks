@@ -1,0 +1,26 @@
+{
+  "version": "1.0",
+  "deck": {
+    "title": "瑞幸营建 · AI 知识库提效",
+    "customer_slug": "luckin",
+    "language": "zh-only"
+  },
+  "slides": [
+    {
+      "key": "luckin-ai-kb-impact",
+      "layout": "stats",
+      "variant": "hero",
+      "screen_label": "01 瑞幸 AI 知识库",
+      "data": {
+        "title": "瑞幸营建 · AI 知识库提效",
+        "eyebrow": "IMPACT · 隐形经验数字化",
+        "stat": {
+          "number": "82",
+          "unit":   "%"
+        },
+        "heading": "新店 SOP 例外问题, 一搜可得",
+        "body":    "AI 知识库上线 6 个月,一线营建发现的 SOP 之外解法被沉淀 320 条;新店遇到例外问题 82% 可在 1 分钟内搜到老专家方案,无需口头追问。"
+      }
+    }
+  ]
+}

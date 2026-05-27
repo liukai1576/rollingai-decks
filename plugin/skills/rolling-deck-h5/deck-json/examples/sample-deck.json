@@ -1,0 +1,319 @@
+{
+  "version": "1.0",
+  "deck": {
+    "title": "先进团队的工作方式 · DeckJSON 样例",
+    "author": "杰森",
+    "date": "2026.05.20",
+    "presentation_date": "2026-05-20",
+    "customer_slug": "deckjson-sample",
+    "language": "zh-only",
+    "mode": "rewrite"
+  },
+
+  "slides": [
+    {
+      "key": "cover",
+      "layout": "cover",
+      "screen_label": "01 Cover",
+      "data": {
+        "title": "先进团队的\n工作方式",
+        "author": "杰森",
+        "date": "客户提案 · 2026.05.20"
+      }
+    },
+
+    {
+      "key": "agenda",
+      "layout": "agenda",
+      "accent": "blue",
+      "screen_label": "02 Agenda",
+      "data": {
+        "items": [
+          { "title_zh": "背景与挑战" },
+          { "title_zh": "先进团队的工作方式" },
+          { "title_zh": "飞书平台能力" },
+          { "title_zh": "客户实证" },
+          { "title_zh": "部署与服务" },
+          { "title_zh": "下一步" }
+        ]
+      }
+    },
+
+    {
+      "key": "section-advanced-team",
+      "layout": "section",
+      "screen_label": "03 Section · 先进团队",
+      "data": {
+        "chapter_num": "02.",
+        "title": "先进团队的工作方式",
+        "lede": "即时同步 · 共识对齐 · 闭环交付",
+        "pills": ["飞书消息", "飞书文档", "飞书多维表格", "飞书知识库", "飞书视频会议"]
+      }
+    },
+
+    {
+      "key": "three-pillars",
+      "layout": "content",
+      "variant": "3up",
+      "accent": "blue",
+      "screen_label": "04 三大能力",
+      "data": {
+        "title": "先进团队的三大工作方式",
+        "cards": [
+          {
+            "num": "01",
+            "icon": "message-circle",
+            "title_zh": "即时同步",
+            "body": "30 万人组织,一封消息触达全员,3 秒内全部已读。",
+            "footer_label": "MESSENGER · DOCS"
+          },
+          {
+            "num": "02",
+            "icon": "users",
+            "title_zh": "共识对齐",
+            "body": "所有讨论沉淀进 Wiki,决策可追溯,新成员第一天就能看到全貌。",
+            "footer_label": "WIKI · BASE"
+          },
+          {
+            "num": "03",
+            "icon": "check-circle",
+            "title_zh": "闭环交付",
+            "body": "从需求到上线,流程在 Base 中自动流转,每一步都有责任人和时间戳。",
+            "footer_label": "BASE · MEETINGS"
+          }
+        ],
+        "body_blocks": [
+          {
+            "type": "pullquote",
+            "text": "不是把工具堆给团队,是让团队的工作方式本身被升级。",
+            "tone": "default"
+          }
+        ]
+      }
+    },
+
+    {
+      "key": "lark-base-tour",
+      "layout": "content",
+      "variant": "2col",
+      "accent": "blue",
+      "screen_label": "05 Lark Base",
+      "data": {
+        "title": "让流程在表格里运转",
+        "text": {
+          "lede": "Lark Base 把任务、工单、合同、人员、审批,统一到一个可视化的多维表格。",
+          "feature_list": [
+            "看板、甘特、日历、卡片视图,一份数据多种视角。",
+            "关联字段把分散的表打成网,数据不再孤立。",
+            "触发器 + 自动化,把人手操作变成系统行为。",
+            "开放 API,与 ERP、CRM、自研系统双向同步。"
+          ]
+        },
+        "visual": {
+          "type": "data-panel",
+          "panel": {
+            "type": "data-panel",
+            "title": "销售战区 · 04-28 实时面板",
+            "tone": "default",
+            "rows": [
+              { "lbl": "华东 · 大润发周末堆头", "val": "ROI 3.2×" },
+              { "lbl": "华北 · 餐饮渠道返点",   "val": "ROI 0.6×", "tone": "warn" },
+              { "lbl": "本周自动核销",         "val": "1,284 单 · ↑ 47%" }
+            ]
+          }
+        }
+      }
+    },
+
+    {
+      "key": "quote-30k-team",
+      "layout": "quote",
+      "accent": "blue",
+      "decor": ["blue-glow"],
+      "screen_label": "06 客户原声",
+      "data": {
+        "title": "客户原声",
+        "quote": {
+          "lead": "飞书让 30 万人 ",
+          "accent": "像一个团队",
+          "tail": " 一样工作"
+        },
+        "attribution": "某头部互联网公司 · CIO · 2024"
+      }
+    },
+
+    {
+      "key": "kpi-4up",
+      "layout": "stats",
+      "variant": "row",
+      "accent": "teal",
+      "screen_label": "07 可量化结果",
+      "data": {
+        "title": "飞书带来的可量化结果",
+        "cols": [
+          {
+            "icon": "zap",
+            "trend": "↑ 触达",
+            "num": "3",
+            "unit": "秒",
+            "label": "30 万人组织全员消息送达时延",
+            "source": "Source · 内部传输实测 2024 Q4"
+          },
+          {
+            "icon": "check",
+            "trend": "↑ 已读",
+            "num": "98",
+            "unit": "%",
+            "label": "关键通知 30 分钟内已读率",
+            "source": "Source · 12 家头部企业平均"
+          },
+          {
+            "icon": "trending-up",
+            "trend": "↑ ROI",
+            "num": "3.2",
+            "unit": "×",
+            "label": "部署 12 个月后协同 ROI 中位数",
+            "source": "Source · IDC 2024 商务白皮书"
+          },
+          {
+            "icon": "clock",
+            "trend": "↓ 决策",
+            "num": "<60",
+            "unit": "秒",
+            "label": "关键决策从发起到对齐时长",
+            "source": "Source · 客户访谈 N=24"
+          }
+        ],
+        "footnote": "数据样本: 12 家中国头部企业, 2024 Q3-Q4 实测, 口径见附录 A."
+      }
+    },
+
+    {
+      "key": "scale-30k",
+      "layout": "stats",
+      "variant": "hero",
+      "accent": "blue",
+      "decor": ["blue-glow"],
+      "screen_label": "08 极限规模",
+      "data": {
+        "eyebrow": "SCALE · 极限规模",
+        "stat": { "number": "30", "unit": "万人" },
+        "heading": "单一组织,统一协同",
+        "body": "飞书的消息、文档、视频会议在 30 万人量级下保持秒级响应,且不依赖私有部署。"
+      }
+    },
+
+    {
+      "key": "image-onsite-decision",
+      "layout": "image-text",
+      "accent": "blue",
+      "screen_label": "09 现场决策",
+      "data": {
+        "image": {
+          "src": "assets/onsite-photo.jpg",
+          "alt": "门店一线员工在 Lark 移动端审批一笔库存调拨",
+          "fit": "cover",
+          "position": "center"
+        },
+        "title": "现场决策,\n从未离线",
+        "lede": "门店、产线、出差、远程,飞书让每一处节点都能即时被看到、被对齐。"
+      }
+    },
+
+    {
+      "key": "comparison-vs-traditional",
+      "layout": "table",
+      "accent": "blue",
+      "screen_label": "10 平台对比",
+      "data": {
+        "title": "飞书与传统办公套件",
+        "headers": ["能力", "飞书 Lark", "传统套件 A", "传统套件 B"],
+        "rows": [
+          ["消息 + 文档 + 表格 + 会议 一体化", "原生集成",     "多产品拼接", "多产品拼接"],
+          ["多维表格 (Base) 自动化",         "核心能力",     "第三方插件", "不支持"],
+          ["30 万人级消息触达",              "3 秒内全员",   "未公开",     "未公开"],
+          ["跨域中英双语支持",               "原生",         "需配置",     "需配置"],
+          ["开放 API + Webhook",            "全量开放",     "受限",       "受限"]
+        ]
+      }
+    },
+
+    {
+      "key": "roadmap-12week",
+      "layout": "flow",
+      "variant": "timeline",
+      "accent": "blue",
+      "screen_label": "11 12 周路径",
+      "data": {
+        "title": "12 周落地路径",
+        "cols": 4,
+        "nodes": [
+          { "when": "W1-2",  "what": "需求蓝图",     "desc": "访谈 6 部门,输出协同地图与目标 KPI。" },
+          { "when": "W3-5",  "what": "关键流程上线", "desc": "销售、HR、财务三条核心流在 Base 中先跑通。" },
+          { "when": "W6-8",  "what": "全员推广",     "desc": "分层培训,关键岗位 100% 接入,数据搬迁完成。" },
+          { "when": "W9-12", "what": "数据复盘",     "desc": "复盘 KPI,调整流程,形成长期治理机制。" }
+        ]
+      }
+    },
+
+    {
+      "key": "process-4step",
+      "layout": "flow",
+      "variant": "process",
+      "accent": "blue",
+      "screen_label": "12 协同闭环",
+      "data": {
+        "title": "需求到交付,四步成型",
+        "cols": 4,
+        "steps": [
+          { "num": "01", "title": "提出", "body": "任意一线员工在 Messenger 发起,自动落入 Base 队列。" },
+          { "num": "02", "title": "对齐", "body": "相关方在 Docs 留痕讨论,关键决策沉淀到 Wiki。" },
+          { "num": "03", "title": "交付", "body": "负责人在 Base 中流转,责任人 + 时间戳每一步可追溯。" },
+          { "num": "04", "title": "复盘", "body": "会后 Meetings 自动生成纪要,关键指标进入下个周期。" }
+        ]
+      }
+    },
+
+    {
+      "key": "luckin-case",
+      "layout": "content",
+      "variant": "story-case",
+      "accent": "blue",
+      "decor": ["blue-glow"],
+      "screen_label": "13 瑞幸案例",
+      "data": {
+        "title": "瑞幸营建 · 萃取隐形经验避免新店返工",
+        "industry": "连锁零售 · 新店筹建 · 客户案例",
+        "hook": {
+          "lead": "新店垃圾桶距出餐窄 1 米,按 SOP 必须 ",
+          "accent": "砸墙返工",
+          "tail": " —— 老专家随手两招就解决。"
+        },
+        "arc": {
+          "pain":     "连锁零售新店筹建,大量老专家经验不在 SOP,新人犯错返工成本高、耽误开店周期。",
+          "conflict": "瑞幸新店验收发现垃圾桶位置距出餐区窄了 1 米,按标准 SOP 必须砸墙返工。",
+          "solution": "几十年经验的营建老专家随手两招:装玻璃隔离 / 换踩弹式自动关闭垃圾桶 —— 不动装修就能合规。",
+          "value": {
+            "lead":   "飞书把这种不在手册里的隐形经验萃取到 ",
+            "accent": "企业 AI 知识库",
+            "tail":   ",新人遇到问题直接搜就能得到解法 —— 老专家脑子里的资产,变成全组织可复用的能力。"
+          }
+        },
+        "scene": {
+          "image":    "assets/luckin-scene.png",
+          "caption":  "现场 · 营建老专家拆解 SOP 之外的隐形经验",
+          "alt":      "瑞幸新店验收现场:营建老专家指着垃圾桶向新人讲解不动装修的解法"
+        }
+      }
+    },
+
+    {
+      "key": "closing",
+      "layout": "end",
+      "screen_label": "14 End",
+      "data": {
+        "contact": "contact@feishu.cn  ·  feishu.cn"
+      }
+    }
+  ]
+}

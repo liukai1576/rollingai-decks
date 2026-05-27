@@ -1,0 +1,62 @@
+# rolling-deck · business rules
+#
+# Rules that gate library ingest. Edited as data (this file), not code.
+# Each rule has:
+#   concern     : A / B / C — see groups below
+#   symptom     : one-line business description
+#   consequence : what breaks if you ignore it
+#   fix         : action verbs, concrete steps
+#
+# Groups
+#   A · 客户看不见   — viewer-visible defects (overflow, low contrast, body floor)
+#   B · 库找不回来   — locator failures (missing story.id, bad tags)
+#   C · 复用时打架   — reuse-quality issues (off-brand, off-ladder, structural bugs)
+#
+# Rules are loaded by validate.py --gate ingest. Adding a rule here is enough;
+# you don't need to touch .py code to extend coverage if it's a data-only rule.
+
+rules:
+  T01-story-id-present:
+    concern: "B · 库找不回来"
+    symptom: "deck.json 没有 story.id"
+    consequence: "无法入库 / 无法被搜索 / 无法被合并"
+    fix:
+      - "在 deck.json 顶层加 `story: { id: \"...\" }` 字段"
+      - "id 用 kebab-case，全局唯一"
+
+  T02-tags-axes-shape:
+    concern: "B · 库找不回来"
+    symptom: "tags 不是 `axis/value` 格式（如裸标 `客户案例`）"
+    consequence: "管理平台无法按维度（pillar / audience / form / ...）聚合"
+    fix:
+      - "改为 `<axis>/<value>` 形式，如 `pillar/product`、`audience/customer`"
+      - "新维度直接造，不需要先注册——平台会自动出现新分组"
+
+  R-OVERFLOW:
+    concern: "A · 客户看不见"
+    symptom: "slide 内容超出 1920×1080 画框"
+    consequence: "投影时被裁掉，客户看到一半"
+    fix:
+      - "删内容（首选），不要缩字号"
+      - "或拆成两页"
+
+  R06-body-floor:
+    concern: "A · 客户看不见"
+    symptom: "正文字号 < 24px"
+    consequence: "投影距离看不清"
+    fix:
+      - "字号回到 24px 起步"
+      - "如果 24px 装不下，删字数而不是降字号"
+
+  R-WHITE-TEXT:
+    concern: "A · 客户看不见"
+    symptom: "文字颜色和背景对比度过低"
+    consequence: "投影上读不出字"
+    fix:
+      - "深色背景用 #fff 或 text-72"
+      - "亮色背景用 #000 或 text-72-dark（待 RollingAI 设计令牌确认）"
+
+# Rules NOT checked by ingest (they're authoring-time only)
+ingest_excluded:
+  - R-FEEDBACK    # FEEDBACK.md is per-run, not per-library-entry
+  - P5x           # browser perf budgets, not ingest concerns

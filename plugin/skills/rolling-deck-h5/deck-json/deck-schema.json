@@ -1,0 +1,1112 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://feishu-deck-h5/deck-schema.json",
+  "title": "DeckJSON",
+  "description": "Single-source-of-truth data model for a feishu-deck-h5 slide deck. 10 base layouts (3 multi-variant) + 2 specials. The deterministic renderer turns this into HTML; the visual editor edits this in place; the LLM produces this instead of free-form HTML.",
+  "type": "object",
+  "required": ["version", "deck", "slides"],
+  "additionalProperties": false,
+  "properties": {
+    "version": {
+      "description": "DeckJSON schema version. Renderers MUST refuse unknown versions.",
+      "const": "1.0"
+    },
+    "deck": { "$ref": "#/$defs/deck_meta" },
+    "slides": {
+      "type": "array",
+      "minItems": 1,
+      "items": { "$ref": "#/$defs/slide" }
+    },
+    "assets": {
+      "description": "Optional asset manifest. Renderer can resolve relative paths against this; if absent, slide-level paths are used as-is.",
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "base_dir": { "type": "string", "description": "Filesystem dir to resolve relative paths from." },
+        "scenes": { "type": "object", "additionalProperties": { "type": "string" } },
+        "logos": { "type": "object", "additionalProperties": { "type": "string" } }
+      }
+    },
+    "notes": { "type": "string", "description": "Free-form deck-level authoring notes. Not rendered." }
+  },
+
+  "$defs": {
+
+    "deck_meta": {
+      "type": "object",
+      "required": ["title"],
+      "additionalProperties": false,
+      "properties": {
+        "title": { "type": "string", "minLength": 1, "description": "Deck title. Used in <title> and as fallback for cover-slide title." },
+        "author": { "type": "string", "description": "Initiator's personal name. Used on cover when slide doesn't override." },
+        "date": { "type": "string", "description": "Cover-displayed date, e.g. '2026.05.20'." },
+        "presentation_date": {
+          "type": "string",
+          "pattern": "^\\d{4}-\\d{2}-\\d{2}$",
+          "description": "ISO YYYY-MM-DD. Used for delivery filename (lark-<customer>-<date>.html)."
+        },
+        "customer_slug": {
+          "type": "string",
+          "pattern": "^[a-z][a-z0-9-]*$",
+          "description": "Lowercase kebab-case. Used for delivery filename + library deck_id."
+        },
+        "language": {
+          "enum": ["zh-only", "zh-en"],
+          "default": "zh-only",
+          "description": "ZH-only is the default (LANGUAGE POLICY). Bilingual is opt-in."
+        },
+        "mode": {
+          "enum": ["rewrite", "replica"],
+          "default": "rewrite",
+          "description": "rewrite = full HTML composition via layouts; replica = each slide is a page-as-image."
+        },
+        "title_style": {
+          "enum": ["center-single", "center-double", "left-double", "left"],
+          "default": "left-double",
+          "description": "Deck-wide default for content / stats / flow / etc. titles. Mirrors PPT master '内容页-标题…' variants. Per-slide overrides via slide.title_style."
+        },
+        "logo_position": {
+          "enum": ["front", "back"],
+          "default": "front",
+          "description": "Deck-wide default for customer × feishu logo arrangement on content slides. 'front' = customer logo before feishu; 'back' = after. Mirrors PPT '内容页-飞书联名在前/后'."
+        }
+      }
+    },
+
+    "slide": {
+      "type": "object",
+      "required": ["key", "layout"],
+      "properties": {
+        "key": {
+          "type": "string",
+          "pattern": "^[a-z][a-z0-9-]*$",
+          "description": "Deck-internal unique semantic slug. NOT positional. Stable across reorders. (R-KEY)"
+        },
+        "layout": { "$ref": "#/$defs/layout_enum" },
+        "variant": {
+          "type": "string",
+          "description": "Required for multi-variant layouts (content / stats / flow). Ignored for single-variant layouts. Schema enforces validity per-layout."
+        },
+        "screen_label": {
+          "type": "string",
+          "description": "Pager UI label (data-screen-label). If omitted, derived from title."
+        },
+        "accent": {
+          "$ref": "#/$defs/accent_enum",
+          "description": "Slide accent color. Per R49, cyan is NOT allowed at slide level."
+        },
+        "decor": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/decor_token" },
+          "uniqueItems": true,
+          "description": "Atmospheric decoration tokens. Space-stacked at render time."
+        },
+        "language_override": {
+          "enum": ["zh-only", "zh-en"],
+          "description": "Override deck.language for this slide only."
+        },
+        "custom_css": {
+          "type": "string",
+          "description": "ESCAPE HATCH. Per-slide raw CSS scoped under [data-page=NN]. Use sparingly — drives R20/R06 drift."
+        },
+        "notes": {
+          "type": "string",
+          "description": "Presenter notes / authoring intent. Not rendered."
+        },
+        "title_style": {
+          "enum": ["center-single", "center-double", "left-double", "left"],
+          "description": "Per-slide override of deck.title_style. See deck_meta.title_style."
+        },
+        "logo_position": {
+          "enum": ["front", "back"],
+          "description": "Per-slide override of deck.logo_position. See deck_meta.logo_position."
+        },
+        "_disabled": {
+          "type": "boolean",
+          "description": "If true, renderer skips this slide entirely. Escape hatch for 'this slide errors, let the rest render'. SKILL.md Troubleshooting section."
+        },
+        "_orig_layout": {
+          "type": "string",
+          "description": "Internal: used by `layout: raw` slides migrated from a legacy deck so framework CSS rules engage. Renderer-only; not authored by hand."
+        },
+        "data": { "type": "object" }
+      },
+      "allOf": [
+        { "if": { "properties": { "layout": { "const": "cover" } },      "required": ["layout"] }, "then": { "properties": { "data": { "$ref": "#/$defs/data_cover" } },      "required": ["data"] } },
+        { "if": { "properties": { "layout": { "const": "agenda" } },     "required": ["layout"] }, "then": { "properties": { "data": { "$ref": "#/$defs/data_agenda" } },     "required": ["data"] } },
+        { "if": { "properties": { "layout": { "const": "section" } },    "required": ["layout"] }, "then": { "properties": { "data": { "$ref": "#/$defs/data_section" } },    "required": ["data"] } },
+        { "if": { "properties": { "layout": { "const": "quote" } },      "required": ["layout"] }, "then": { "properties": { "data": { "$ref": "#/$defs/data_quote" } },      "required": ["data"] } },
+        { "if": { "properties": { "layout": { "const": "image-text" } }, "required": ["layout"] }, "then": { "properties": { "data": { "$ref": "#/$defs/data_image_text" } }, "required": ["data"] } },
+        { "if": { "properties": { "layout": { "const": "table" } },      "required": ["layout"] }, "then": { "properties": { "data": { "$ref": "#/$defs/data_table" } },      "required": ["data"] } },
+        { "if": { "properties": { "layout": { "const": "end" } },        "required": ["layout"] }, "then": { "properties": { "data": { "$ref": "#/$defs/data_end" } } } },
+        { "if": { "properties": { "layout": { "const": "replica" } },    "required": ["layout"] }, "then": { "properties": { "data": { "$ref": "#/$defs/data_replica" } },    "required": ["data"] } },
+        { "if": { "properties": { "layout": { "const": "raw" } },        "required": ["layout"] }, "then": { "properties": { "data": { "$ref": "#/$defs/data_raw" } },        "required": ["data"] } },
+        { "if": { "properties": { "layout": { "const": "iframe-embed" } }, "required": ["layout"] }, "then": { "properties": { "data": { "$ref": "#/$defs/data_iframe_embed" } }, "required": ["data"] } },
+        { "if": { "properties": { "layout": { "const": "logo-wall" } },  "required": ["layout"] }, "then": { "properties": { "data": { "$ref": "#/$defs/data_logo_wall" } },  "required": ["data"] } },
+        { "if": { "properties": { "layout": { "const": "arch-stack" } }, "required": ["layout"] }, "then": { "properties": { "data": { "$ref": "#/$defs/data_arch_stack" } }, "required": ["data"] } },
+
+        { "if": { "properties": { "layout": { "const": "content" } }, "required": ["layout"] },
+          "then": { "required": ["variant"], "properties": { "variant": { "enum": ["3up", "2col", "story-case", "blocks", "matrix", "before-after"] } } } },
+        { "if": { "properties": { "layout": { "const": "stats" } }, "required": ["layout"] },
+          "then": { "required": ["variant"], "properties": { "variant": { "enum": ["row", "hero", "waterfall"] } } } },
+        { "if": { "properties": { "layout": { "const": "flow" } }, "required": ["layout"] },
+          "then": { "required": ["variant"], "properties": { "variant": { "enum": ["timeline", "process", "tree", "swim"] } } } },
+
+        { "if": { "properties": { "layout": { "const": "content" }, "variant": { "const": "3up" } },         "required": ["layout", "variant"] }, "then": { "properties": { "data": { "$ref": "#/$defs/data_content_3up" } },         "required": ["data"] } },
+        { "if": { "properties": { "layout": { "const": "content" }, "variant": { "const": "2col" } },        "required": ["layout", "variant"] }, "then": { "properties": { "data": { "$ref": "#/$defs/data_content_2col" } },        "required": ["data"] } },
+        { "if": { "properties": { "layout": { "const": "content" }, "variant": { "const": "story-case" } }, "required": ["layout", "variant"] }, "then": { "properties": { "data": { "$ref": "#/$defs/data_content_story_case" } }, "required": ["data"] } },
+        { "if": { "properties": { "layout": { "const": "content" }, "variant": { "const": "blocks" } },     "required": ["layout", "variant"] }, "then": { "properties": { "data": { "$ref": "#/$defs/data_content_blocks" } },     "required": ["data"] } },
+        { "if": { "properties": { "layout": { "const": "content" }, "variant": { "const": "matrix" } },     "required": ["layout", "variant"] }, "then": { "properties": { "data": { "$ref": "#/$defs/data_content_matrix" } },     "required": ["data"] } },
+        { "if": { "properties": { "layout": { "const": "content" }, "variant": { "const": "before-after" } }, "required": ["layout", "variant"] }, "then": { "properties": { "data": { "$ref": "#/$defs/data_content_before_after" } }, "required": ["data"] } },
+        { "if": { "properties": { "layout": { "const": "stats" }, "variant": { "const": "waterfall" } },    "required": ["layout", "variant"] }, "then": { "properties": { "data": { "$ref": "#/$defs/data_stats_waterfall" } },    "required": ["data"] } },
+        { "if": { "properties": { "layout": { "const": "flow" }, "variant": { "const": "tree" } },          "required": ["layout", "variant"] }, "then": { "properties": { "data": { "$ref": "#/$defs/data_flow_tree" } },          "required": ["data"] } },
+        { "if": { "properties": { "layout": { "const": "stats" }, "variant": { "const": "row" } },           "required": ["layout", "variant"] }, "then": { "properties": { "data": { "$ref": "#/$defs/data_stats_row" } },            "required": ["data"] } },
+        { "if": { "properties": { "layout": { "const": "stats" }, "variant": { "const": "hero" } },          "required": ["layout", "variant"] }, "then": { "properties": { "data": { "$ref": "#/$defs/data_stats_hero" } },           "required": ["data"] } },
+        { "if": { "properties": { "layout": { "const": "flow" }, "variant": { "const": "timeline" } },       "required": ["layout", "variant"] }, "then": { "properties": { "data": { "$ref": "#/$defs/data_flow_timeline" } },        "required": ["data"] } },
+        { "if": { "properties": { "layout": { "const": "flow" }, "variant": { "const": "process" } },        "required": ["layout", "variant"] }, "then": { "properties": { "data": { "$ref": "#/$defs/data_flow_process" } },         "required": ["data"] } },
+        { "if": { "properties": { "layout": { "const": "flow" }, "variant": { "const": "swim" } },           "required": ["layout", "variant"] }, "then": { "properties": { "data": { "$ref": "#/$defs/data_flow_swim" } },            "required": ["data"] } }
+      ]
+    },
+
+    "data_flow_swim": {
+      "description": "flow/swim — multi-lane roadmap (time axis × product lines). Each lane has its own accent + milestones placed on the time grid. quarter index is 1-based.",
+      "type": "object",
+      "required": ["title", "time_axis", "lanes"],
+      "additionalProperties": false,
+      "properties": {
+        "title": { "type": "string", "minLength": 1 },
+        "time_axis": {
+          "type": "array",
+          "minItems": 2,
+          "maxItems": 6,
+          "items": { "type": "string", "minLength": 1, "description": "Time period label, e.g. 'Q1' or '2026 H1'." }
+        },
+        "lanes": {
+          "type": "array",
+          "minItems": 2,
+          "maxItems": 5,
+          "items": {
+            "type": "object",
+            "required": ["name", "milestones"],
+            "additionalProperties": false,
+            "properties": {
+              "name":   { "type": "string", "minLength": 1, "description": "Lane name, e.g. '飞书 AI 助手'." },
+              "sub":    { "type": "string", "description": "Optional Latin tagline, e.g. 'AI ASSISTANT'." },
+              "accent": { "enum": ["blue", "teal", "violet", "orange"], "default": "blue", "description": "Lane color tone." },
+              "milestones": {
+                "type": "array",
+                "minItems": 1,
+                "items": {
+                  "type": "object",
+                  "required": ["quarter", "title"],
+                  "additionalProperties": false,
+                  "properties": {
+                    "quarter": { "type": "integer", "minimum": 1, "maximum": 6, "description": "1-indexed into time_axis." },
+                    "title":   { "type": "string", "minLength": 1 },
+                    "desc":    { "type": "string", "description": "Optional sub-text on the milestone tile." }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+
+    "data_arch_stack": {
+      "description": "arch-stack layout — 2-5 horizontal layers (e.g. apps / platform / AI engines / data foundation). Each layer has a name + modules pills.",
+      "type": "object",
+      "required": ["title", "layers"],
+      "additionalProperties": false,
+      "properties": {
+        "title": { "type": "string", "minLength": 1 },
+        "layers": {
+          "type": "array",
+          "minItems": 2,
+          "maxItems": 5,
+          "items": {
+            "type": "object",
+            "required": ["name", "modules"],
+            "additionalProperties": false,
+            "properties": {
+              "name": {
+                "type": "object",
+                "required": ["title"],
+                "additionalProperties": false,
+                "properties": {
+                  "title": { "type": "string", "minLength": 1, "description": "Layer title, e.g. '应用层'." },
+                  "sub":   { "type": "string", "description": "Layer subtitle, e.g. 'APPS · 面向终端用户'." }
+                }
+              },
+              "modules": {
+                "type": "array",
+                "minItems": 3,
+                "maxItems": 8,
+                "items": { "type": "string", "minLength": 1 }
+              }
+            }
+          }
+        }
+      }
+    },
+
+    "data_logo_wall": {
+      "description": "logo-wall layout — N industries × M client logos. Logo entries are LOGICAL keys (e.g. '瑞幸咖啡'); enricher resolves to assets/shared/clientlogo/<key>.png.",
+      "type": "object",
+      "required": ["title", "industries"],
+      "additionalProperties": false,
+      "properties": {
+        "title":  { "type": "string", "minLength": 1 },
+        "lede":   { "type": "string", "description": "Optional intro paragraph above the industries grid." },
+        "industries": {
+          "type": "array",
+          "minItems": 1,
+          "maxItems": 5,
+          "items": {
+            "type": "object",
+            "required": ["name", "logos"],
+            "additionalProperties": false,
+            "properties": {
+              "name":  { "type": "string", "minLength": 1, "description": "Industry pill label, e.g. '新茶饮 / 餐饮连锁'." },
+              "logos": {
+                "type": "array",
+                "minItems": 3,
+                "maxItems": 12,
+                "items": { "type": "string", "minLength": 1, "description": "Logo logical key — corresponds to assets/shared/clientlogo/<key>.png." }
+              }
+            }
+          }
+        }
+      }
+    },
+
+    "layout_enum": {
+      "enum": [
+        "cover", "agenda", "section",
+        "content", "stats", "flow",
+        "quote", "image-text", "table",
+        "logo-wall", "arch-stack",
+        "iframe-embed",
+        "end",
+        "replica", "raw"
+      ],
+      "description": "13 base layouts (content/stats/flow are multi-variant) + 2 specials (replica/raw). iframe-embed wraps an external HTML page (prototype / live demo / report) as a slide."
+    },
+
+    "accent_enum": {
+      "enum": ["blue", "teal", "violet", "purple", "orange"],
+      "description": "Slide accent. cyan deliberately excluded (R49 — cyan is inline-highlight only)."
+    },
+
+    "decor_token": {
+      "enum": [
+        "violet-glow", "blue-glow", "mix-glow", "teal-glow", "orange-spark",
+        "aurora", "grain", "topo",
+        "flower-bg", "section-bg", "photo-bg"
+      ]
+    },
+
+    "accent_phrase": {
+      "type": "object",
+      "required": ["lead", "accent", "tail"],
+      "additionalProperties": false,
+      "properties": {
+        "lead":   { "type": "string", "minLength": 1 },
+        "accent": { "type": "string", "minLength": 2, "description": "Teal-highlighted emphasis word. Single accent per slide (R-LANG family)." },
+        "tail":   { "type": "string", "minLength": 1 }
+      }
+    },
+
+    "icon_ref": {
+      "description": "Icon reference. Either a name from the shipped Lucide-style library, or a raw inline SVG string.",
+      "oneOf": [
+        { "type": "string", "pattern": "^[a-z][a-z0-9-]*$", "description": "Named icon, resolved by renderer." },
+        { "type": "object", "required": ["svg"], "additionalProperties": false, "properties": { "svg": { "type": "string", "description": "Raw <svg>…</svg> markup. Renderer trusts it." } } }
+      ]
+    },
+
+    "image_ref": {
+      "description": "Image. Path relative to deck file, or absolute, or symbolic 'asset:<key>' resolved against assets manifest.",
+      "type": "object",
+      "required": ["src", "alt"],
+      "additionalProperties": false,
+      "properties": {
+        "src": { "type": "string", "minLength": 1 },
+        "alt": { "type": "string", "minLength": 1 },
+        "fit": { "enum": ["cover", "contain"], "default": "cover" },
+        "position": { "type": "string", "default": "center" },
+        "caption": { "type": "string" }
+      }
+    },
+
+    "embeddable_block": {
+      "description": "Composable narrative-pattern block. Embeds inside content (3up/2col).data.body_blocks[].",
+      "oneOf": [
+        { "$ref": "#/$defs/block_pullquote" },
+        { "$ref": "#/$defs/block_cta_box" },
+        { "$ref": "#/$defs/block_kpi_strip" },
+        { "$ref": "#/$defs/block_principle_band" },
+        { "$ref": "#/$defs/block_data_panel" },
+        { "$ref": "#/$defs/block_verdict_grid" },
+        { "$ref": "#/$defs/block_phone_iframe" },
+        { "$ref": "#/$defs/block_testimonial_card" },
+        { "$ref": "#/$defs/block_mockup_card" },
+        { "$ref": "#/$defs/block_persona_card" }
+      ]
+    },
+
+    "block_mockup_card": {
+      "description": "UI mockup card · 4 visual kinds (past/now/callout/compare). PPT slide 6. Use inside content/3up.body_blocks or content/blocks to showcase before/after product UI states.",
+      "type": "object",
+      "required": ["type", "kind", "title"],
+      "additionalProperties": false,
+      "properties": {
+        "type":     { "const": "mockup-card" },
+        "kind":     { "enum": ["past", "now", "callout", "compare"], "description": "past=灰底过去态, now=蓝底现状, callout=带箭头/指示线突出, compare=对比左右两栏" },
+        "title":    { "type": "string", "minLength": 1, "description": "Card heading, e.g. '工作协同'." },
+        "body":     { "type": "string", "description": "Card body text. \\n supported." },
+        "label":    { "type": "string", "description": "Top eyebrow label (e.g. '过去' / '现在' / '突出指示')." },
+        "image":    { "type": "string", "description": "Optional UI screenshot path (relative to deck.json dir)." },
+        "compare_pair": {
+          "description": "For kind='compare': left/right pair labels.",
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "left":  { "type": "string", "minLength": 1 },
+            "right": { "type": "string", "minLength": 1 }
+          }
+        }
+      }
+    },
+
+    "block_persona_card": {
+      "description": "User persona intro · PPT slide 35. name + role + generation + summary.",
+      "type": "object",
+      "required": ["type", "name", "role"],
+      "additionalProperties": false,
+      "properties": {
+        "type":       { "const": "persona-card" },
+        "name":       { "type": "string", "minLength": 1 },
+        "role":       { "type": "string", "minLength": 1, "description": "Job role, e.g. 'IT 总监'." },
+        "generation": { "type": "string", "description": "Optional generation tag, e.g. '70 后' / '90 后'." },
+        "summary":    { "type": "string", "description": "Optional 1-line description. \\n supported." },
+        "portrait":   { "type": "string", "description": "Optional headshot image path." }
+      }
+    },
+
+    "block_testimonial_card": {
+      "description": "Customer testimonial — name + title + quote + optional portrait + company logo. PPT pattern slide 89-90.",
+      "type": "object",
+      "required": ["type", "name", "title", "quote"],
+      "additionalProperties": false,
+      "properties": {
+        "type":     { "const": "testimonial-card" },
+        "name":     { "type": "string", "minLength": 1, "description": "Person name, e.g. '李明'." },
+        "title":    { "type": "string", "minLength": 1, "description": "Job title + company, e.g. 'CIO · XX 集团'." },
+        "quote":    { "type": "string", "minLength": 4, "description": "Testimonial body. \\n supported." },
+        "portrait": { "type": "string", "description": "Optional headshot image src (relative to deck.json dir)." },
+        "company_logo": { "type": "string", "description": "Optional company logo path/key. If looks like a logical key, resolves to assets/shared/clientlogo/<key>.png; if has slash/extension, used as-is." }
+      }
+    },
+
+    "block_pullquote": {
+      "type": "object",
+      "required": ["type", "text"],
+      "additionalProperties": false,
+      "properties": {
+        "type": { "const": "pullquote" },
+        "text": { "type": "string", "minLength": 4 },
+        "tone": { "enum": ["default", "orange", "blue", "violet"], "default": "default" }
+      }
+    },
+
+    "block_cta_box": {
+      "type": "object",
+      "required": ["type", "heading"],
+      "additionalProperties": false,
+      "properties": {
+        "type": { "const": "cta-box" },
+        "heading": { "type": "string", "minLength": 1 },
+        "body": { "type": "string" },
+        "button_label": { "type": "string" },
+        "tone": { "enum": ["default", "teal"], "default": "default" }
+      }
+    },
+
+    "block_kpi_strip": {
+      "type": "object",
+      "required": ["type", "kpis"],
+      "additionalProperties": false,
+      "properties": {
+        "type": { "const": "kpi-strip" },
+        "kpis": {
+          "type": "array",
+          "minItems": 2,
+          "maxItems": 4,
+          "items": {
+            "type": "object",
+            "required": ["value", "label"],
+            "additionalProperties": false,
+            "properties": {
+              "value": { "type": "string", "minLength": 1 },
+              "label": { "type": "string", "minLength": 1 },
+              "tone": { "enum": ["teal", "blue", "orange"], "default": "teal" }
+            }
+          }
+        }
+      }
+    },
+
+    "block_principle_band": {
+      "type": "object",
+      "required": ["type", "principles"],
+      "additionalProperties": false,
+      "properties": {
+        "type": { "const": "principle-band" },
+        "principles": {
+          "type": "array",
+          "minItems": 2,
+          "maxItems": 4,
+          "items": {
+            "type": "object",
+            "required": ["text", "color"],
+            "additionalProperties": false,
+            "properties": {
+              "text":  { "type": "string", "minLength": 1 },
+              "color": { "enum": ["teal", "blue", "purple"] }
+            }
+          }
+        }
+      }
+    },
+
+    "block_verdict_grid": {
+      "description": "SKILL.md Pattern B · 2-3 decision-judgment cards in a row. Each card carries a verdict (go/conditional/nogo) which drives its border color + corner badge tone. Cards may inline a kpi_strip-shaped 'kpis' array as supporting evidence.",
+      "type": "object",
+      "required": ["type", "cards"],
+      "additionalProperties": false,
+      "properties": {
+        "type": { "const": "verdict-grid" },
+        "cards": {
+          "type": "array",
+          "minItems": 2,
+          "maxItems": 3,
+          "items": {
+            "type": "object",
+            "required": ["verdict", "badge", "title", "body"],
+            "additionalProperties": false,
+            "properties": {
+              "verdict": { "enum": ["go", "conditional", "nogo"], "description": "go=teal, conditional=purple, nogo=orange (per Pattern B color rules)." },
+              "badge":   { "type": "string", "minLength": 1, "description": "Top label, e.g. '命题 A · 费效真实性' or 'GO · 接'." },
+              "title":   { "type": "string", "minLength": 1 },
+              "body":    { "type": "string", "minLength": 1, "description": "May contain inline accent text via `<span class=\"accent-text\">...</span>` — renderer trusts the HTML inside body." },
+              "kpis": {
+                "type": "array",
+                "maxItems": 4,
+                "description": "Optional supporting kpis (same shape as block_kpi_strip.kpis). Inlined here to sidestep the no-block-in-block rule.",
+                "items": {
+                  "type": "object",
+                  "required": ["value", "label"],
+                  "additionalProperties": false,
+                  "properties": {
+                    "value": { "type": "string", "minLength": 1 },
+                    "label": { "type": "string", "minLength": 1 },
+                    "tone":  { "enum": ["teal", "blue", "orange"], "default": "teal" }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+
+    "block_phone_iframe": {
+      "description": "Phone-frame wrapping an iframe-embedded HTML prototype (the simpler / more reusable of the two phone patterns in SKILL.md 'Embedding prototypes'). The bespoke `.phone` with `.ph-status / .ph-bar / .ph-chat` animated UI is single-deck enough to live in `raw` for now.",
+      "type": "object",
+      "required": ["type", "iframe_src"],
+      "additionalProperties": false,
+      "properties": {
+        "type":       { "const": "phone-iframe" },
+        "iframe_src": { "type": "string", "minLength": 1, "description": "Relative or absolute URL to the HTML prototype. ALWAYS copy the prototype HTML into the deck's output folder — never reference user-local absolute paths." },
+        "title":      { "type": "string", "description": "Iframe title attribute (a11y)." },
+        "hint":       { "type": "string", "description": "Optional auto-fade hint pill, e.g. '原型可点击 · Click anywhere'." }
+      }
+    },
+
+    "block_data_panel": {
+      "type": "object",
+      "required": ["type", "title", "rows"],
+      "additionalProperties": false,
+      "properties": {
+        "type": { "const": "data-panel" },
+        "title": { "type": "string", "minLength": 1 },
+        "tone": { "enum": ["default", "teal", "violet"], "default": "default" },
+        "rows": {
+          "type": "array",
+          "minItems": 1,
+          "items": {
+            "type": "object",
+            "required": ["lbl", "val"],
+            "additionalProperties": false,
+            "properties": {
+              "lbl":  { "type": "string", "minLength": 1 },
+              "val":  { "type": "string", "minLength": 1 },
+              "tone": { "enum": ["default", "warn"], "default": "default" }
+            }
+          }
+        }
+      }
+    },
+
+    "data_cover": {
+      "description": "Master spec: title + initiator name + date. No subtitle (opt-in via bilingual setting).",
+      "type": "object",
+      "required": ["title", "author", "date"],
+      "additionalProperties": false,
+      "properties": {
+        "title":    { "type": "string", "minLength": 1, "description": "Can contain \\n for hard line break. <br> is allowed (cover is HERO_TITLE)." },
+        "author":   { "type": "string", "minLength": 1, "description": "Initiator's personal name (NOT team/department)." },
+        "date":     { "type": "string", "minLength": 1, "description": "Display date, e.g. '2026.05.20' or '客户提案 · 2026 Q2'." },
+        "subtitle": { "type": "string", "description": "OPT-IN bilingual EN subtitle. Default is OMIT." }
+      }
+    },
+
+    "data_agenda": {
+      "type": "object",
+      "required": ["items"],
+      "additionalProperties": false,
+      "properties": {
+        "title": { "type": "string", "description": "Optional header. v2 default hides header — pills speak for themselves." },
+        "items": {
+          "type": "array",
+          "minItems": 1,
+          "maxItems": 8,
+          "description": "1-item agendas are technically allowed (bundle composition can produce them) but editorially weak — consider dropping the agenda for a single-case deck.",
+          "items": {
+            "type": "object",
+            "required": ["title_zh"],
+            "additionalProperties": false,
+            "properties": {
+              "title_zh": { "type": "string", "minLength": 1 },
+              "title_en": { "type": "string", "description": "Bilingual only. Validator R-LANG ignores agenda title_en even in zh-only — common pattern." },
+              "active":   { "type": "boolean", "default": false, "description": "Recap variant — highlight one item. Multiple actives invalid." },
+              "dim":      { "type": "boolean", "default": false, "description": "Recap variant — explicitly dim a non-active item." }
+            }
+          }
+        }
+      }
+    },
+
+    "data_section": {
+      "type": "object",
+      "required": ["chapter_num", "title"],
+      "additionalProperties": false,
+      "properties": {
+        "chapter_num": { "type": "string", "pattern": "^\\d{2}(?:\\.\\d+)?\\.$", "description": "E.g. '02.' (top-level) or '02.1.' (subsection · PPT layout 3 '二级章节页'). Trailing period required per master spec." },
+        "parent_label": { "type": "string", "description": "Optional parent-chapter label, e.g. '02. 业务挑战 > 02.1 客户视角'. Shown above the title when this is a subsection." },
+        "title": { "type": "string", "minLength": 1, "description": "Chapter title. Hero layout — <br>/\\n allowed." },
+        "lede":  { "type": "string", "description": "One-line sub-lede." },
+        "pills": {
+          "type": "array",
+          "items": { "type": "string", "minLength": 1 },
+          "maxItems": 8,
+          "description": "Ghost pills for related products. Optional."
+        }
+      }
+    },
+
+    "data_content_3up": {
+      "description": "content layout · variant 3up — 3 parallel pillar cards. With optional lede above + per-card kpi, this variant absorbs the exec-summary use case (thesis + 3 takeaways with KPIs + closing CTA via body_blocks[cta-box]).",
+      "type": "object",
+      "required": ["title", "cards"],
+      "additionalProperties": false,
+      "properties": {
+        "title": { "type": "string", "minLength": 1, "description": "Single-line. R13: no <br> in content-page title. May contain inline <span class=\"hl\">...</span> highlights." },
+        "lede":  { "type": "string", "description": "Optional thesis / intro paragraph above the 3-up cards. Used for exec-summary-style slides." },
+        "cards": {
+          "type": "array",
+          "minItems": 3,
+          "maxItems": 3,
+          "items": {
+            "type": "object",
+            "required": ["title_zh", "body"],
+            "additionalProperties": false,
+            "properties": {
+              "num":          { "type": "string", "description": "Card numeral, e.g. '01'. Optional." },
+              "icon":         { "$ref": "#/$defs/icon_ref" },
+              "title_zh":     { "type": "string", "minLength": 1 },
+              "title_en":     { "type": "string", "description": "Bilingual only." },
+              "body":         { "type": "string", "minLength": 1 },
+              "footer_label": { "type": "string", "description": "Small Latin tag at card foot, e.g. 'MESSENGER · DOCS'." },
+              "kpi": {
+                "type": "object",
+                "required": ["value", "label"],
+                "additionalProperties": false,
+                "description": "Optional per-card KPI badge. Used for exec-summary takeaways (each takeaway shows a hero number like '28/30', '+44%', '96%').",
+                "properties": {
+                  "value": { "type": "string", "minLength": 1 },
+                  "label": { "type": "string", "minLength": 1 }
+                }
+              }
+            }
+          }
+        },
+        "body_blocks": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/embeddable_block" },
+          "description": "Optional richness blocks appended below the 3-up grid (e.g. cta-box for exec-summary actions, pullquote for emphasis)."
+        }
+      }
+    },
+
+    "data_content_matrix": {
+      "description": "content layout · variant matrix — 2×2 strategic prioritization grid with named axes and 4 quadrants. Classic consulting pattern (Eisenhower, Impact vs Effort, etc.). Per Pattern-B-style color cues: TL=teal (act-now/quick-win), TR=blue (strategic), BL=muted (defer), BR=orange (drop).",
+      "type": "object",
+      "required": ["title", "axes", "quadrants"],
+      "additionalProperties": false,
+      "properties": {
+        "title": { "type": "string", "minLength": 1 },
+        "axes": {
+          "type": "object",
+          "required": ["y", "x"],
+          "additionalProperties": false,
+          "properties": {
+            "y": {
+              "type": "object",
+              "required": ["name"],
+              "additionalProperties": false,
+              "properties": {
+                "name":       { "type": "string", "minLength": 1, "description": "Y-axis label, e.g. '业务影响' / 'Impact'." },
+                "high_label": { "type": "string", "default": "HIGH" },
+                "low_label":  { "type": "string", "default": "LOW" }
+              }
+            },
+            "x": {
+              "type": "object",
+              "required": ["name"],
+              "additionalProperties": false,
+              "properties": {
+                "name":       { "type": "string", "minLength": 1, "description": "X-axis label, e.g. '实施难度' / 'Effort'." },
+                "high_label": { "type": "string", "default": "HIGH" },
+                "low_label":  { "type": "string", "default": "LOW" }
+              }
+            }
+          }
+        },
+        "quadrants": {
+          "type": "object",
+          "required": ["tl", "tr", "bl", "br"],
+          "additionalProperties": false,
+          "description": "All 4 quadrants required. tl=top-left, tr=top-right, bl=bottom-left, br=bottom-right (CSS quad positions).",
+          "properties": {
+            "tl": { "$ref": "#/$defs/matrix_quadrant" },
+            "tr": { "$ref": "#/$defs/matrix_quadrant" },
+            "bl": { "$ref": "#/$defs/matrix_quadrant" },
+            "br": { "$ref": "#/$defs/matrix_quadrant" }
+          }
+        }
+      }
+    },
+
+    "matrix_quadrant": {
+      "type": "object",
+      "required": ["title", "items"],
+      "additionalProperties": false,
+      "properties": {
+        "ord":   { "type": "string", "description": "Optional ordinal letter (A/B/C/D). Renderer can also auto-assign." },
+        "title": { "type": "string", "minLength": 1, "description": "Quadrant headline, e.g. '立即做 · 快赢'." },
+        "items": {
+          "type": "array",
+          "minItems": 1,
+          "maxItems": 5,
+          "items": { "type": "string", "minLength": 1 }
+        }
+      }
+    },
+
+    "data_content_2col": {
+      "description": "content layout · variant 2col — narrative text + supporting visual.",
+      "type": "object",
+      "required": ["title", "text", "visual"],
+      "additionalProperties": false,
+      "properties": {
+        "title": { "type": "string", "minLength": 1 },
+        "text": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "lede":         { "type": "string", "description": "Lead paragraph above feature_list." },
+            "feature_list": { "type": "array", "items": { "type": "string", "minLength": 1 } },
+            "body_blocks":  { "type": "array", "items": { "$ref": "#/$defs/embeddable_block" } }
+          }
+        },
+        "visual": {
+          "oneOf": [
+            { "type": "object", "required": ["type", "image"], "additionalProperties": false, "properties": { "type": { "const": "image" },       "image": { "$ref": "#/$defs/image_ref" }, "min_height": { "type": "integer", "minimum": 200 } } },
+            { "type": "object", "required": ["type", "panel"], "additionalProperties": false, "properties": { "type": { "const": "data-panel" },  "panel": { "$ref": "#/$defs/block_data_panel" } } },
+            { "type": "object", "required": ["type", "svg"],   "additionalProperties": false, "properties": { "type": { "const": "raw-svg" },    "svg":   { "type": "string", "minLength": 10, "description": "Raw inline <svg>…</svg>. Validator skips its hex palette per R10." } } },
+            { "type": "object", "required": ["type"],          "additionalProperties": false, "properties": { "type": { "const": "placeholder" }, "label": { "type": "string" } } }
+          ]
+        }
+      }
+    },
+
+    "data_content_blocks": {
+      "description": "content layout · variant blocks — full-width body_blocks page (no text+visual split). Used when the slide body is one or more narrative-pattern blocks (verdict-grid, kpi-strip, etc.) occupying the full canvas width. Renderer typically emits `data-layout=\"content-2col\"` with a single full-width child grid.",
+      "type": "object",
+      "required": ["title", "body_blocks"],
+      "additionalProperties": false,
+      "properties": {
+        "title": { "type": "string", "minLength": 1, "description": "May contain inline highlight HTML, e.g. `<span class=\"hl\">两件事</span>` — renderer trusts the HTML inside title for this variant." },
+        "lede":  { "type": "string", "description": "Optional intro paragraph above body_blocks." },
+        "body_blocks": {
+          "type": "array",
+          "minItems": 1,
+          "items": { "$ref": "#/$defs/embeddable_block" }
+        },
+        "source_footer": { "type": "string", "description": "Inline data citation, e.g. '数据来源 · 行业访谈 N=24'. Optional." }
+      }
+    },
+
+    "data_content_before_after": {
+      "description": "content layout · variant before-after — two-column comparison (痛点 vs 飞书后), with a center pivot. Symmetry required: before.items.length === after.items.length.",
+      "type": "object",
+      "required": ["title", "before", "after"],
+      "additionalProperties": false,
+      "properties": {
+        "title":  { "type": "string", "minLength": 1 },
+        "before": {
+          "type": "object",
+          "required": ["tag", "items"],
+          "additionalProperties": false,
+          "properties": {
+            "tag":   { "type": "string", "minLength": 1, "description": "Left-column header label, e.g. '现状 · 痛点'." },
+            "items": { "type": "array", "minItems": 3, "maxItems": 6, "items": { "type": "string", "minLength": 1 } }
+          }
+        },
+        "pivot": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "caption": { "type": "string", "description": "Center-column caption, e.g. '用飞书 12 周后'." }
+          }
+        },
+        "after": {
+          "type": "object",
+          "required": ["tag", "items"],
+          "additionalProperties": false,
+          "properties": {
+            "tag":   { "type": "string", "minLength": 1, "description": "Right-column header label, e.g. '飞书 · 现在'." },
+            "items": { "type": "array", "minItems": 3, "maxItems": 6, "items": { "type": "string", "minLength": 1 } }
+          }
+        }
+      }
+    },
+
+    "data_content_story_case": {
+      "description": "content layout · variant story-case — one-pager customer case (the existing Path A pattern, now folded under content).",
+      "type": "object",
+      "required": ["title", "industry", "hook", "arc", "scene"],
+      "additionalProperties": false,
+      "properties": {
+        "title":    { "type": "string", "minLength": 1 },
+        "industry": { "type": "string", "minLength": 1 },
+        "brand":    { "type": "string", "description": "Optional. NEVER fabricate STORY ids." },
+        "source":   { "type": "string", "description": "Optional. NEVER fabricate '客户访谈' placeholders." },
+        "hook":     { "$ref": "#/$defs/accent_phrase" },
+        "arc": {
+          "type": "object",
+          "required": ["pain", "conflict", "solution", "value"],
+          "additionalProperties": false,
+          "properties": {
+            "pain":     { "type": "string", "minLength": 10 },
+            "conflict": { "type": "string", "minLength": 10 },
+            "solution": { "type": "string", "minLength": 10 },
+            "value":    { "$ref": "#/$defs/accent_phrase" }
+          }
+        },
+        "scene": {
+          "type": "object",
+          "required": ["image", "caption", "alt"],
+          "additionalProperties": false,
+          "properties": {
+            "image":    { "type": "string", "minLength": 1 },
+            "caption":  { "type": "string", "minLength": 1 },
+            "alt":      { "type": "string", "minLength": 1 },
+            "fit":      { "enum": ["cover", "contain"], "default": "cover" },
+            "position": { "type": "string", "default": "center" }
+          }
+        }
+      }
+    },
+
+    "data_quote": {
+      "description": "Single quote slide. accent_phrase splits lead/accent/tail so teal highlight is byte-perfect.",
+      "type": "object",
+      "required": ["quote", "attribution"],
+      "additionalProperties": false,
+      "properties": {
+        "quote":       { "$ref": "#/$defs/accent_phrase" },
+        "attribution": { "type": "string", "minLength": 1 },
+        "title":       { "type": "string", "description": "For screen_label / texts.md. Not visually rendered (the quote IS the page)." }
+      }
+    },
+
+    "data_stats_row": {
+      "description": "stats layout · variant row — 3-4 KPIs in a horizontal strip.",
+      "type": "object",
+      "required": ["title", "cols"],
+      "additionalProperties": false,
+      "properties": {
+        "title": { "type": "string", "minLength": 1 },
+        "cols": {
+          "type": "array",
+          "minItems": 3,
+          "maxItems": 4,
+          "items": {
+            "type": "object",
+            "required": ["num", "label"],
+            "additionalProperties": false,
+            "properties": {
+              "icon":   { "$ref": "#/$defs/icon_ref" },
+              "trend":  { "type": "string", "description": "E.g. '↑ 触达' / '↓ 决策'. Optional." },
+              "num":    { "type": "string", "minLength": 1, "description": "Hero number. Can include '<60' / '3.2'." },
+              "unit":   { "type": "string", "description": "Unit suffix: '秒' / '%' / '×'." },
+              "label":  { "type": "string", "minLength": 1 },
+              "source": { "type": "string", "description": "Inline source citation. Optional." }
+            }
+          }
+        },
+        "footnote": { "type": "string", "description": "Slide-level disclosure of sample / methodology. Optional." }
+      }
+    },
+
+    "data_stats_waterfall": {
+      "description": "stats layout · variant waterfall — 桥图. Baseline value + N positive/negative contributions + final value. Renderer auto-scales bar heights from max(value); authors don't specify pixels. Connectors between bar tops drawn automatically.",
+      "type": "object",
+      "required": ["title", "bars"],
+      "additionalProperties": false,
+      "properties": {
+        "title": { "type": "string", "minLength": 1 },
+        "bars": {
+          "type": "array",
+          "minItems": 3,
+          "maxItems": 8,
+          "description": "Ordered bars from left to right. Must start with `base` and end with `end`. Middle bars are `pos` (positive contribution) or `neg` (negative).",
+          "items": {
+            "type": "object",
+            "required": ["kind", "value", "label"],
+            "additionalProperties": false,
+            "properties": {
+              "kind":     { "enum": ["base", "pos", "neg", "end"], "description": "base=起点, pos=正向贡献, neg=负向, end=终点合计." },
+              "value":    { "type": "string", "minLength": 1, "description": "Display value, e.g. '¥ 8.2M' / '+ ¥ 2.4M' / '− ¥ 0.4M'." },
+              "delta":    { "type": "string", "description": "Secondary label, e.g. '+ 29%' / '起点' / '合计 + 44%'. Optional." },
+              "label":    { "type": "string", "minLength": 1, "description": "Bar primary label, e.g. '渠道扩展'." },
+              "sublabel": { "type": "string", "description": "Bar sub-label, e.g. '新签 12 家头部'. Optional." }
+            }
+          }
+        },
+        "footnote": { "type": "string", "description": "Optional methodology note." }
+      }
+    },
+
+    "data_stats_hero": {
+      "description": "stats layout · variant hero — 1 big number + supporting prose.",
+      "type": "object",
+      "required": ["stat", "heading", "body"],
+      "additionalProperties": false,
+      "properties": {
+        "title":   { "type": "string", "description": "For screen_label. Optional — falls back to heading." },
+        "eyebrow": { "type": "string", "description": "Small accent label above the number (optional)." },
+        "stat": {
+          "type": "object",
+          "required": ["number"],
+          "additionalProperties": false,
+          "properties": {
+            "number": { "type": "string", "minLength": 1, "description": "Hero number, '30' / '82' / '3.2'." },
+            "unit":   { "type": "string", "description": "Unit suffix: '万人' / '%' / '×'." }
+          }
+        },
+        "heading": { "type": "string", "minLength": 1, "description": "One-line takeaway — meaning of the number." },
+        "body":    { "type": "string", "minLength": 10, "description": "Method / scope / context of the number." }
+      }
+    },
+
+    "data_image_text": {
+      "type": "object",
+      "required": ["image", "title"],
+      "additionalProperties": false,
+      "properties": {
+        "image": { "$ref": "#/$defs/image_ref" },
+        "title": { "type": "string", "minLength": 1, "description": "Hero title. \\n allowed (HERO_TITLE layout)." },
+        "lede":  { "type": "string" }
+      }
+    },
+
+    "data_table": {
+      "type": "object",
+      "required": ["title", "headers", "rows"],
+      "additionalProperties": false,
+      "properties": {
+        "title":   { "type": "string", "minLength": 1 },
+        "headers": {
+          "type": "array",
+          "minItems": 2,
+          "maxItems": 6,
+          "items": { "type": "string", "minLength": 1 }
+        },
+        "rows": {
+          "type": "array",
+          "minItems": 1,
+          "maxItems": 8,
+          "items": {
+            "type": "array",
+            "items": { "type": "string" },
+            "description": "Cell count MUST match headers.length. Validator enforces."
+          }
+        },
+        "footnote": { "type": "string" }
+      }
+    },
+
+    "data_flow_timeline": {
+      "description": "flow layout · variant timeline — 3-6 chronological milestones along an axis.",
+      "type": "object",
+      "required": ["title", "nodes"],
+      "additionalProperties": false,
+      "properties": {
+        "title": { "type": "string", "minLength": 1 },
+        "cols":  { "type": "integer", "minimum": 3, "maximum": 6, "default": 4, "description": "--cols CSS variable. Should equal nodes.length." },
+        "nodes": {
+          "type": "array",
+          "minItems": 3,
+          "maxItems": 6,
+          "items": {
+            "type": "object",
+            "required": ["when", "what"],
+            "additionalProperties": false,
+            "properties": {
+              "when": { "type": "string", "minLength": 1, "description": "Time label, e.g. 'W1-2' / 'Q1 2026'." },
+              "what": { "type": "string", "minLength": 1, "description": "Milestone name." },
+              "desc": { "type": "string", "description": "One-line detail." }
+            }
+          }
+        }
+      }
+    },
+
+    "data_flow_tree": {
+      "description": "flow layout · variant tree — MECE issue-tree (根因拆解 / 问题分解). Root question + 2-4 first-level branches, each branch with 1-4 leaves. Renderer draws SVG dashed connectors root→branches and branch→leaves automatically.",
+      "type": "object",
+      "required": ["title", "root", "branches"],
+      "additionalProperties": false,
+      "properties": {
+        "title": { "type": "string", "minLength": 1 },
+        "root": {
+          "type": "object",
+          "required": ["question"],
+          "additionalProperties": false,
+          "properties": {
+            "question": { "type": "string", "minLength": 1, "description": "Root question, e.g. '为什么 ROI 未达预期?'. May contain <br> for two-line display." },
+            "why":      { "type": "string", "description": "Optional supporting context, e.g. '实际 1.8× · 预期 3.0×'. May contain inline <em>...</em> for emphasis." }
+          }
+        },
+        "branches": {
+          "type": "array",
+          "minItems": 2,
+          "maxItems": 4,
+          "description": "MECE branches — 2 minimum (binary split is the simplest valid decomposition), 4 maximum (visual density limit).",
+          "items": {
+            "type": "object",
+            "required": ["title", "leaves"],
+            "additionalProperties": false,
+            "properties": {
+              "ord":    { "type": "string", "description": "Optional ordinal (A/B/C/D or 01/02/03). Renderer can also auto-assign." },
+              "title":  { "type": "string", "minLength": 1, "description": "Branch headline, e.g. '客户深度使用率低'." },
+              "leaves": {
+                "type": "array",
+                "minItems": 1,
+                "maxItems": 4,
+                "items": { "type": "string", "minLength": 1 }
+              }
+            }
+          }
+        }
+      }
+    },
+
+    "data_flow_process": {
+      "description": "flow layout · variant process — 3-6 sequential workflow steps with chevrons.",
+      "type": "object",
+      "required": ["title", "steps"],
+      "additionalProperties": false,
+      "properties": {
+        "title": { "type": "string", "minLength": 1 },
+        "cols":  { "type": "integer", "minimum": 3, "maximum": 6, "default": 4 },
+        "steps": {
+          "type": "array",
+          "minItems": 3,
+          "maxItems": 6,
+          "items": {
+            "type": "object",
+            "required": ["title", "body"],
+            "additionalProperties": false,
+            "properties": {
+              "num":   { "type": "string", "description": "Step numeral, e.g. '01'. Optional (auto-numbered by renderer)." },
+              "title": { "type": "string", "minLength": 1 },
+              "body":  { "type": "string", "minLength": 1 }
+            }
+          }
+        }
+      }
+    },
+
+    "data_end": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "title":   { "type": "string", "description": "Optional, for screen_label only." },
+        "contact": { "type": "string", "description": "Optional contact line, off-master but allowed." },
+        "slogan":  { "type": "string", "description": "Optional brand slogan, rendered as big closing line below title. Mirrors PPT '封底(带 slogan)' layout master." }
+      }
+    },
+
+    "data_replica": {
+      "description": "Replica mode — entire slide is a single page-rendered image. Used for PDF/PPT 1:1 conversion.",
+      "type": "object",
+      "required": ["page_image"],
+      "additionalProperties": false,
+      "properties": {
+        "page_image":  { "type": "string", "minLength": 1, "description": "Path to the page JPG/PNG. Renderer wraps it as full-bleed background-image." },
+        "alt":         { "type": "string", "description": "Accessibility description. Optional." },
+        "source_page": { "type": "integer", "minimum": 1, "description": "Original page number in the source PDF (for traceability)." }
+      }
+    },
+
+    "data_raw": {
+      "description": "ESCAPE HATCH. Renderer drops the html string verbatim into the .slide. Use ONLY when no layout fits and you can't compose with blocks. Bypasses most validators.",
+      "type": "object",
+      "required": ["html"],
+      "additionalProperties": false,
+      "properties": {
+        "html":  { "type": "string", "minLength": 10 },
+        "title": { "type": "string", "description": "For screen_label only." }
+      }
+    },
+
+    "data_iframe_embed": {
+      "description": "iframe-embed layout — standard title + 飞书 logo at top, an <iframe> fills the rest of the slide to the bottom. Use for embedding live prototypes, demos, HTML reports, dashboards, or any external HTML page as a slide.",
+      "type": "object",
+      "required": ["title", "src"],
+      "additionalProperties": false,
+      "properties": {
+        "title":        { "type": "string", "minLength": 1, "description": "Header title (top-left)." },
+        "src":          { "type": "string", "minLength": 1, "description": "Path to the embedded HTML, relative to the deck's output directory (e.g. 'prototypes/foo.html')." },
+        "iframe_title": { "type": "string", "description": "iframe `title` attr for a11y. Defaults to data.title when omitted." },
+        "hint":         { "type": "string", "description": "Bottom-right pill caption, e.g. '报告可滚动查阅'. Omit / empty to hide the pill." },
+        "zoom":         { "type": "number", "minimum": 0.5, "maximum": 2.5, "description": "Optional content scaling. 1.0 = native (default); >1 enlarges (use when embedded text is hard to read at slide scale); <1 shrinks (use when prototype is wider than the iframe). Implemented via CSS transform + width/height compensation, so the iframe always fills its container regardless of zoom." }
+      }
+    }
+  }
+}

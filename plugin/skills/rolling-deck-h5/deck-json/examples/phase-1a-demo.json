@@ -1,0 +1,160 @@
+{
+  "version": "1.0",
+  "deck": {
+    "title": "Phase 1.a Demo · 6 MVP layouts",
+    "author": "杰森",
+    "date": "2026.05.20",
+    "presentation_date": "2026-05-20",
+    "customer_slug": "deckjson-sample",
+    "language": "zh-only",
+    "mode": "rewrite"
+  },
+  "slides": [
+    {
+      "key": "cover",
+      "layout": "cover",
+      "screen_label": "01 Cover",
+      "data": {
+        "title": "先进团队的\n工作方式",
+        "author": "杰森",
+        "date": "客户提案 · 2026.05.20"
+      }
+    },
+    {
+      "key": "agenda",
+      "layout": "agenda",
+      "accent": "blue",
+      "screen_label": "02 Agenda",
+      "data": {
+        "items": [
+          {
+            "title_zh": "背景与挑战"
+          },
+          {
+            "title_zh": "先进团队的工作方式"
+          },
+          {
+            "title_zh": "飞书平台能力"
+          },
+          {
+            "title_zh": "客户实证"
+          },
+          {
+            "title_zh": "部署与服务"
+          },
+          {
+            "title_zh": "下一步"
+          }
+        ]
+      }
+    },
+    {
+      "key": "three-pillars",
+      "layout": "content",
+      "variant": "3up",
+      "accent": "blue",
+      "screen_label": "04 三大能力",
+      "data": {
+        "title": "先进团队的三大工作方式",
+        "cards": [
+          {
+            "num": "01",
+            "icon": "message-circle",
+            "title_zh": "即时同步",
+            "body": "30 万人组织,一封消息触达全员,3 秒内全部已读。",
+            "footer_label": "MESSENGER · DOCS"
+          },
+          {
+            "num": "02",
+            "icon": "users",
+            "title_zh": "共识对齐",
+            "body": "所有讨论沉淀进 Wiki,决策可追溯,新成员第一天就能看到全貌。",
+            "footer_label": "WIKI · BASE"
+          },
+          {
+            "num": "03",
+            "icon": "check-circle",
+            "title_zh": "闭环交付",
+            "body": "从需求到上线,流程在 Base 中自动流转,每一步都有责任人和时间戳。",
+            "footer_label": "BASE · MEETINGS"
+          }
+        ],
+        "body_blocks": [
+          {
+            "type": "pullquote",
+            "text": "不是把工具堆给团队,是让团队的工作方式本身被升级。",
+            "tone": "default"
+          }
+        ]
+      }
+    },
+    {
+      "key": "lark-base-tour",
+      "layout": "content",
+      "variant": "2col",
+      "accent": "blue",
+      "screen_label": "05 Lark Base",
+      "data": {
+        "title": "让流程在表格里运转",
+        "text": {
+          "lede": "Lark Base 把任务、工单、合同、人员、审批,统一到一个可视化的多维表格。",
+          "feature_list": [
+            "看板、甘特、日历、卡片视图,一份数据多种视角。",
+            "关联字段把分散的表打成网,数据不再孤立。",
+            "触发器 + 自动化,把人手操作变成系统行为。",
+            "开放 API,与 ERP、CRM、自研系统双向同步。"
+          ]
+        },
+        "visual": {
+          "type": "data-panel",
+          "panel": {
+            "type": "data-panel",
+            "title": "销售战区 · 04-28 实时面板",
+            "tone": "default",
+            "rows": [
+              {
+                "lbl": "华东 · 大润发周末堆头",
+                "val": "ROI 3.2×"
+              },
+              {
+                "lbl": "华北 · 餐饮渠道返点",
+                "val": "ROI 0.6×",
+                "tone": "warn"
+              },
+              {
+                "lbl": "本周自动核销",
+                "val": "1,284 单 · ↑ 47%"
+              }
+            ]
+          }
+        }
+      }
+    },
+    {
+      "key": "quote-30k-team",
+      "layout": "quote",
+      "accent": "blue",
+      "decor": [
+        "blue-glow"
+      ],
+      "screen_label": "06 客户原声",
+      "data": {
+        "title": "客户原声",
+        "quote": {
+          "lead": "飞书让 30 万人 ",
+          "accent": "像一个团队",
+          "tail": " 一样工作"
+        },
+        "attribution": "某头部互联网公司 · CIO · 2024"
+      }
+    },
+    {
+      "key": "closing",
+      "layout": "end",
+      "screen_label": "14 End",
+      "data": {
+        "contact": "contact@feishu.cn  ·  feishu.cn"
+      }
+    }
+  ]
+}
