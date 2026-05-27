@@ -10,3 +10,8 @@ platform/web/dist/
 # Client decks — ~4 GB of source material, commercially confidential.
 # Stays on workstations only, never enters the public repo.
 imports/
+
+# Database files contain client-labelled slide metadata. The schema /
+# scripts under library/db/ are committed, but the .db file itself stays
+# local.
+library/db/data/
