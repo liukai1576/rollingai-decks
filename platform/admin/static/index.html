@@ -291,7 +291,10 @@
     <button :class="{active: view==='slides'}" @click="view='slides'">幻灯片</button>
     <button :class="{active: view==='stories'}" @click="view='stories'">故事</button>
   </div>
-  <input class="search" type="search" placeholder="搜索标题 / 正文…（全文检索）"
+  <input class="search" type="search"
+         :placeholder="view==='decks' ? '搜索 Deck（按名称）'
+                       : view==='stories' ? '搜索故事（按名称）'
+                       : '搜索幻灯片（标题 / 正文 / 标签）'"
          x-model.debounce.300ms="filters.search" @input="refresh()" />
   <span class="stats-pill" x-show="stats">
     <span x-text="stats?.totals?.slides ?? '?'"></span> 张幻灯片 ·
@@ -653,7 +656,9 @@ function app() {
     },
 
     async loadDecks() {
-      const r = await fetch('/api/decks');
+      const params = new URLSearchParams();
+      if (this.filters.search) params.set('search', this.filters.search);
+      const r = await fetch('/api/decks?' + params);
       const d = await r.json();
       this.decks = d.decks;
     },
@@ -674,7 +679,9 @@ function app() {
     },
 
     async loadStories() {
-      const r = await fetch('/api/stories');
+      const params = new URLSearchParams();
+      if (this.filters.search) params.set('search', this.filters.search);
+      const r = await fetch('/api/stories?' + params);
       const d = await r.json();
       this.stories = d.stories;
     },

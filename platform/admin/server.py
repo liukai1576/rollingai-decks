@@ -120,7 +120,7 @@ def list_slides(
     customer_tag: Optional[str] = None,
     media_tag: Optional[str] = None,
     free_tag: Optional[str] = None,                 # match inside JSON array
-    search: Optional[str] = Query(None, description="FTS5 over title+body"),
+    search: Optional[str] = Query(None, description="substring over title/body/tags"),
     in_story: Optional[str] = None,                 # story_id; rows in that story
     needs_review: Optional[bool] = None,
     limit: int = Query(500, ge=1, le=2000),
@@ -134,9 +134,16 @@ def list_slides(
                 "AND s.page_no BETWEEN st.start_page AND st.end_page")
         params.append(in_story)
     if search:
-        sql += " JOIN slides_fts f ON f.id = s.id"
-        where.append("slides_fts MATCH ?")
-        params.append(search)
+        # Substring (LIKE) match across title, body_text, and every tag column —
+        # more forgiving than FTS for short Chinese queries (e.g. 单字 "牛").
+        like = f"%{search}%"
+        where.append(
+            "(s.title LIKE ? OR s.body_text LIKE ? "
+            " OR s.type_tag LIKE ? OR s.subtype_tag LIKE ? "
+            " OR s.customer_tag LIKE ? OR s.media_tag LIKE ? "
+            " OR s.free_tags LIKE ? OR s.notes LIKE ?)"
+        )
+        params.extend([like] * 8)
     if deck_id:       where.append("s.deck_id = ?");       params.append(deck_id)
     if type_tag:      where.append("s.type_tag = ?");      params.append(type_tag)
     if customer_tag:  where.append("s.customer_tag = ?");  params.append(customer_tag)
@@ -211,15 +218,26 @@ def update_slide(slide_id: str, body: SlideUpdate):
 
 # ---- API: stories ----
 @app.get("/api/stories")
-def list_stories(deck_id: Optional[str] = None):
+def list_stories(
+    deck_id: Optional[str] = None,
+    search: Optional[str] = None,
+):
     conn = db()
     sql = ("SELECT s.*, "
            " (s.end_page - s.start_page + 1) AS slide_count "
            "FROM stories s")
-    params = []
+    where, params = [], []
     if deck_id:
-        sql += " WHERE s.deck_id = ?"
+        where.append("s.deck_id = ?")
         params.append(deck_id)
+    if search:
+        like = f"%{search}%"
+        where.append(
+            "(s.title LIKE ? OR s.description LIKE ? OR s.id LIKE ?)"
+        )
+        params.extend([like, like, like])
+    if where:
+        sql += " WHERE " + " AND ".join(where)
     sql += " ORDER BY s.deck_id, s.start_page, slide_count DESC"
     rows = [dict(r) for r in conn.execute(sql, params)]
     conn.close()
@@ -303,7 +321,7 @@ def delete_story(story_id: str):
 
 # ---- API: decks ----
 @app.get("/api/decks")
-def list_decks():
+def list_decks(search: Optional[str] = None):
     """One row per deck with summary + cover-slide reference for thumbnails."""
     conn = db()
     rows = conn.execute(
@@ -318,11 +336,14 @@ def list_decks():
         "FROM slides s GROUP BY s.deck_id ORDER BY s.deck_id"
     ).fetchall()
     decks = []
+    needle = (search or "").lower().strip()
     for r in rows:
         d = dict(r)
         # Resolve a display name (for now, the deck_id; could be richer later)
         d["display_name"] = d["deck_id"]
         d["has_mount"] = d["deck_id"] in DECK_PATHS and DECK_PATHS[d["deck_id"]].is_dir()
+        if needle and needle not in d["deck_id"].lower() and needle not in (d["display_name"] or "").lower():
+            continue
         decks.append(d)
     conn.close()
     return {"count": len(decks), "decks": decks}
