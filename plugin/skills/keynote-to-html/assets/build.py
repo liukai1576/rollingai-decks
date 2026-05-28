@@ -325,6 +325,11 @@ def parse_tsv(tsv_path: Path) -> tuple[int, list[Slide]]:
     total = 0
     slides: list[Slide] = []
     current: Optional[Slide] = None
+    # Source canvas size from the .key. Defaults to 1920×1080; updated when
+    # we see a #DOC-SIZE header. After parsing we scale every element so the
+    # renderer (which always lays out a 1920×1080 canvas) sees the deck at
+    # the right baseline.
+    src_w, src_h = 1920.0, 1080.0
 
     for line in tsv_path.read_text(encoding="utf-8").splitlines():
         if not line.strip():
@@ -334,6 +339,12 @@ def parse_tsv(tsv_path: Path) -> tuple[int, list[Slide]]:
 
         if head == "#TOTAL":
             total = int(parts[1])
+        elif head == "#DOC-SIZE":
+            try:
+                src_w = float(parts[1])
+                src_h = float(parts[2])
+            except (IndexError, ValueError):
+                pass
         elif head == "#SLIDE":
             current = Slide(keynote_no=int(parts[1]), skipped=(parts[2] == "true"))
             slides.append(current)
@@ -427,6 +438,29 @@ def parse_tsv(tsv_path: Path) -> tuple[int, list[Slide]]:
                 })
             except (IndexError, ValueError) as e:
                 print(f"  warning: bad RUN line: {e!r} — {line[:120]}", file=sys.stderr)
+
+    # Normalise coordinates: the renderer's CSS assumes a 1920×1080 canvas.
+    # If the source .key uses a smaller (e.g. 960×540) canvas, every element
+    # comes in at coords that only fill the top-left quarter. Scale once
+    # right here so all downstream code can stay canvas-agnostic.
+    if abs(src_w - 1920.0) > 0.5 or abs(src_h - 1080.0) > 0.5:
+        sx = 1920.0 / src_w
+        sy = 1080.0 / src_h
+        # Uniform scale: the .key's aspect should match 1920×1080. If it
+        # doesn't we still go with sx (the renderer's 16:9 frame won't
+        # change shape regardless).
+        s_font = sx
+        print(f"  scaling canvas {src_w:.0f}×{src_h:.0f} → 1920×1080 "
+              f"(sx={sx:.3f}, sy={sy:.3f})", file=sys.stderr)
+        for sl in slides:
+            for el in sl.elements:
+                el.x *= sx; el.y *= sy
+                el.w *= sx; el.h *= sy
+                if el.font_size:
+                    el.font_size *= s_font
+                for run in getattr(el, "runs", []) or []:
+                    if "size" in run and run["size"]:
+                        run["size"] = float(run["size"]) * s_font
 
     return total, slides
 

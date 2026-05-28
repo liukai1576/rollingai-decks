@@ -74,9 +74,21 @@ on run argv
             end try
         end if
         set slideCount to count of slides of theDoc
+        -- Slide canvas size (Keynote exposes width/height on the document).
+        -- Older / smaller .key files come in at 960×540 instead of 1920×1080;
+        -- build.py reads this and scales coordinates so the renderer (which
+        -- assumes 1920×1080) doesn't get a quarter-filled canvas.
+        try
+            set docW to width of theDoc
+            set docH to height of theDoc
+        on error
+            set docW to 1920
+            set docH to 1080
+        end try
     end tell
 
     set output to "#TOTAL" & tab & slideCount & linefeed
+    set output to output & "#DOC-SIZE" & tab & docW & tab & docH & linefeed
 
     -- Walk slides. Skip extraction of slides marked "skipped" in Keynote —
     -- they're invisible in present mode and not part of the deliverable.
