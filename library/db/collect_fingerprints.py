@@ -77,51 +77,108 @@ class SlideFingerprint:
 
 
 def _walk_for_elements(obj, ctx: dict, found: list[tuple]):
-    """Generic recursive walk on parsed IWA dicts collecting element-shaped
-    things. We're intentionally agnostic: anything with a 'geometry' +
-    'position'/'size' is an element. Text is harvested where we find it."""
-    if isinstance(obj, dict):
-        # Geometry block? Then synthesize an element.
-        geom = obj.get("geometry")
-        if isinstance(geom, dict):
-            pos = geom.get("position") or {}
-            sz  = geom.get("size") or {}
-            ang = geom.get("angle")
-            # Detect element-ish type
-            kind = "elem"
-            if "imageData" in obj or "image_data" in obj:
-                kind = "image"
-            elif "movie" in obj or obj.get("__type") == "movie":
-                kind = "video"
-            elif obj.get("text") or "text_storage" in obj:
-                kind = "text"
-            elif "path" in obj or "shape" in obj:
-                kind = "shape"
-            # Text fingerprint: hash the visible string if any
-            t_hash = None
-            tx_len = 0
-            txt = _find_text(obj)
-            if txt:
-                tx_len = len(txt)
-                t_hash = sha256_hex(txt.encode("utf-8"))[:16]
-            # Asset reference: any nested data_id we can see
-            asset_ref = _find_asset_ref(obj)
-            if asset_ref:
-                ctx.setdefault("asset_refs", []).append(asset_ref)
-            found.append((
-                kind,
-                _round(pos.get("x")), _round(pos.get("y")),
+    """Extract a fingerprint tuple per drawable archive. The drawable's
+    `_pbtype` field identifies the real iWork type:
+      TSD.ImageArchive   → image (with data ref)
+      TSD.MovieArchive   → video (with movieData + posterImageData refs)
+      TSD.ShapeArchive   → shape  (with optional fill, path, text content)
+      TSD.GroupArchive   → group  (recurse into children)
+      TSWP.StorageArchive → text storage (rich text)
+    Geometry usually lives one level deep at  obj["super"]["geometry"].
+    """
+    if not isinstance(obj, dict):
+        return
+
+    pbtype = obj.get("_pbtype") or ""
+    super_obj = obj.get("super") if isinstance(obj.get("super"), dict) else {}
+    geom = (obj.get("geometry")
+            or super_obj.get("geometry")
+            or (super_obj.get("super") or {}).get("geometry")
+            if isinstance(super_obj, dict) else None)
+
+    # Determine drawable type
+    kind = "elem"
+    asset_ref: str | None = None
+
+    if pbtype == "TSD.ImageArchive":
+        kind = "image"
+        data = obj.get("data") or {}
+        if isinstance(data, dict) and data.get("identifier"):
+            asset_ref = f"img:{data['identifier']}"
+    elif pbtype == "TSD.MovieArchive":
+        kind = "video"
+        md = obj.get("movieData") or {}
+        pid = obj.get("posterImageData") or {}
+        parts = []
+        if isinstance(md, dict) and md.get("identifier"):
+            parts.append(f"mov:{md['identifier']}")
+        if isinstance(pid, dict) and pid.get("identifier"):
+            parts.append(f"poster:{pid['identifier']}")
+        if parts:
+            asset_ref = "|".join(parts)
+    elif pbtype in ("TSD.ShapeArchive", "TSWP.ShapeInfoArchive"):
+        kind = "shape"
+        # Text content for shapes lives in an ownedStorage archive
+        # (TSWP.StorageArchive) whose identifier we use as a content
+        # proxy: same deck + different text → different storage ids.
+        os_ref = obj.get("ownedStorage") or obj.get("owned_storage")
+        if isinstance(os_ref, dict) and os_ref.get("identifier"):
+            asset_ref = f"storage:{os_ref['identifier']}"
+    elif pbtype == "KN.PlaceholderArchive":
+        kind = "placeholder"
+        # Placeholder has super.super.ownedStorage chain
+        super_super = (super_obj.get("super") if isinstance(super_obj, dict) else {}) or {}
+        os_ref = (super_obj.get("ownedStorage")
+                  or super_super.get("ownedStorage")
+                  or super_obj.get("owned_storage")
+                  or super_super.get("owned_storage"))
+        if isinstance(os_ref, dict) and os_ref.get("identifier"):
+            asset_ref = f"storage:{os_ref['identifier']}"
+        # Also include the placeholder 'kind' (TITLE=1, BODY=2, etc.)
+        # so 'title' and 'body' placeholders fingerprint differently.
+        pkind = obj.get("kind")
+        if pkind is not None:
+            asset_ref = f"{asset_ref}|pkind:{pkind}" if asset_ref else f"pkind:{pkind}"
+    elif pbtype == "TSD.GroupArchive":
+        kind = "group"
+        # Groups have child drawables we should still recurse into.
+    elif pbtype.startswith("TSCH."):
+        kind = "chart"
+    elif pbtype.startswith("TST."):
+        kind = "table"
+    elif pbtype.startswith("TSWP."):
+        kind = "text"
+
+    # Pull geometry
+    bbox = (None, None, None, None, None)
+    if isinstance(geom, dict):
+        pos = geom.get("position") or {}
+        sz  = geom.get("size") or {}
+        ang = geom.get("angle")
+        bbox = (_round(pos.get("x")), _round(pos.get("y")),
                 _round(sz.get("width")), _round(sz.get("height")),
-                _round(ang, 1) if ang is not None else None,
-                t_hash, asset_ref,
-            ))
-            ctx["text_chars"] = ctx.get("text_chars", 0) + tx_len
-        # Recurse into nested children
-        for v in obj.values():
-            _walk_for_elements(v, ctx, found)
-    elif isinstance(obj, list):
-        for v in obj:
-            _walk_for_elements(v, ctx, found)
+                _round(ang, 1) if ang is not None else None)
+
+    # Text content (may live deep in TSWP storage)
+    txt = _find_text(obj)
+    t_hash = sha256_hex(txt.encode("utf-8"))[:16] if txt else None
+    if txt:
+        ctx["text_chars"] = ctx.get("text_chars", 0) + len(txt)
+    if asset_ref:
+        ctx.setdefault("asset_refs", []).append(asset_ref)
+
+    # Emit a fingerprint tuple for THIS drawable
+    found.append((kind, *bbox, t_hash, asset_ref, pbtype or None))
+
+    # Recurse for groups (whose super has its own drawables list)
+    if kind == "group":
+        children = (obj.get("children") or [])
+        for c in children:
+            if isinstance(c, dict):
+                # Children are references — resolution happens in parse_key
+                # via the all_archives dict and the recursive caller. For
+                # safety, also walk the child object directly if it's inlined.
+                _walk_for_elements(c, ctx, found)
 
 
 _TEXT_FIELDS = ("text", "string", "_pbtype")
