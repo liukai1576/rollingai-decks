@@ -50,13 +50,29 @@ def _round(v: float | None, step: int = 10) -> int | None:
 
 
 def _open_key(key_path: Path):
-    """Return a zipfile.ZipFile if .key is the new single-file format, else
-    None (caller falls back to directory mode)."""
-    try:
-        if zipfile.is_zipfile(key_path):
-            return zipfile.ZipFile(key_path, "r")
-    except OSError:
-        pass
+    """Open a .key in either Keynote 14.5+ single-file zip OR the older
+    directory-bundle layout (with Index.zip inside). Returns a zipfile
+    handle in both cases — for directory mode we open the inner Index.zip
+    which contains the same `Index/*.iwa` files at the same relative paths.
+
+    Returns None if neither format applies.
+    """
+    if key_path.is_file():
+        try:
+            if zipfile.is_zipfile(key_path):
+                return zipfile.ZipFile(key_path, "r")
+        except OSError:
+            pass
+        return None
+    if key_path.is_dir():
+        # Directory bundle (Keynote 14.x and earlier). The IWA archives
+        # live inside <bundle>/Index.zip — open that.
+        inner = key_path / "Index.zip"
+        if inner.is_file():
+            try:
+                return zipfile.ZipFile(inner, "r")
+            except OSError:
+                pass
     return None
 
 
@@ -540,7 +556,7 @@ def main():
                     help="Don't write to DB; just report matches against existing slides")
     args = ap.parse_args()
 
-    if not args.key_path.is_file():
+    if not args.key_path.exists():
         sys.exit(f"ERROR: .key not found: {args.key_path}")
 
     print(f"Parsing {args.key_path.name} …", file=sys.stderr)
