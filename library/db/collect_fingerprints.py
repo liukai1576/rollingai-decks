@@ -85,18 +85,45 @@ class SlideFingerprint:
         self.raw_elements: list[tuple] = []
 
 
-def _walk_for_elements(obj, ctx: dict, found: list[tuple]):
-    """Extract a fingerprint tuple per drawable archive. The drawable's
-    `_pbtype` field identifies the real iWork type:
-      TSD.ImageArchive   → image (with data ref)
-      TSD.MovieArchive   → video (with movieData + posterImageData refs)
-      TSD.ShapeArchive   → shape  (with optional fill, path, text content)
-      TSD.GroupArchive   → group  (recurse into children)
-      TSWP.StorageArchive → text storage (rich text)
-    Geometry usually lives one level deep at  obj["super"]["geometry"].
+def _resolve_storage_text(storage_ref, all_archives: dict) -> str | None:
+    """Given a {identifier:...} ref to a TSWP.StorageArchive, look it up
+    and return its .text field joined to a single string (None if empty
+    or unresolved)."""
+    if not isinstance(storage_ref, dict):
+        return None
+    sid = storage_ref.get("identifier")
+    if not sid:
+        return None
+    storage = all_archives.get(str(sid))
+    if not isinstance(storage, dict):
+        return None
+    txt = storage.get("text")
+    if isinstance(txt, list) and txt:
+        return "\n".join(t for t in txt if isinstance(t, str))
+    if isinstance(txt, str):
+        return txt
+    return None
+
+
+def _walk_for_elements(obj, ctx: dict, found: list[tuple],
+                       all_archives: dict | None = None):
+    """Extract a fingerprint tuple per drawable archive.
+
+      TSD.ImageArchive    → image (with data ref)
+      TSD.MovieArchive    → video (with movieData + posterImageData refs)
+      TSD.ShapeArchive    → shape  (text in ownedStorage)
+      TSD.GroupArchive    → group  (recurse into children)
+      KN.PlaceholderArchive → placeholder (text in super.ownedStorage)
+      TSWP.StorageArchive → text storage (we resolve INTO this via parent)
+
+    Text content is resolved by following ownedStorage refs into the
+    StorageArchive and reading its .text list. This makes the fingerprint
+    portable across decks (same actual displayed text → same hash).
     """
     if not isinstance(obj, dict):
         return
+    if all_archives is None:
+        all_archives = {}
 
     pbtype = obj.get("_pbtype") or ""
     super_obj = obj.get("super") if isinstance(obj.get("super"), dict) else {}
@@ -105,9 +132,9 @@ def _walk_for_elements(obj, ctx: dict, found: list[tuple]):
             or (super_obj.get("super") or {}).get("geometry")
             if isinstance(super_obj, dict) else None)
 
-    # Determine drawable type
     kind = "elem"
     asset_ref: str | None = None
+    text_content: str | None = None
 
     if pbtype == "TSD.ImageArchive":
         kind = "image"
@@ -127,30 +154,23 @@ def _walk_for_elements(obj, ctx: dict, found: list[tuple]):
             asset_ref = "|".join(parts)
     elif pbtype in ("TSD.ShapeArchive", "TSWP.ShapeInfoArchive"):
         kind = "shape"
-        # Text content for shapes lives in an ownedStorage archive
-        # (TSWP.StorageArchive) whose identifier we use as a content
-        # proxy: same deck + different text → different storage ids.
         os_ref = obj.get("ownedStorage") or obj.get("owned_storage")
-        if isinstance(os_ref, dict) and os_ref.get("identifier"):
-            asset_ref = f"storage:{os_ref['identifier']}"
+        text_content = _resolve_storage_text(os_ref, all_archives)
     elif pbtype == "KN.PlaceholderArchive":
         kind = "placeholder"
-        # Placeholder has super.super.ownedStorage chain
+        # Placeholder's storage is on super.ownedStorage
         super_super = (super_obj.get("super") if isinstance(super_obj, dict) else {}) or {}
         os_ref = (super_obj.get("ownedStorage")
                   or super_super.get("ownedStorage")
                   or super_obj.get("owned_storage")
                   or super_super.get("owned_storage"))
-        if isinstance(os_ref, dict) and os_ref.get("identifier"):
-            asset_ref = f"storage:{os_ref['identifier']}"
-        # Also include the placeholder 'kind' (TITLE=1, BODY=2, etc.)
-        # so 'title' and 'body' placeholders fingerprint differently.
+        text_content = _resolve_storage_text(os_ref, all_archives)
+        # Distinguish title / body / etc. placeholders (their 'kind' enum)
         pkind = obj.get("kind")
         if pkind is not None:
-            asset_ref = f"{asset_ref}|pkind:{pkind}" if asset_ref else f"pkind:{pkind}"
+            asset_ref = f"pkind:{pkind}"
     elif pbtype == "TSD.GroupArchive":
         kind = "group"
-        # Groups have child drawables we should still recurse into.
     elif pbtype.startswith("TSCH."):
         kind = "chart"
     elif pbtype.startswith("TST."):
@@ -158,7 +178,6 @@ def _walk_for_elements(obj, ctx: dict, found: list[tuple]):
     elif pbtype.startswith("TSWP."):
         kind = "text"
 
-    # Pull geometry
     bbox = (None, None, None, None, None)
     if isinstance(geom, dict):
         pos = geom.get("position") or {}
@@ -168,26 +187,40 @@ def _walk_for_elements(obj, ctx: dict, found: list[tuple]):
                 _round(sz.get("width")), _round(sz.get("height")),
                 _round(ang, 1) if ang is not None else None)
 
-    # Text content (may live deep in TSWP storage)
-    txt = _find_text(obj)
-    t_hash = sha256_hex(txt.encode("utf-8"))[:16] if txt else None
-    if txt:
-        ctx["text_chars"] = ctx.get("text_chars", 0) + len(txt)
+    # Filter out Keynote master / template placeholder defaults (e.g.
+    # "演示文稿标题" / "正文级别 1\n正文级别 2..."). These leak in from
+    # master templates and aren't user content.
+    if text_content and _is_placeholder_default(text_content):
+        text_content = None
+
+    # text fingerprint: hash the ACTUAL content
+    t_hash = sha256_hex(text_content.encode("utf-8"))[:16] if text_content else None
+    if text_content:
+        ctx["text_chars"] = ctx.get("text_chars", 0) + len(text_content)
+        ctx.setdefault("texts", []).append(text_content)
     if asset_ref:
         ctx.setdefault("asset_refs", []).append(asset_ref)
 
-    # Emit a fingerprint tuple for THIS drawable
     found.append((kind, *bbox, t_hash, asset_ref, pbtype or None))
 
-    # Recurse for groups (whose super has its own drawables list)
     if kind == "group":
-        children = (obj.get("children") or [])
-        for c in children:
+        for c in (obj.get("children") or []):
             if isinstance(c, dict):
-                # Children are references — resolution happens in parse_key
-                # via the all_archives dict and the recursive caller. For
-                # safety, also walk the child object directly if it's inlined.
-                _walk_for_elements(c, ctx, found)
+                _walk_for_elements(c, ctx, found, all_archives)
+
+
+_PLACEHOLDER_DEFAULTS = {
+    "演示文稿标题", "幻灯片标题", "Slide Title", "Presentation Title",
+    "Subtitle", "Click to add",
+}
+
+def _is_placeholder_default(text: str) -> bool:
+    t = text.strip()
+    if t in _PLACEHOLDER_DEFAULTS:
+        return True
+    if t.startswith("正文级别 ") or t.startswith("Body Level "):
+        return True
+    return False
 
 
 _TEXT_FIELDS = ("text", "string", "_pbtype")
@@ -351,7 +384,7 @@ def parse_key(key_path: Path) -> list[SlideFingerprint]:
                 drawable_obj = all_archives.get(ref_id)
                 if drawable_obj is None:
                     continue
-                _walk_for_elements(drawable_obj, ctx, elements)
+                _walk_for_elements(drawable_obj, ctx, elements, all_archives)
 
             fp.raw_elements = elements
             fp.element_count = len(elements)
@@ -361,14 +394,15 @@ def parse_key(key_path: Path) -> list[SlideFingerprint]:
                                      key=lambda t: (t[1] or 0, t[2] or 0, t[0]))
             fp.element_sig = sha256_hex(repr(elements_sorted).encode("utf-8"))
 
-            # LOOSE signature: strip storage:<id> from asset_refs so that
-            # two slides sharing the same template (same drawables, same
-            # asset images/videos, same placeholder kinds) match even when
-            # their text content differs. Keeps img:/mov:/poster: refs
-            # because those are real shared assets — same physical video
-            # → same template.
+            # LOOSE signature: drop t_hash AND storage:<id> from each
+            # tuple so that two slides sharing the same template (same
+            # drawables, same image / video assets, same placeholder kinds)
+            # match even when the text content differs. Keeps img: / mov:
+            # / poster: refs because those ARE shared physical assets —
+            # same video → same template.
             loose_elements = [
-                (kind, x, y, w, h, angle, t_hash,
+                (kind, x, y, w, h, angle,
+                 None,                                  # ← drop t_hash
                  _strip_storage_refs(asset_ref),
                  pbtype)
                 for (kind, x, y, w, h, angle, t_hash, asset_ref, pbtype)
