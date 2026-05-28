@@ -99,15 +99,17 @@ class StoryCreate(BaseModel):
     id: str               # e.g. "kangshifu/my-story"
     title: str
     description: Optional[str] = None
-    deck_id: Optional[str] = None
-    slide_ids: list[str] = []
+    deck_id: str
+    start_page: int
+    end_page: int
 
 
 class StoryUpdate(BaseModel):
     title: Optional[str] = None
     description: Optional[str] = None
     notes: Optional[str] = None
-    slide_ids: Optional[list[str]] = None     # if given, replaces members
+    start_page: Optional[int] = None
+    end_page: Optional[int] = None
 
 
 # ---- API: slides ----
@@ -127,7 +129,9 @@ def list_slides(
     sql = "SELECT s.* FROM slides s"
     where, params = [], []
     if in_story:
-        sql += " JOIN story_slides ss ON ss.slide_id = s.id AND ss.story_id = ?"
+        # Stories are now (start_page, end_page) ranges; derive membership.
+        sql += (" JOIN stories st ON st.id = ? AND st.deck_id = s.deck_id "
+                "AND s.page_no BETWEEN st.start_page AND st.end_page")
         params.append(in_story)
     if search:
         sql += " JOIN slides_fts f ON f.id = s.id"
@@ -156,12 +160,15 @@ def get_slide(slide_id: str):
     if not row:
         raise HTTPException(404, f"Slide not found: {slide_id}")
     slide = row_to_dict(row)
-    # Also return story memberships
+    # Also return story memberships — derived from page_no being within
+    # any story's [start_page, end_page] range for this deck.
     slide["stories"] = [
         dict(r) for r in conn.execute(
-            "SELECT st.id, st.title, ss.position "
-            "FROM story_slides ss JOIN stories st ON st.id = ss.story_id "
-            "WHERE ss.slide_id = ?",
+            "SELECT st.id, st.title, "
+            "       (slide.page_no - st.start_page) AS position "
+            "FROM stories st, slides slide "
+            "WHERE slide.id = ? AND st.deck_id = slide.deck_id "
+            "  AND slide.page_no BETWEEN st.start_page AND st.end_page",
             (slide_id,)
         )
     ]
@@ -207,13 +214,13 @@ def update_slide(slide_id: str, body: SlideUpdate):
 def list_stories(deck_id: Optional[str] = None):
     conn = db()
     sql = ("SELECT s.*, "
-           " (SELECT COUNT(*) FROM story_slides ss WHERE ss.story_id = s.id) as slide_count "
+           " (s.end_page - s.start_page + 1) AS slide_count "
            "FROM stories s")
     params = []
     if deck_id:
         sql += " WHERE s.deck_id = ?"
         params.append(deck_id)
-    sql += " ORDER BY s.id"
+    sql += " ORDER BY s.deck_id, s.start_page, slide_count DESC"
     rows = [dict(r) for r in conn.execute(sql, params)]
     conn.close()
     return {"count": len(rows), "stories": rows}
@@ -226,12 +233,15 @@ def get_story(story_id: str):
     if not story:
         raise HTTPException(404, f"Story not found: {story_id}")
     out = dict(story)
+    # Membership derived from page_no range; section pages included but
+    # caller can filter by type_tag != 'Section' if desired.
     out["slides"] = [
         row_to_dict(r) for r in conn.execute(
-            "SELECT s.*, ss.position FROM story_slides ss "
-            "JOIN slides s ON s.id = ss.slide_id "
-            "WHERE ss.story_id = ? ORDER BY ss.position",
-            (story_id,)
+            "SELECT s.*, (s.page_no - ?) AS position FROM slides s "
+            "WHERE s.deck_id = ? AND s.page_no BETWEEN ? AND ? "
+            "ORDER BY s.page_no",
+            (story["start_page"], story["deck_id"],
+             story["start_page"], story["end_page"])
         )
     ]
     conn.close()
@@ -244,17 +254,16 @@ def create_story(body: StoryCreate):
     exists = conn.execute("SELECT id FROM stories WHERE id = ?", (body.id,)).fetchone()
     if exists:
         raise HTTPException(409, f"Story already exists: {body.id}")
+    if body.start_page > body.end_page:
+        raise HTTPException(400, "start_page must be <= end_page")
     now = now_iso()
     conn.execute(
-        "INSERT INTO stories (id, title, description, deck_id, notes, created_at, updated_at) "
-        "VALUES (?, ?, ?, ?, ?, ?, ?)",
-        (body.id, body.title, body.description, body.deck_id, None, now, now)
+        "INSERT INTO stories (id, title, description, deck_id, start_page, end_page, "
+        "                     notes, created_at, updated_at) "
+        "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
+        (body.id, body.title, body.description, body.deck_id,
+         body.start_page, body.end_page, None, now, now)
     )
-    for pos, sid in enumerate(body.slide_ids):
-        conn.execute(
-            "INSERT INTO story_slides (story_id, slide_id, position) VALUES (?, ?, ?)",
-            (body.id, sid, pos)
-        )
     conn.commit()
     conn.close()
     return {"created": body.id}
@@ -266,22 +275,18 @@ def update_story(story_id: str, body: StoryUpdate):
     row = conn.execute("SELECT id FROM stories WHERE id = ?", (story_id,)).fetchone()
     if not row:
         raise HTTPException(404, f"Story not found: {story_id}")
-    fields = {k: v for k, v in body.model_dump().items()
-              if v is not None and k != "slide_ids"}
-    if fields:
-        set_clause = ", ".join(f"{k} = ?" for k in fields)
-        params = list(fields.values()) + [now_iso(), story_id]
-        conn.execute(
-            f"UPDATE stories SET {set_clause}, updated_at = ? WHERE id = ?",
-            params
-        )
-    if body.slide_ids is not None:
-        conn.execute("DELETE FROM story_slides WHERE story_id = ?", (story_id,))
-        for pos, sid in enumerate(body.slide_ids):
-            conn.execute(
-                "INSERT INTO story_slides (story_id, slide_id, position) VALUES (?, ?, ?)",
-                (story_id, sid, pos)
-            )
+    fields = {k: v for k, v in body.model_dump().items() if v is not None}
+    if not fields:
+        return {"updated": 0}
+    if ("start_page" in fields and "end_page" in fields and
+            fields["start_page"] > fields["end_page"]):
+        raise HTTPException(400, "start_page must be <= end_page")
+    set_clause = ", ".join(f"{k} = ?" for k in fields)
+    params = list(fields.values()) + [now_iso(), story_id]
+    conn.execute(
+        f"UPDATE stories SET {set_clause}, updated_at = ? WHERE id = ?",
+        params
+    )
     conn.commit()
     conn.close()
     return {"updated": story_id}

@@ -51,28 +51,29 @@ CREATE INDEX IF NOT EXISTS idx_slides_element_sig  ON slides(element_sig);
 CREATE INDEX IF NOT EXISTS idx_slides_template_sig ON slides(template_sig);
 
 CREATE TABLE IF NOT EXISTS stories (
-  id          TEXT PRIMARY KEY,        -- "kangshifu/company-intro"
-  title       TEXT NOT NULL,           -- "公司介绍"
+  -- A story is a (consecutive) range of slides given a name.
+  -- Membership is implicit: any slide where slide.page_no BETWEEN
+  -- start_page AND end_page belongs to this story. Stories may
+  -- overlap (one slide can be in multiple stories). Section /
+  -- transition pages can be filtered out at query time via
+  -- slide.type_tag = 'Section'.
+  id          TEXT PRIMARY KEY,        -- "kangshifu/case-feihe"
+  title       TEXT NOT NULL,           -- "飞鹤 AI 营养师"
   description TEXT,
-  deck_id     TEXT,
+  deck_id     TEXT NOT NULL,
+  start_page  INTEGER,                 -- inclusive
+  end_page    INTEGER,                 -- inclusive
   notes       TEXT,
   created_at  TEXT NOT NULL,
   updated_at  TEXT NOT NULL
 );
 
-CREATE INDEX IF NOT EXISTS idx_stories_deck ON stories(deck_id);
+CREATE INDEX IF NOT EXISTS idx_stories_deck  ON stories(deck_id);
+CREATE INDEX IF NOT EXISTS idx_stories_range ON stories(deck_id, start_page);
 
-CREATE TABLE IF NOT EXISTS story_slides (
-  story_id   TEXT NOT NULL,
-  slide_id   TEXT NOT NULL,
-  position   INTEGER NOT NULL,         -- 0-based order within the story
-  PRIMARY KEY (story_id, slide_id),
-  FOREIGN KEY (story_id) REFERENCES stories(id) ON DELETE CASCADE,
-  FOREIGN KEY (slide_id) REFERENCES slides(id)  ON DELETE CASCADE
-);
-
-CREATE INDEX IF NOT EXISTS idx_story_slides_story ON story_slides(story_id);
-CREATE INDEX IF NOT EXISTS idx_story_slides_slide ON story_slides(slide_id);
+-- (story_slides M:N table removed 2026-05-29: membership is now derived
+-- from start_page / end_page range, since stories are always consecutive
+-- slide sets. See DESIGN.md.)
 
 -- Full-text search over title + body_text (queryable via slides_fts MATCH ...)
 CREATE VIRTUAL TABLE IF NOT EXISTS slides_fts USING fts5(
