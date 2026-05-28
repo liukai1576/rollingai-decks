@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<title>RollingAI · Slide Admin</title>
+<title>RollingAI · 幻灯片管理</title>
 <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.13.5/dist/cdn.min.js"></script>
 <style>
   :root {
@@ -285,18 +285,18 @@
 
 <!-- ===== TOP BAR ===== -->
 <div class="topbar">
-  <h1>RollingAI · Slide Admin</h1>
+  <h1>RollingAI · 幻灯片管理</h1>
   <div class="tabs">
-    <button :class="{active: view==='decks'}" @click="view='decks'">Decks</button>
-    <button :class="{active: view==='slides'}" @click="view='slides'">Slides</button>
-    <button :class="{active: view==='stories'}" @click="view='stories'">Stories</button>
+    <button :class="{active: view==='decks'}" @click="view='decks'">Deck 列表</button>
+    <button :class="{active: view==='slides'}" @click="view='slides'">幻灯片</button>
+    <button :class="{active: view==='stories'}" @click="view='stories'">故事</button>
   </div>
-  <input class="search" type="search" placeholder="搜索标题 / 正文…  (FTS5)"
+  <input class="search" type="search" placeholder="搜索标题 / 正文…（全文检索）"
          x-model.debounce.300ms="filters.search" @input="refresh()" />
   <span class="stats-pill" x-show="stats">
-    <span x-text="stats?.totals?.slides ?? '?'"></span> slides ·
-    <span x-text="stats?.totals?.stories ?? '?'"></span> stories ·
-    <span x-text="stats?.totals?.needs_review ?? '?'"></span> need review
+    <span x-text="stats?.totals?.slides ?? '?'"></span> 张幻灯片 ·
+    <span x-text="stats?.totals?.stories ?? '?'"></span> 个故事 ·
+    <span x-text="stats?.totals?.needs_review ?? '?'"></span> 待复核
   </span>
 </div>
 
@@ -336,11 +336,11 @@
     <div class="section-title">特殊</div>
     <div class="tag-row" :class="{active: filters.needs_review}"
          @click="filters.needs_review = !filters.needs_review || null; refresh()">
-      <span>Needs review</span>
+      <span>待复核</span>
       <span class="count" x-text="stats?.totals?.needs_review || 0"></span>
     </div>
     <div class="tag-row" @click="resetFilters()">
-      <span style="color:var(--accent);">↺ 清除过滤</span>
+      <span style="color:var(--accent);">↺ 清除筛选</span>
     </div>
   </div>
 </aside>
@@ -351,7 +351,7 @@
   <!-- Decks view (gallery) -->
   <template x-if="view === 'decks'">
     <div>
-      <h2>Decks · <span x-text="decks.length"></span>
+      <h2>Deck 列表 · <span x-text="decks.length"></span>
         <span x-show="loading" class="spinner"></span>
       </h2>
       <div class="deck-grid">
@@ -360,7 +360,7 @@
             <div class="deck-thumb" :class="{'no-mount': !d.has_mount}">
               <template x-if="d.has_mount">
                 <iframe :src="'/decks/' + d.deck_id + '/index.html#1'"
-                        loading="lazy" title="deck thumbnail"></iframe>
+                        loading="lazy" title="封面缩略图"></iframe>
               </template>
               <template x-if="!d.has_mount">
                 <span>未挂载 deck 文件（仅元数据）</span>
@@ -369,8 +369,8 @@
             <div class="body">
               <h3 x-text="d.display_name"></h3>
               <div class="meta">
-                <span><span x-text="d.slide_count"></span> slides</span>
-                <span><span x-text="d.story_count"></span> stories</span>
+                <span><span x-text="d.slide_count"></span> 张幻灯片</span>
+                <span><span x-text="d.story_count"></span> 个故事</span>
               </div>
             </div>
           </div>
@@ -385,7 +385,7 @@
       <h2>
         <template x-if="filters.deck_id">
           <span style="font-size:13px;color:var(--text-dim);font-weight:400;">
-            Deck: <span style="color:var(--accent);" x-text="filters.deck_id"></span>
+            Deck：<span style="color:var(--accent);" x-text="filters.deck_id"></span>
             <button @click="filters.deck_id=null; refresh()"
                     style="background:transparent;border:0;color:var(--text-dim);cursor:pointer;margin-left:4px;">
               ✕
@@ -393,13 +393,13 @@
             ·
           </span>
         </template>
-        Slides · <span x-text="slides.length"></span> 条
+        幻灯片 · <span x-text="slides.length"></span> 张
         <span x-show="loading" class="spinner"></span>
       </h2>
       <table class="slide-table" x-show="slides.length">
         <thead>
           <tr>
-            <th class="page-no">#</th>
+            <th class="page-no">页</th>
             <th>标题</th>
             <th>类型</th>
             <th>细分</th>
@@ -431,24 +431,31 @@
           </template>
         </tbody>
       </table>
-      <div class="empty" x-show="!loading && !slides.length">无符合条件的 slides</div>
+      <div class="empty" x-show="!loading && !slides.length">没有符合筛选条件的幻灯片</div>
     </div>
   </template>
 
   <!-- Stories view -->
   <template x-if="view === 'stories'">
     <div>
-      <h2>Stories · <span x-text="stories.length"></span> 个
+      <h2>故事 · <span x-text="stories.length"></span> 个
         <span x-show="loading" class="spinner"></span>
       </h2>
-      <div class="story-grid">
+      <div class="deck-grid">
         <template x-for="st in stories" :key="st.id">
-          <div class="story-card" @click="openStory(st.id)">
-            <h3 x-text="st.title"></h3>
-            <div class="meta">
-              <span x-text="st.slide_count"></span> slides · <code x-text="st.id"></code>
+          <div class="deck-card" @click="openStory(st.id)">
+            <div class="deck-thumb">
+              <iframe :src="'/decks/' + st.deck_id + '/index.html#' + (st.start_page || 1)"
+                      loading="lazy" title="故事首页缩略图"></iframe>
             </div>
-            <div class="members" x-show="st.description" x-text="st.description"></div>
+            <div class="body">
+              <h3 x-text="st.title"></h3>
+              <div class="meta">
+                <span>p<span x-text="st.start_page"></span>–<span x-text="st.end_page"></span></span>
+                <span><span x-text="st.slide_count"></span> 张</span>
+                <span style="color:var(--text-faint);" x-text="st.deck_id"></span>
+              </div>
+            </div>
           </div>
         </template>
       </div>
@@ -467,8 +474,11 @@
       </div>
       <div class="drawer-body">
         <div style="color:var(--text-dim);font-size:12px;margin-bottom:16px;">
-          <code x-text="storyDetail.id"></code> · deck:
+          <code x-text="storyDetail.id"></code> · Deck：
           <code x-text="storyDetail.deck_id || '·'"></code>
+          <template x-if="storyDetail.start_page">
+            <span> · p<span x-text="storyDetail.start_page"></span>–<span x-text="storyDetail.end_page"></span></span>
+          </template>
         </div>
         <template x-if="storyDetail.description">
           <p style="color:var(--text-dim);font-size:13px;line-height:1.6;
@@ -478,13 +488,13 @@
         </template>
 
         <h4 style="margin:24px 0 12px;font-size:13px;color:var(--text-dim);
-                   letter-spacing:0.08em;text-transform:uppercase;">
-          成员（<span x-text="storyDetail.slides.length"></span>）
+                   letter-spacing:0.08em;">
+          包含的幻灯片（<span x-text="storyDetail.slides.length"></span> 张）
         </h4>
         <table class="slide-table" style="font-size:13px;">
           <thead>
             <tr>
-              <th style="width:36px;">#</th>
+              <th style="width:36px;">序号</th>
               <th class="page-no">页</th>
               <th>标题</th>
               <th>类型</th>
@@ -519,8 +529,8 @@
 
         <div style="margin-top:24px;display:flex;gap:8px;">
           <button class="save-btn" @click="exportStoryDeck(storyDetail.id)"
-                  title="导出该 story 为新 deck（当前是 stub）">
-            导出为 deck
+                  title="把该故事的幻灯片导出为新 Deck（开发中）">
+            导出为新 Deck
           </button>
         </div>
       </div>
@@ -533,14 +543,14 @@
   <template x-if="detail">
     <div>
       <div class="drawer-header">
-        <span class="page-no" x-text="'p' + detail.page_no"></span>
+        <span class="page-no" x-text="'第 ' + detail.page_no + ' 页'"></span>
         <h3 x-text="detail.title"></h3>
         <button class="close" @click="detail = null">✕</button>
       </div>
       <div class="drawer-body">
         <iframe class="preview-iframe"
                 :src="'/decks/' + detail.deck_id + '/index.html#' + detail.page_no"
-                title="slide preview"></iframe>
+                title="幻灯片预览"></iframe>
 
         <h4 style="margin-top:24px;margin-bottom:8px;">标签</h4>
         <div class="field-row">
@@ -574,11 +584,11 @@
         <div class="field-row">
           <label>自由标签</label>
           <input type="text" x-model="editBuf.free_tags_str"
-                 placeholder="逗号分隔，如：金句页, 内部使用" />
+                 placeholder="逗号分隔，例如：金句页, 内部使用" />
         </div>
         <div class="field-row">
           <label>备注</label>
-          <textarea x-model="editBuf.notes"></textarea>
+          <textarea x-model="editBuf.notes" placeholder="编辑批注 / 上下文"></textarea>
         </div>
 
         <button class="save-btn" @click="saveSlide()" :disabled="saving">
@@ -589,12 +599,12 @@
 
         <div class="stories-in" x-show="detail.stories?.length">
           <div style="color:var(--text-dim);font-size:12px;margin-bottom:6px;">
-            出现在以下 story（点击跳转）：
+            出现在以下故事中（点击跳转）：
           </div>
           <template x-for="st in detail.stories" :key="st.id">
             <span class="story-link" @click="detail=null; view='stories'; openStory(st.id)">
               <span x-text="st.title"></span>
-              <span style="color:var(--text-faint);">· #<span x-text="st.position"></span></span>
+              <span style="color:var(--text-faint);">· 第 <span x-text="st.position + 1"></span> 张</span>
             </span>
           </template>
         </div>
