@@ -153,7 +153,7 @@ def extract_page_texts(key_path: Path) -> list[tuple[int, list[str]]]:
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("key_path", type=Path)
-    ap.add_argument("--min-jaccard", type=float, default=0.30,
+    ap.add_argument("--min-jaccard", type=float, default=0.60,
                     help="Min Jaccard for symmetric overlap")
     ap.add_argument("--min-overlap", type=float, default=0.50,
                     help="Min overlap coefficient (|A∩B| / min(|A|,|B|)) — "
