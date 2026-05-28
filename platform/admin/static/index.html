@@ -166,22 +166,31 @@
     transition: transform .15s ease, border-color .15s ease;
   }
   .deck-card:hover { transform: translateY(-2px); border-color: rgba(216,34,95,0.4); }
+  /* 16:9 via the padding-top trick — more reliable than aspect-ratio,
+     especially when a position:absolute child (the slide-count badge)
+     is present. */
   .deck-thumb {
-    width: 100%; aspect-ratio: 16/9;
+    position: relative;
+    width: 100%;
+    padding-top: 56.25%;
     background: #000;
-    position: relative; overflow: hidden;
+    overflow: hidden;
   }
-  .deck-thumb iframe {
-    /* Legacy fallback only — we now ship pre-rendered JPGs (see
-       library/db/gen_thumbnails.py). Kept in case a deck has no thumb. */
-    width: 250%; height: 250%;
+  .deck-thumb > img,
+  .deck-thumb > iframe,
+  .deck-thumb > span {
+    position: absolute; inset: 0;
+    width: 100%; height: 100%;
+    display: block;
+  }
+  .deck-thumb > img { object-fit: cover; }
+  .deck-thumb > iframe {
+    /* Legacy fallback only — we now ship pre-rendered JPGs. */
+    width: 250%; height: 250%; inset: 0 auto auto 0;
     transform: scale(0.4); transform-origin: top left;
     border: 0; pointer-events: none;
   }
-  .deck-thumb img {
-    width: 100%; height: 100%; object-fit: cover; display: block;
-  }
-  .deck-thumb.no-mount {
+  .deck-thumb > span {
     display: flex; align-items: center; justify-content: center;
     color: var(--text-faint); font-size: 13px;
   }
@@ -196,9 +205,8 @@
   /* Story cards: big slide-count badge in the thumb's top-right corner.
      What the user cares about is the length of the story, not which
      deck it came from. */
-  .deck-thumb { position: relative; }
   .deck-thumb .slide-count-badge {
-    position: absolute; top: 8px; right: 8px;
+    position: absolute; top: 8px; right: 8px; z-index: 2;
     background: rgba(0,0,0,0.6); backdrop-filter: blur(4px);
     color: #fff; padding: 4px 12px; border-radius: 8px;
     font-variant-numeric: tabular-nums;
@@ -304,6 +312,24 @@
   .empty {
     text-align: center; padding: 60px 0; color: var(--text-faint);
   }
+
+  /* Click-to-edit titles (story cards + slide rows) */
+  .editable-title {
+    cursor: text; border-radius: 4px; padding: 1px 4px;
+    margin: 0 -4px; transition: background .12s ease;
+  }
+  .editable-title:hover {
+    background: rgba(255,255,255,0.04);
+    box-shadow: inset 0 -1px 0 rgba(255,255,255,0.18);
+  }
+  .title-edit-input {
+    width: 100%; box-sizing: border-box;
+    background: var(--panel-2); border: 1px solid var(--accent);
+    color: var(--text);
+    padding: 4px 8px; border-radius: 4px;
+    font: inherit; font-weight: inherit;
+  }
+  .title-edit-input:focus { outline: none; }
 
   /* loading */
   .spinner {
@@ -463,7 +489,22 @@
                   <div class="thumb-placeholder">·</div>
                 </template>
               </td>
-              <td class="title-cell" x-text="s.title"></td>
+              <td class="title-cell" @click.stop>
+                <template x-if="!(editingKind==='slide' && editingId===s.id)">
+                  <span class="editable-title" title="点击编辑"
+                        @click.stop="startEditTitle('slide', s)"
+                        x-text="s.title"></span>
+                </template>
+                <template x-if="editingKind==='slide' && editingId===s.id">
+                  <input class="title-edit-input" type="text"
+                         x-model="editingTitleBuf"
+                         x-init="$nextTick(() => { $el.focus(); $el.select(); })"
+                         @click.stop
+                         @keydown.enter.prevent="commitEditTitle(s)"
+                         @keydown.escape.prevent="cancelEditTitle()"
+                         @blur="commitEditTitle(s)">
+                </template>
+              </td>
               <td><span class="chip" :class="'type-' + s.type_tag" x-text="s.type_tag || '·'"></span></td>
               <td x-text="s.subtype_tag || '·'"></td>
               <td>
@@ -507,8 +548,23 @@
                 <span class="unit">张</span>
               </div>
             </div>
-            <div class="body">
-              <h3 x-text="st.title"></h3>
+            <div class="body" @click.stop>
+              <template x-if="!(editingKind==='story' && editingId===st.id)">
+                <h3 class="editable-title" title="点击编辑"
+                    @click.stop="startEditTitle('story', st)"
+                    x-text="st.title"></h3>
+              </template>
+              <template x-if="editingKind==='story' && editingId===st.id">
+                <h3 style="margin:0 0 4px;">
+                  <input class="title-edit-input" type="text"
+                         x-model="editingTitleBuf"
+                         x-init="$nextTick(() => { $el.focus(); $el.select(); })"
+                         @click.stop
+                         @keydown.enter.prevent="commitEditTitle(st)"
+                         @keydown.escape.prevent="cancelEditTitle()"
+                         @blur="commitEditTitle(st)">
+                </h3>
+              </template>
             </div>
           </div>
         </template>
@@ -688,6 +744,11 @@ function app() {
     detail: null,           // slide detail
     storyDetail: null,      // story detail
     editBuf: {},
+    // Click-to-edit (story title in card, slide title in row).
+    // editingId is the row/card id being edited; null means none.
+    editingKind: null,      // 'story' | 'slide' | null
+    editingId: null,
+    editingTitleBuf: '',
     loading: false,
     saving: false,
     savedFlash: false,
@@ -799,6 +860,40 @@ function app() {
             '会把这个 story 的 ' + d.deck_json_preview.slides.length +
             ' 张 slide 拼成新 deck.json，调用 render-deck.py 出 HTML。\n\n' +
             '现在只返回了 deck.json scaffold，没实际渲染。');
+    },
+
+    // ---- Inline title editing ----
+    startEditTitle(kind, item) {
+      this.editingKind = kind;
+      this.editingId = item.id;
+      this.editingTitleBuf = item.title || '';
+    },
+    cancelEditTitle() {
+      this.editingKind = null;
+      this.editingId = null;
+      this.editingTitleBuf = '';
+    },
+    async commitEditTitle(item) {
+      // Guard against double-fire (Enter then blur).
+      if (this.editingId !== item.id) return;
+      const newTitle = (this.editingTitleBuf || '').trim();
+      const kind = this.editingKind;
+      this.editingKind = null;
+      this.editingId = null;
+      if (!newTitle || newTitle === item.title) return;
+      const url = kind === 'story'
+        ? '/api/stories/' + item.id
+        : '/api/slides/' + item.id;
+      const r = await fetch(url, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ title: newTitle }),
+      });
+      if (r.ok) {
+        item.title = newTitle;
+      } else {
+        alert('保存失败：' + r.status);
+      }
     },
 
     async saveSlide() {
