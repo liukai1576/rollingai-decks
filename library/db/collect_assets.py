@@ -324,13 +324,23 @@ def process_key(key_path: Path, deck_id: str | None, min_size: int,
                                   f"{size//1024}KB, {row[5]})  {(row[3] or '')[:40]}")
             print(f"\n共 {n_matched_slides} 页发现素材重叠")
         else:
-            # write slide_assets links
-            n_links = 0
+            # write slide_assets links — look up the actual slide_id via
+            # iwa_uuid (which collect_fingerprints already populated). Avoids
+            # position-based labeling that breaks when slide_key has gaps.
+            uuid_to_slide_id = {
+                str(r[0]): r[1]
+                for r in conn.execute(
+                    "SELECT iwa_uuid, id FROM slides "
+                    "WHERE deck_id = ? AND iwa_uuid IS NOT NULL", (deck_id,)
+                )
+            }
+            n_links, n_orphan = 0, 0
             for sid_iwa in visible_ids:
                 refs = slide_to_refs.get(sid_iwa, {})
-                # Map IWA slide id to our slide_id (deck_id/slide-NNN format)
-                page_idx = visible_ids.index(sid_iwa) + 1
-                db_slide_id = f"{deck_id}/slide-{page_idx:03d}"
+                db_slide_id = uuid_to_slide_id.get(str(sid_iwa))
+                if db_slide_id is None:
+                    n_orphan += 1
+                    continue
                 for data_id, role in refs.items():
                     if data_id not in seen_hashes:
                         continue
@@ -343,7 +353,9 @@ def process_key(key_path: Path, deck_id: str | None, min_size: int,
                     )
                     n_links += 1
             conn.commit()
-            print(f"Linked {n_links} slide↔asset relationships", file=sys.stderr)
+            print(f"Linked {n_links} slide↔asset relationships "
+                  f"({n_orphan} slides skipped — no iwa_uuid in DB; "
+                  f"re-run collect_fingerprints first)", file=sys.stderr)
 
         conn.commit()
         conn.close()

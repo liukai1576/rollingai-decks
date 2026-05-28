@@ -46,6 +46,13 @@ TEXT_MIN_JAC = 0.20
 TEXT_MIN_OVL = 0.40
 ASSET_MIN_SIZE = 50 * 1024
 
+# An asset used on this many slides in its source deck is considered
+# "template/background" (the deck's section-divider art, decorative poster,
+# generic backdrop) rather than real content. Such assets create false
+# positives — they match anywhere the source deck reused them as scenery,
+# not as a content reuse signal. Drop them from the probe.
+TEMPLATE_ASSET_REUSE_THRESHOLD = 3
+
 
 def probe_fingerprints(key_path: Path) -> dict[int, list[dict]]:
     """{page_no: [{tier, deck_id, page_no, title}]}"""
@@ -59,14 +66,14 @@ def probe_fingerprints(key_path: Path) -> dict[int, list[dict]]:
         # Tier 1: UUID
         if fp.iwa_uuid:
             r = conn.execute(
-                "SELECT id, deck_id, page_no, title FROM slides "
+                "SELECT id, deck_id, page_no, slide_key, title FROM slides "
                 "WHERE iwa_uuid = ? LIMIT 1", (fp.iwa_uuid,)
             ).fetchone()
             if r:
                 out[fp.page_no].append({"tier": "uuid", **dict(r)})
         # Tier 2: element_sig
         r = conn.execute(
-            "SELECT id, deck_id, page_no, title FROM slides "
+            "SELECT id, deck_id, page_no, slide_key, title FROM slides "
             "WHERE element_sig = ? LIMIT 1", (fp.element_sig,)
         ).fetchone()
         if r:
@@ -74,7 +81,7 @@ def probe_fingerprints(key_path: Path) -> dict[int, list[dict]]:
         # Tier 3: template_sig
         if fp.template_sig:
             r = conn.execute(
-                "SELECT id, deck_id, page_no, title FROM slides "
+                "SELECT id, deck_id, page_no, slide_key, title FROM slides "
                 "WHERE template_sig = ? LIMIT 1", (fp.template_sig,)
             ).fetchone()
             if r:
@@ -92,7 +99,7 @@ def probe_text(key_path: Path) -> dict[int, list[dict]]:
     # Pre-tokenize existing slides
     existing = []
     for r in conn.execute(
-        "SELECT id, deck_id, page_no, title, body_text FROM slides "
+        "SELECT id, deck_id, page_no, slide_key, title, body_text FROM slides "
         "WHERE body_text IS NOT NULL"
     ):
         toks = tokenize(r["body_text"])
@@ -171,9 +178,16 @@ def probe_assets(key_path: Path) -> dict[int, list[dict]]:
             if data_id not in seen:
                 continue
             h, size, fn = seen[data_id]
+            # Skip template/common assets — they're scenery, not content
+            reuse_count = conn.execute(
+                "SELECT COUNT(DISTINCT slide_id) FROM slide_assets "
+                "WHERE asset_hash = ?", (h,)
+            ).fetchone()[0]
+            if reuse_count >= TEMPLATE_ASSET_REUSE_THRESHOLD:
+                continue
             rows = conn.execute(
-                "SELECT s.deck_id, s.page_no, s.title FROM slide_assets sa "
-                "JOIN slides s ON s.id = sa.slide_id "
+                "SELECT s.deck_id, s.page_no, s.slide_key, s.title "
+                "FROM slide_assets sa JOIN slides s ON s.id = sa.slide_id "
                 "WHERE sa.asset_hash = ?", (h,)
             ).fetchall()
             for r in rows:
@@ -217,22 +231,24 @@ def main():
     lines.append("---\n\n")
 
     for page in all_pages:
-        # Aggregate by candidate (deck_id, page_no) to dedup across channels
-        agg: dict[tuple[str, int], dict] = {}
+        # Aggregate by candidate (deck_id, slide_key) — slide_key matches
+        # Keynote's UI slide labels, which is how the user thinks about pages.
+        agg: dict[tuple[str, str], dict] = {}
+        def key_of(m):
+            return (m["deck_id"], m.get("slide_key") or f"p{m['page_no']}")
         for m in fp_matches.get(page, []):
-            k = (m["deck_id"], m["page_no"])
+            k = key_of(m)
             d = agg.setdefault(k, {"title": m["title"], "channels": {}})
             d["channels"][m["tier"]] = "命中"
         for m in text_matches.get(page, []):
-            k = (m["deck_id"], m["page_no"])
+            k = key_of(m)
             d = agg.setdefault(k, {"title": m["title"], "channels": {}})
             d["channels"]["文本"] = f"jac={m['jaccard']:.2f} ovl={m['overlap']:.2f}"
             d["preview"] = m.get("content_preview", "")
         for m in asset_matches.get(page, []):
-            k = (m["deck_id"], m["page_no"])
+            k = key_of(m)
             d = agg.setdefault(k, {"title": m["title"], "channels": {}})
             ex = d["channels"].get("素材", "")
-            # Use " · " as in-cell separator (markdown table cells use |)
             new_entry = f"{m['role']} {m['size_kb']}KB"
             d["channels"]["素材"] = (ex + " · " if ex else "") + new_entry
 
@@ -257,11 +273,11 @@ def main():
                 4 if "文本" in ch else 0) + (
                 2 if "素材" in ch else 0)
             return (-score, item[0][0], item[0][1])
-        for (deck, pno), d in sorted(agg.items(), key=rank):
+        for (deck, skey), d in sorted(agg.items(), key=rank):
             ch = d["channels"]
             title = (d["title"] or "")[:35].replace("|", "\\|")
             lines.append(
-                f"| {deck}/p{pno} | {title} | "
+                f"| {deck}/{skey} | {title} | "
                 f"{'✓' if 'uuid' in ch else '·'} | "
                 f"{'✓' if 'structural' in ch else '·'} | "
                 f"{'✓' if 'template' in ch else '·'} | "
