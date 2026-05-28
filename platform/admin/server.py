@@ -32,7 +32,7 @@ from typing import Optional
 
 from fastapi import FastAPI, HTTPException, Query
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import FileResponse
+from fastapi.responses import FileResponse, Response
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
 
@@ -469,7 +469,12 @@ if THUMBS_DIR.is_dir():
 
 @app.get("/")
 def root():
-    return FileResponse(STATIC_DIR / "index.html")
+    # Hard no-cache so iterating on the UI doesn't get stuck on a stale
+    # index.html in the browser.
+    resp = FileResponse(STATIC_DIR / "index.html")
+    resp.headers["Cache-Control"] = "no-store, no-cache, must-revalidate"
+    resp.headers["Pragma"] = "no-cache"
+    return resp
 
 
 # ---- Entry ----
