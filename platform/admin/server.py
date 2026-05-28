@@ -296,6 +296,33 @@ def delete_story(story_id: str):
     return {"deleted": story_id}
 
 
+# ---- API: decks ----
+@app.get("/api/decks")
+def list_decks():
+    """One row per deck with summary + cover-slide reference for thumbnails."""
+    conn = db()
+    rows = conn.execute(
+        "SELECT s.deck_id, "
+        "       COUNT(*) AS slide_count, "
+        "       (SELECT COUNT(*) FROM stories st WHERE st.deck_id = s.deck_id) "
+        "         AS story_count, "
+        "       (SELECT slide_key FROM slides WHERE deck_id = s.deck_id "
+        "          ORDER BY page_no LIMIT 1) AS cover_slide_key, "
+        "       (SELECT title FROM slides WHERE deck_id = s.deck_id "
+        "          ORDER BY page_no LIMIT 1) AS cover_title "
+        "FROM slides s GROUP BY s.deck_id ORDER BY s.deck_id"
+    ).fetchall()
+    decks = []
+    for r in rows:
+        d = dict(r)
+        # Resolve a display name (for now, the deck_id; could be richer later)
+        d["display_name"] = d["deck_id"]
+        d["has_mount"] = d["deck_id"] in DECK_PATHS and DECK_PATHS[d["deck_id"]].is_dir()
+        decks.append(d)
+    conn.close()
+    return {"count": len(decks), "decks": decks}
+
+
 # ---- API: stats ----
 @app.get("/api/stats")
 def stats():

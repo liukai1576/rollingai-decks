@@ -136,6 +136,41 @@
   .chip.free { background: rgba(75,85,99,0.18); color: #9ca3af; }
   .chip.free.needs-review { background: rgba(245,158,11,0.18); color: #fbbf24; }
 
+  /* deck cards (gallery) */
+  .deck-grid {
+    display: grid; grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
+    gap: 20px;
+  }
+  .deck-card {
+    background: var(--panel); border: 1px solid var(--hairline);
+    border-radius: 12px; overflow: hidden; cursor: pointer;
+    transition: transform .15s ease, border-color .15s ease;
+  }
+  .deck-card:hover { transform: translateY(-2px); border-color: rgba(216,34,95,0.4); }
+  .deck-thumb {
+    width: 100%; aspect-ratio: 16/9;
+    background: #000;
+    position: relative; overflow: hidden;
+  }
+  .deck-thumb iframe {
+    /* Render the deck's first slide; scale 0.4 so the 1920×1080 slide
+       fits comfortably inside a ~320px-wide thumbnail. */
+    width: 250%; height: 250%;
+    transform: scale(0.4); transform-origin: top left;
+    border: 0; pointer-events: none;
+  }
+  .deck-thumb.no-mount {
+    display: flex; align-items: center; justify-content: center;
+    color: var(--text-faint); font-size: 13px;
+  }
+  .deck-card .body { padding: 14px 16px; }
+  .deck-card .body h3 { margin: 0 0 4px; font-size: 16px; font-weight: 600; }
+  .deck-card .body .meta {
+    color: var(--text-dim); font-size: 12px;
+    display: flex; gap: 12px;
+  }
+  .deck-card .body .meta span { display: inline-flex; align-items: center; gap: 4px; }
+
   /* story cards */
   .story-grid {
     display: grid; grid-template-columns: repeat(auto-fill, minmax(360px, 1fr));
@@ -167,7 +202,9 @@
   }
   .drawer.open { transform: translateX(0); }
   .drawer-header {
+    position: sticky; top: 0; z-index: 10;
     padding: 16px 20px;
+    background: var(--panel);
     border-bottom: 1px solid var(--hairline);
     display: flex; align-items: center; gap: 12px;
   }
@@ -241,6 +278,7 @@
 <div class="topbar">
   <h1>RollingAI · Slide Admin</h1>
   <div class="tabs">
+    <button :class="{active: view==='decks'}" @click="view='decks'">Decks</button>
     <button :class="{active: view==='slides'}" @click="view='slides'">Slides</button>
     <button :class="{active: view==='stories'}" @click="view='stories'">Stories</button>
   </div>
@@ -301,10 +339,52 @@
 <!-- ===== MAIN ===== -->
 <main class="main">
 
+  <!-- Decks view (gallery) -->
+  <template x-if="view === 'decks'">
+    <div>
+      <h2>Decks · <span x-text="decks.length"></span>
+        <span x-show="loading" class="spinner"></span>
+      </h2>
+      <div class="deck-grid">
+        <template x-for="d in decks" :key="d.deck_id">
+          <div class="deck-card" @click="drillIntoDeck(d.deck_id)">
+            <div class="deck-thumb" :class="{'no-mount': !d.has_mount}">
+              <template x-if="d.has_mount">
+                <iframe :src="'/decks/' + d.deck_id + '/index.html#1'"
+                        loading="lazy" title="deck thumbnail"></iframe>
+              </template>
+              <template x-if="!d.has_mount">
+                <span>未挂载 deck 文件（仅元数据）</span>
+              </template>
+            </div>
+            <div class="body">
+              <h3 x-text="d.display_name"></h3>
+              <div class="meta">
+                <span><span x-text="d.slide_count"></span> slides</span>
+                <span><span x-text="d.story_count"></span> stories</span>
+              </div>
+            </div>
+          </div>
+        </template>
+      </div>
+    </div>
+  </template>
+
   <!-- Slides view -->
   <template x-if="view === 'slides'">
     <div>
-      <h2>Slides · <span x-text="slides.length"></span> 条
+      <h2>
+        <template x-if="filters.deck_id">
+          <span style="font-size:13px;color:var(--text-dim);font-weight:400;">
+            Deck: <span style="color:var(--accent);" x-text="filters.deck_id"></span>
+            <button @click="filters.deck_id=null; refresh()"
+                    style="background:transparent;border:0;color:var(--text-dim);cursor:pointer;margin-left:4px;">
+              ✕
+            </button>
+            ·
+          </span>
+        </template>
+        Slides · <span x-text="slides.length"></span> 条
         <span x-show="loading" class="spinner"></span>
       </h2>
       <table class="slide-table" x-show="slides.length">
@@ -366,6 +446,78 @@
     </div>
   </template>
 </main>
+
+<!-- ===== Story drawer ===== -->
+<div class="drawer" :class="{open: !!storyDetail}">
+  <template x-if="storyDetail">
+    <div>
+      <div class="drawer-header">
+        <span class="page-no">📚</span>
+        <h3 x-text="storyDetail.title"></h3>
+        <button class="close" @click="storyDetail = null">✕</button>
+      </div>
+      <div class="drawer-body">
+        <div style="color:var(--text-dim);font-size:12px;margin-bottom:16px;">
+          <code x-text="storyDetail.id"></code> · deck:
+          <code x-text="storyDetail.deck_id || '·'"></code>
+        </div>
+        <template x-if="storyDetail.description">
+          <p style="color:var(--text-dim);font-size:13px;line-height:1.6;
+                    background:var(--panel-2);padding:10px 14px;border-radius:6px;
+                    margin-bottom:16px;"
+             x-text="storyDetail.description"></p>
+        </template>
+
+        <h4 style="margin:24px 0 12px;font-size:13px;color:var(--text-dim);
+                   letter-spacing:0.08em;text-transform:uppercase;">
+          成员（<span x-text="storyDetail.slides.length"></span>）
+        </h4>
+        <table class="slide-table" style="font-size:13px;">
+          <thead>
+            <tr>
+              <th style="width:36px;">#</th>
+              <th class="page-no">页</th>
+              <th>标题</th>
+              <th>类型</th>
+              <th>客户</th>
+              <th>媒体</th>
+            </tr>
+          </thead>
+          <tbody>
+            <template x-for="(s, i) in storyDetail.slides" :key="s.id">
+              <tr @click="storyDetail=null; openSlide(s.id)">
+                <td style="color:var(--text-faint);">
+                  <span x-text="(s.position ?? i) + 1"></span>
+                </td>
+                <td class="page-no" x-text="s.page_no"></td>
+                <td class="title-cell" x-text="s.title"></td>
+                <td><span class="chip" :class="'type-' + s.type_tag"
+                          x-text="s.type_tag || '·'"></span></td>
+                <td>
+                  <template x-if="s.customer_tag">
+                    <span class="chip customer" x-text="s.customer_tag"></span>
+                  </template>
+                  <template x-if="!s.customer_tag">
+                    <span style="color:var(--text-faint)">·</span>
+                  </template>
+                </td>
+                <td><span class="chip" :class="'media-' + s.media_tag"
+                          x-text="s.media_tag || '·'"></span></td>
+              </tr>
+            </template>
+          </tbody>
+        </table>
+
+        <div style="margin-top:24px;display:flex;gap:8px;">
+          <button class="save-btn" @click="exportStoryDeck(storyDetail.id)"
+                  title="导出该 story 为新 deck（当前是 stub）">
+            导出为 deck
+          </button>
+        </div>
+      </div>
+    </div>
+  </template>
+</div>
 
 <!-- ===== Slide drawer ===== -->
 <div class="drawer" :class="{open: !!detail}">
@@ -445,16 +597,19 @@
 <script>
 function app() {
   return {
-    view: 'slides',
+    view: 'decks',
     stats: null,
+    decks: [],
     slides: [],
     stories: [],
-    detail: null,
+    detail: null,           // slide detail
+    storyDetail: null,      // story detail
     editBuf: {},
     loading: false,
     saving: false,
     savedFlash: false,
     filters: {
+      deck_id: null,
       type_tag: null, customer_tag: null, media_tag: null,
       needs_review: null, search: '',
     },
@@ -472,9 +627,21 @@ function app() {
 
     async refresh() {
       this.loading = true;
-      if (this.view === 'slides') await this.loadSlides();
-      else await this.loadStories();
+      if (this.view === 'slides')       await this.loadSlides();
+      else if (this.view === 'stories') await this.loadStories();
+      else if (this.view === 'decks')   await this.loadDecks();
       this.loading = false;
+    },
+
+    async loadDecks() {
+      const r = await fetch('/api/decks');
+      const d = await r.json();
+      this.decks = d.decks;
+    },
+
+    drillIntoDeck(deckId) {
+      this.filters.deck_id = deckId;
+      this.view = 'slides';
     },
 
     async loadSlides() {
@@ -500,6 +667,7 @@ function app() {
 
     resetFilters() {
       this.filters = {
+        deck_id: null,
         type_tag: null, customer_tag: null, media_tag: null,
         needs_review: null, search: '',
       };
@@ -518,14 +686,32 @@ function app() {
         free_tags_str: (this.detail.free_tags || []).join(', '),
         notes: this.detail.notes || '',
       };
+      // Reset drawer scroll position so the header is visible on every open.
+      // Without this the drawer keeps the scroll from the previous slide and
+      // the close button + iframe may be scrolled out of view.
+      this.$nextTick(() => {
+        const d = document.querySelector('.drawer');
+        if (d) d.scrollTop = 0;
+      });
     },
 
     async openStory(id) {
       const r = await fetch('/api/stories/' + id);
-      const st = await r.json();
-      alert(`Story: ${st.title}\n${st.slides.length} slides:\n\n` +
-            st.slides.map(s => `  ${s.page_no}. ${s.title}`).join('\n'));
-      // TODO: a real Story drawer / detail page
+      this.storyDetail = await r.json();
+      this.$nextTick(() => {
+        const drawers = document.querySelectorAll('.drawer');
+        drawers.forEach(d => d.scrollTop = 0);
+      });
+    },
+
+    async exportStoryDeck(storyId) {
+      const r = await fetch('/api/stories/' + storyId + '/export-deck',
+                             { method: 'POST' });
+      const d = await r.json();
+      alert('TODO（后端 stub）：\n\n' +
+            '会把这个 story 的 ' + d.deck_json_preview.slides.length +
+            ' 张 slide 拼成新 deck.json，调用 render-deck.py 出 HTML。\n\n' +
+            '现在只返回了 deck.json scaffold，没实际渲染。');
     },
 
     async saveSlide() {
