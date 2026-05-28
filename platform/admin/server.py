@@ -40,6 +40,7 @@ from pydantic import BaseModel
 ROOT = Path(__file__).resolve().parent
 REPO = ROOT.parent.parent
 DB_PATH = REPO / "library" / "db" / "data" / "slides.db"
+THUMBS_DIR = REPO / "library" / "db" / "data" / "thumbs"
 STATIC_DIR = ROOT / "static"
 
 # Decks live outside the public repo (imports/ is gitignored). The admin
@@ -47,6 +48,28 @@ STATIC_DIR = ROOT / "static"
 DECK_PATHS: dict[str, Path] = {
     "kangshifu": REPO / "imports" / "RollingAI分享-康师傅" / "render-output-full",
 }
+
+_DECK_TITLE_CACHE: dict[str, str] = {}
+
+def deck_display_name(deck_id: str) -> str:
+    """Return the original deck title (from deck.json) or the slug as fallback.
+    We do NOT invent English names — show whatever the source file was called."""
+    if deck_id in _DECK_TITLE_CACHE:
+        return _DECK_TITLE_CACHE[deck_id]
+    name = deck_id
+    base = DECK_PATHS.get(deck_id)
+    if base and base.is_dir():
+        deck_json = base / "deck.json"
+        if deck_json.is_file():
+            try:
+                d = json.loads(deck_json.read_text("utf-8"))
+                t = d.get("deck", {}).get("title") or d.get("title")
+                if t:
+                    name = t
+            except Exception:
+                pass
+    _DECK_TITLE_CACHE[deck_id] = name
+    return name
 
 
 # ---- DB helpers ----
@@ -224,7 +247,10 @@ def list_stories(
 ):
     conn = db()
     sql = ("SELECT s.*, "
-           " (s.end_page - s.start_page + 1) AS slide_count "
+           " (s.end_page - s.start_page + 1) AS slide_count, "
+           " (SELECT thumbnail_path FROM slides sl "
+           "    WHERE sl.deck_id = s.deck_id AND sl.page_no = s.start_page) "
+           "   AS cover_thumbnail_path "
            "FROM stories s")
     where, params = [], []
     if deck_id:
@@ -239,7 +265,11 @@ def list_stories(
     if where:
         sql += " WHERE " + " AND ".join(where)
     sql += " ORDER BY s.deck_id, s.start_page, slide_count DESC"
-    rows = [dict(r) for r in conn.execute(sql, params)]
+    rows = []
+    for r in conn.execute(sql, params):
+        d = dict(r)
+        d["deck_display_name"] = deck_display_name(d["deck_id"])
+        rows.append(d)
     conn.close()
     return {"count": len(rows), "stories": rows}
 
@@ -251,6 +281,7 @@ def get_story(story_id: str):
     if not story:
         raise HTTPException(404, f"Story not found: {story_id}")
     out = dict(story)
+    out["deck_display_name"] = deck_display_name(out["deck_id"])
     # Membership derived from page_no range; section pages included but
     # caller can filter by type_tag != 'Section' if desired.
     out["slides"] = [
@@ -332,15 +363,16 @@ def list_decks(search: Optional[str] = None):
         "       (SELECT slide_key FROM slides WHERE deck_id = s.deck_id "
         "          ORDER BY page_no LIMIT 1) AS cover_slide_key, "
         "       (SELECT title FROM slides WHERE deck_id = s.deck_id "
-        "          ORDER BY page_no LIMIT 1) AS cover_title "
+        "          ORDER BY page_no LIMIT 1) AS cover_title, "
+        "       (SELECT thumbnail_path FROM slides WHERE deck_id = s.deck_id "
+        "          ORDER BY page_no LIMIT 1) AS cover_thumbnail_path "
         "FROM slides s GROUP BY s.deck_id ORDER BY s.deck_id"
     ).fetchall()
     decks = []
     needle = (search or "").lower().strip()
     for r in rows:
         d = dict(r)
-        # Resolve a display name (for now, the deck_id; could be richer later)
-        d["display_name"] = d["deck_id"]
+        d["display_name"] = deck_display_name(d["deck_id"])
         d["has_mount"] = d["deck_id"] in DECK_PATHS and DECK_PATHS[d["deck_id"]].is_dir()
         if needle and needle not in d["deck_id"].lower() and needle not in (d["display_name"] or "").lower():
             continue
@@ -428,6 +460,11 @@ def deck_file(deck_id: str, path: str):
 # ---- Static UI ----
 if STATIC_DIR.is_dir():
     app.mount("/static", StaticFiles(directory=STATIC_DIR), name="static")
+
+# Serve pre-rendered slide thumbnails (see library/db/gen_thumbnails.py).
+# Frontend referenecs them via paths like "thumbs/kangshifu/slide-004.jpg".
+if THUMBS_DIR.is_dir():
+    app.mount("/thumbs", StaticFiles(directory=THUMBS_DIR), name="thumbs")
 
 
 @app.get("/")
