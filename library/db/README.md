@@ -46,15 +46,20 @@ datasette data/slides.db
 
 ## 4 个固定标签维度
 
-| 列名 | 取值（自由扩展） | 说明 |
+详细规则见 [`data/STORY-PROPOSAL.md`](data/STORY-PROPOSAL.md)（命名、打标
+签、挑 story 的标准都在那里）。
+
+| 列名 | 取值 | 说明 |
 |---|---|---|
-| `type_tag` | 封面 / 公司介绍 / 案例 / 方法论 / 数据图表 / Section / 结尾 / 其他 | 主类型 |
-| `subtype_tag` | 产品介绍 / 项目效果 / 客户痛点 / 团队 / 时间线 / 矩阵 / 流程图 / 金句 / ... | 细分（主要用于案例 / 方法论） |
-| `customer_tag` | 蒙牛 / 飞鹤 / 周大福 / 美宜佳 / ... / NULL | 涉及的客户。NULL = 通用 slide |
-| `media_tag` | 图文 / 视频 / 表格 / 纯文字 | 媒体形式 |
+| `type_tag` | **公司介绍 / 案例 / 方法论 / Section / 结尾** | 5 个就够。不确定归 `方法论`。 |
+| `subtype_tag` | 团队 / Offering / 产品介绍 / 项目效果 / 客户痛点 / 历史故事 / 历史对比 / 顶层思考 / 金句 / 矩阵 / ... / NULL | 用在确实需要区分时；NULL 完全合法。 |
+| `customer_tag` | 客户名 / `RollingAI`（自我介绍页）/ NULL | 同一客户在库里只用一个写法。 |
+| `media_tag` | 图文 / 视频 / 表格 / 纯文字 / NULL | 按最主导的媒体形式。 |
+
+⚠️ 废弃：~~`数据图表`~~ 类型 —— 一张图表本身不是叙事角色，归并到 `方法论`。
 
 加上：
-- `free_tags`（JSON 数组）—— 任意自由标签（"金句页"、"内部使用"、`needs-review` 等）
+- `free_tags`（JSON 数组）—— 任意自由标签（"内部使用"、`needs-review` 等）
 
 ## 自动打标管线
 

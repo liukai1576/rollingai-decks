@@ -24,9 +24,9 @@ CREATE TABLE IF NOT EXISTS slides (
   body_text       TEXT,                -- stripped text content, for FTS
 
   -- Canonical single-value tags
-  type_tag        TEXT,                -- 封面 / 公司介绍 / 案例 / 方法论 / 数据图表 / Section / 结尾 / 其他
-  subtype_tag     TEXT,                -- 产品介绍 / 项目效果 / 客户痛点 / 团队 / 时间线 / 矩阵 / ...
-  customer_tag    TEXT,                -- 蒙牛 / 飞鹤 / 周大福 / ...  (NULL when slide is not customer-specific)
+  type_tag        TEXT,                -- 公司介绍 / 案例 / 方法论 / Section / 结尾   (see data/STORY-PROPOSAL.md)
+  subtype_tag     TEXT,                -- 团队 / Offering / 产品介绍 / 项目效果 / 客户痛点 / 历史故事 / 历史对比 / 顶层思考 / 金句 / 矩阵 / ...
+  customer_tag    TEXT,                -- 蒙牛 / 飞鹤 / 立白 / 友邦保险 / RollingAI (自我介绍页) / NULL (通用)
   media_tag       TEXT,                -- 图文 / 视频 / 表格 / 纯文字
 
   -- Free-form tags as JSON array (e.g. ["金句页","内部使用"])
