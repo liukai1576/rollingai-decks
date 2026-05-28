@@ -38,15 +38,17 @@ CREATE TABLE IF NOT EXISTS slides (
 
   -- Phase A 导入级指纹（从 .key 直接采集，不经渲染）
   iwa_uuid        TEXT,        -- iWork internal ID（"复制 slide" 时会沿用）
-  element_sig     TEXT         -- 结构 canonical hash（位置 / 元素 / 文本指纹）
+  element_sig     TEXT,        -- 严格：结构 + 素材 + 文字 storage_id（区分文字版本）
+  template_sig    TEXT         -- 松：只看结构 + 素材，忽略文字（识别同模板）
 );
 
 CREATE INDEX IF NOT EXISTS idx_slides_deck     ON slides(deck_id);
 CREATE INDEX IF NOT EXISTS idx_slides_type     ON slides(type_tag);
 CREATE INDEX IF NOT EXISTS idx_slides_customer ON slides(customer_tag);
 CREATE INDEX IF NOT EXISTS idx_slides_media    ON slides(media_tag);
-CREATE INDEX IF NOT EXISTS idx_slides_iwa_uuid    ON slides(iwa_uuid);
-CREATE INDEX IF NOT EXISTS idx_slides_element_sig ON slides(element_sig);
+CREATE INDEX IF NOT EXISTS idx_slides_iwa_uuid     ON slides(iwa_uuid);
+CREATE INDEX IF NOT EXISTS idx_slides_element_sig  ON slides(element_sig);
+CREATE INDEX IF NOT EXISTS idx_slides_template_sig ON slides(template_sig);
 
 CREATE TABLE IF NOT EXISTS stories (
   id          TEXT PRIMARY KEY,        -- "kangshifu/company-intro"

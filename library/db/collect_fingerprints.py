@@ -63,16 +63,25 @@ def _open_key(key_path: Path):
 # ----- IWA → slide records --------------------------------------------------
 
 class SlideFingerprint:
-    __slots__ = ("page_no", "iwa_uuid", "element_sig",
+    __slots__ = ("page_no", "iwa_uuid", "element_sig", "template_sig",
                  "element_count", "text_chars", "asset_refs", "raw_elements")
 
     def __init__(self, page_no: int):
         self.page_no = page_no
         self.iwa_uuid: str | None = None
+        # element_sig is the STRICT signature — includes per-slide storage
+        # identifiers (proxy for text content) so two slides with the same
+        # template but different text get different sigs.
         self.element_sig: str | None = None
+        # template_sig is the LOOSE signature — same as element_sig but
+        # without storage identifiers, so two slides sharing a template
+        # (same drawable shapes + assets, only text content differs) match.
+        # Useful for "have we got a slide like this one?" queries; not for
+        # "is this the exact same content".
+        self.template_sig: str | None = None
         self.element_count = 0
         self.text_chars = 0
-        self.asset_refs: list[str] = []   # data_id_to_filename refs we noticed
+        self.asset_refs: list[str] = []
         self.raw_elements: list[tuple] = []
 
 
@@ -351,9 +360,35 @@ def parse_key(key_path: Path) -> list[SlideFingerprint]:
             elements_sorted = sorted(elements,
                                      key=lambda t: (t[1] or 0, t[2] or 0, t[0]))
             fp.element_sig = sha256_hex(repr(elements_sorted).encode("utf-8"))
+
+            # LOOSE signature: strip storage:<id> from asset_refs so that
+            # two slides sharing the same template (same drawables, same
+            # asset images/videos, same placeholder kinds) match even when
+            # their text content differs. Keeps img:/mov:/poster: refs
+            # because those are real shared assets — same physical video
+            # → same template.
+            loose_elements = [
+                (kind, x, y, w, h, angle, t_hash,
+                 _strip_storage_refs(asset_ref),
+                 pbtype)
+                for (kind, x, y, w, h, angle, t_hash, asset_ref, pbtype)
+                in elements_sorted
+            ]
+            fp.template_sig = sha256_hex(repr(loose_elements).encode("utf-8"))
             fingerprints.append(fp)
 
         return fingerprints
+
+
+def _strip_storage_refs(asset_ref: str | None) -> str | None:
+    """Remove per-slide 'storage:<id>' parts from an asset_ref, keeping
+    cross-slide shareable references (img: / mov: / poster: / pkind:).
+    Returns the joined remainder, or None if nothing useful is left."""
+    if not asset_ref:
+        return None
+    parts = [p for p in asset_ref.split("|")
+             if not p.startswith("storage:")]
+    return "|".join(parts) if parts else None
 
 
 def _collect_refs(node, out: list, _seen=None):
@@ -382,9 +417,11 @@ def update_db(deck_id: str, fingerprints: list[SlideFingerprint]) -> int:
     n = 0
     for fp in fingerprints:
         cur = conn.execute(
-            "UPDATE slides SET iwa_uuid = ?, element_sig = ?, updated_at = ? "
+            "UPDATE slides SET iwa_uuid = ?, element_sig = ?, "
+            "       template_sig = ?, updated_at = ? "
             "WHERE deck_id = ? AND page_no = ?",
-            (fp.iwa_uuid, fp.element_sig, now, deck_id, fp.page_no)
+            (fp.iwa_uuid, fp.element_sig, fp.template_sig,
+             now, deck_id, fp.page_no)
         )
         n += cur.rowcount
     conn.commit()
@@ -427,22 +464,32 @@ def probe(fingerprints: list[SlideFingerprint], key_path: Path) -> None:
             ).fetchone()
             if r:
                 match_row, match_via = r, "structural"
+        if not match_row and fp.template_sig:
+            r = conn.execute(
+                "SELECT id, deck_id, page_no, title FROM slides "
+                "WHERE template_sig = ? LIMIT 1",
+                (fp.template_sig,)
+            ).fetchone()
+            if r:
+                match_row, match_via = r, "template"
 
         if match_row:
             mark = "✓ match"
             existing = f"{match_row['deck_id']}/p{match_row['page_no']}  {match_row['title'][:30]}"
             print(f"{fp.page_no:>4}  {mark:<18}  {match_via:<24}  {existing}")
-            tally[match_via if match_via != "structural" else "struct"] += 1
+            key = "struct" if match_via == "structural" else match_via
+            tally[key] = tally.get(key, 0) + 1
         else:
             print(f"{fp.page_no:>4}  {'· 新':<18}  ({fp.element_count} elems, "
                   f"{fp.text_chars} chars)")
             tally["none"] += 1
 
     print("-" * 72)
-    print(f"  UUID 命中: {tally['uuid']}")
-    print(f"  结构命中: {tally['struct']}")
-    print(f"  全新:     {tally['none']}")
-    print(f"  解析失败: {tally['stub']}")
+    print(f"  UUID 命中 (铁证血缘):              {tally.get('uuid', 0)}")
+    print(f"  结构命中 (内容完全一致):           {tally.get('struct', 0)}")
+    print(f"  模板命中 (同模板，文字可能不同):   {tally.get('template', 0)}")
+    print(f"  全新:                              {tally.get('none', 0)}")
+    print(f"  解析失败:                          {tally.get('stub', 0)}")
     print()
     conn.close()
 
