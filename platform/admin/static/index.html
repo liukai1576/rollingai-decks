@@ -35,6 +35,15 @@
       "side main";
     height: 100vh;
   }
+  /* Sidebar tag filters only make sense in the Slides view. Hide on
+     Decks / Stories tabs and let the main area span the full width. */
+  body.no-sidebar {
+    grid-template-columns: 1fr;
+    grid-template-areas:
+      "top"
+      "main";
+  }
+  body.no-sidebar .sidebar { display: none; }
 
   /* ---- topbar ---- */
   .topbar {
@@ -272,7 +281,7 @@
   @keyframes spin { to { transform: rotate(360deg); } }
 </style>
 </head>
-<body x-data="app()" x-init="boot()">
+<body x-data="app()" x-init="boot()" :class="{ 'no-sidebar': view !== 'slides' }">
 
 <!-- ===== TOP BAR ===== -->
 <div class="topbar">

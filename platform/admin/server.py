@@ -344,7 +344,6 @@ def stats():
     out["totals"] = {
         "slides": conn.execute("SELECT COUNT(*) FROM slides").fetchone()[0],
         "stories": conn.execute("SELECT COUNT(*) FROM stories").fetchone()[0],
-        "story_slides": conn.execute("SELECT COUNT(*) FROM story_slides").fetchone()[0],
         "needs_review": conn.execute(
             "SELECT COUNT(*) FROM slides WHERE free_tags LIKE '%needs-review%'"
         ).fetchone()[0],
