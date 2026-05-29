@@ -355,6 +355,32 @@ class IWAAssetMap:
             slide_arch_order = [node_to_slide_arch[n] for n in node_order
                                 if n in node_to_slide_arch]
 
+            # File names for slide IWAs vary: most decks have
+            #   Index/Slide-<arch_id>.iwa
+            # but Keynote sometimes adds a version suffix:
+            #   Index/Slide-<arch_id>-<v>.iwa     (e.g. eCINDI deck uses -2)
+            # Also slide 1 historically lives at Index/Slide.iwa with no id.
+            # Build a stable lookup table so every code path uses the same one.
+            all_names_set = set(o.namelist())
+            import re as _re
+            slide_iwa_file: dict[str, str] = {}  # arch_id → "Index/Slide-...iwa"
+            for a in slide_arch_order:
+                # 1) Exact match
+                cand = f"Index/Slide-{a}.iwa"
+                if cand in all_names_set:
+                    slide_iwa_file[a] = cand
+                    continue
+                # 2) Versioned match: Slide-<id>-<anything>.iwa
+                pat = _re.compile(rf"^Index/Slide-{_re.escape(a)}(?:-[^/]*)?\.iwa$")
+                for nm in all_names_set:
+                    if pat.match(nm):
+                        slide_iwa_file[a] = nm
+                        break
+                else:
+                    # 3) The very first slide may be Index/Slide.iwa (no id)
+                    if a == slide_arch_order[0] and "Index/Slide.iwa" in all_names_set:
+                        slide_iwa_file[a] = "Index/Slide.iwa"
+
             # 3a. Pre-pass A: index ParagraphStyleArchive entries (source of
             # truth for text alignment). Most styles live in
             # DocumentStylesheet.iwa, but per-slide overrides can live in the
@@ -364,8 +390,8 @@ class IWAAssetMap:
             # shape fill color + opacity). Walk parent chain to resolve.
             shape_style_raw: dict[str, dict] = {}  # arch_id → {fill, opacity, parent}
             for n in (("Index/DocumentStylesheet.iwa",) +
-                      tuple(f"Index/Slide-{a}.iwa" for a in slide_arch_order
-                            if f"Index/Slide-{a}.iwa" in set(o.namelist()))):
+                      tuple(slide_iwa_file[a] for a in slide_arch_order
+                            if a in slide_iwa_file)):
                 try:
                     d = IWAFile.from_buffer(o.read(n)).to_dict()
                 except Exception:
@@ -422,22 +448,34 @@ class IWAAssetMap:
                 # Walk own → base properties (own overrides base overrides parent)
                 for src in (raw["base"], raw["own"]):
                     if not isinstance(src, dict): continue
-                    fill = src.get("fill")
-                    if isinstance(fill, dict):
-                        # Gradient (linear)
-                        gradient = fill.get("gradient")
-                        if isinstance(gradient, dict) and gradient.get("stops"):
-                            css = _gradient_to_css(gradient)
-                            if css:
-                                kind, color, grad = "gradient", None, css
-                        else:
-                            c = fill.get("color")
-                            if isinstance(c, dict) and "r" in c:
-                                color = (float(c.get("r") or 0),
-                                         float(c.get("g") or 0),
-                                         float(c.get("b") or 0),
-                                         float(c.get("a") if c.get("a") is not None else 1.0))
-                                kind, grad = "color", ""
+                    if "fill" in src:
+                        fill = src.get("fill")
+                        # Empty fill dict ({}) in Keynote means the author
+                        # explicitly cleared the fill ("No Fill" in UI). This
+                        # MUST NOT inherit from a parent style — otherwise the
+                        # parent's e.g. white default leaks through. Treat
+                        # empty as "explicit transparent / no fill".
+                        if not fill:
+                            kind, color, grad = None, None, ""
+                        elif isinstance(fill, dict):
+                            # Gradient (linear)
+                            gradient = fill.get("gradient")
+                            if isinstance(gradient, dict) and gradient.get("stops"):
+                                css = _gradient_to_css(gradient)
+                                if css:
+                                    kind, color, grad = "gradient", None, css
+                            else:
+                                c = fill.get("color")
+                                if isinstance(c, dict) and "r" in c:
+                                    color = (float(c.get("r") or 0),
+                                             float(c.get("g") or 0),
+                                             float(c.get("b") or 0),
+                                             float(c.get("a") if c.get("a") is not None else 1.0))
+                                    kind, grad = "color", ""
+                                else:
+                                    # fill dict present but no recognisable
+                                    # color or gradient — treat as cleared.
+                                    kind, color, grad = None, None, ""
                     if "opacity" in src and src["opacity"] is not None:
                         op = float(src["opacity"])
                 return {"kind": kind, "color": color, "gradient_css": grad, "opacity": op}
@@ -462,8 +500,8 @@ class IWAAssetMap:
             # which holds the global default(s)) for image/movie drawables.
             slide_to_template: dict[int, str] = {}
             for slide_no, arch_id in enumerate(slide_arch_order, 1):
-                iwa_name = f"Index/Slide-{arch_id}.iwa"
-                if iwa_name not in all_names:
+                iwa_name = slide_iwa_file.get(arch_id)
+                if not iwa_name:
                     continue
                 try:
                     sd = IWAFile.from_buffer(o.read(iwa_name)).to_dict()
@@ -551,8 +589,8 @@ class IWAAssetMap:
                     key = (-1, fname)
                     master_bboxes.setdefault(key, (x, y, w, h))
             for slide_no, arch_id in enumerate(slide_arch_order, 1):
-                iwa_name = f"Index/Slide-{arch_id}.iwa"
-                if iwa_name not in all_names:
+                iwa_name = slide_iwa_file.get(arch_id)
+                if not iwa_name:
                     continue
                 slide_d = IWAFile.from_buffer(o.read(iwa_name)).to_dict()
 
@@ -560,16 +598,52 @@ class IWAAssetMap:
                 # we can resolve ShapeInfo → Storage → ParaStyle within one
                 # slide without rescanning.
                 storage_first_para: dict[str, Optional[str]] = {}
+                # Also: index TSD.GroupArchive entries so we can compute
+                # slide-absolute positions for nested shapes. A shape sitting
+                # inside a group reports geometry.position RELATIVE to its
+                # parent group; we need to walk the parent chain and sum
+                # offsets to match what AppleScript reports (slide-absolute).
+                group_pos: dict[str, tuple[float, float]] = {}     # arch_id → (x, y)
+                parent_of: dict[str, str] = {}                       # child_id → group_id
                 for chunk in slide_d.get("chunks", []):
                     for ar in chunk.get("archives", []):
                         for obj in ar.get("objects", []):
-                            if obj.get("_pbtype") == "TSWP.StorageArchive":
+                            pbt = obj.get("_pbtype")
+                            if pbt == "TSWP.StorageArchive":
                                 tps = obj.get("tableParaStyle") or {}
                                 entries = tps.get("entries") or []
                                 first = None
                                 if entries:
                                     first = (entries[0].get("object") or {}).get("identifier")
                                 storage_first_para[ar["header"]["identifier"]] = first
+                            elif pbt == "TSD.GroupArchive":
+                                gid = ar["header"]["identifier"]
+                                geo = (obj.get("super", {}) or {}).get("geometry") or {}
+                                pos = geo.get("position") or {}
+                                group_pos[gid] = (
+                                    float(pos.get("x", 0) or 0),
+                                    float(pos.get("y", 0) or 0),
+                                )
+                                for key_name in ("childInfos", "children", "drawables"):
+                                    lst = obj.get(key_name)
+                                    if isinstance(lst, list):
+                                        for it in lst:
+                                            if isinstance(it, dict) and "identifier" in it:
+                                                parent_of[it["identifier"]] = gid
+
+                def _absolute_pos(arch_id: str, lx: float, ly: float) -> tuple[float, float]:
+                    """Walk parent-group chain and sum offsets so the returned
+                    (x, y) is in slide-absolute coordinates."""
+                    ax, ay = lx, ly
+                    cur = arch_id
+                    guard = 0
+                    while cur in parent_of and guard < 16:
+                        gid = parent_of[cur]
+                        gx, gy = group_pos.get(gid, (0.0, 0.0))
+                        ax += gx; ay += gy
+                        cur = gid
+                        guard += 1
+                    return ax, ay
 
                 for chunk in slide_d.get("chunks", []):
                     for ar in chunk.get("archives", []):
@@ -595,10 +669,13 @@ class IWAAssetMap:
                                     # this asset's geometry is the underlying
                                     # natural placement.
                                     has_mask = bool(obj.get("mask"))
+                                    lpx = float(pos.get("x", 0) or 0)
+                                    lpy = float(pos.get("y", 0) or 0)
+                                    ax, ay = _absolute_pos(
+                                        ar["header"]["identifier"], lpx, lpy)
                                     assets.append(_Asset(
                                         slide_no=slide_no, kind=kind,
-                                        x=float(pos.get("x", 0) or 0),
-                                        y=float(pos.get("y", 0) or 0),
+                                        x=ax, y=ay,
                                         w=float(size.get("width", 0) or 0),
                                         h=float(size.get("height", 0) or 0),
                                         filename=fname,
@@ -621,8 +698,14 @@ class IWAAssetMap:
                                 # Skip true empty placeholders.
                                 if w == 0 and h == 0:
                                     continue
-                                px = float(pos.get("x", 0) or 0)
-                                py = float(pos.get("y", 0) or 0)
+                                lpx = float(pos.get("x", 0) or 0)
+                                lpy = float(pos.get("y", 0) or 0)
+                                # Translate to slide-absolute by accumulating
+                                # parent-group offsets. AppleScript reports
+                                # slide-absolute, so we must too — otherwise
+                                # bbox matching in build.py fails for any
+                                # grouped shape.
+                                px, py = _absolute_pos(ar["header"]["identifier"], lpx, lpy)
 
                                 storage_ref = (obj.get("ownedStorage")
                                                or obj.get("deprecatedStorage") or {})
