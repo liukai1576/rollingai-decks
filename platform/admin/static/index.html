@@ -313,6 +313,48 @@
     text-align: center; padding: 60px 0; color: var(--text-faint);
   }
 
+  /* Skill cards */
+  .skill-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
+    gap: 14px;
+  }
+  .skill-card {
+    background: var(--panel); border: 1px solid var(--hairline);
+    border-radius: 10px; padding: 14px 16px; cursor: pointer;
+    transition: transform .15s ease, border-color .15s ease;
+    display: flex; flex-direction: column; gap: 8px;
+  }
+  .skill-card:hover { transform: translateY(-2px); border-color: rgba(216,34,95,0.4); }
+  .skill-card-head {
+    display: flex; justify-content: space-between; align-items: baseline;
+  }
+  .skill-card-head h4 { margin: 0; font-size: 15px; font-weight: 600; }
+  .skill-version {
+    font-size: 11px; color: var(--text-faint);
+    font-variant-numeric: tabular-nums;
+  }
+  .skill-card-kinds { display: flex; gap: 4px; flex-wrap: wrap; }
+  .skill-card-kinds .chip {
+    background: rgba(75,85,99,0.18); color: #d1d5db;
+    font-size: 11px; padding: 2px 8px; border-radius: 4px;
+  }
+  .skill-card-kinds .chip-pack {
+    background: rgba(168,85,247,0.18); color: #d8b4fe;
+  }
+  .skill-card-desc {
+    margin: 0; color: var(--text-dim); font-size: 12px;
+    line-height: 1.5;
+    display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical;
+    overflow: hidden;
+  }
+  .skill-card-triggers {
+    color: var(--text-faint); font-size: 11px; line-height: 1.6;
+  }
+  .skill-card-triggers .trigger {
+    color: var(--text-dim); margin-right: 4px;
+  }
+
   /* Click-to-edit titles (story cards + slide rows) */
   .editable-title {
     cursor: text; border-radius: 4px; padding: 1px 4px;
@@ -349,10 +391,12 @@
     <button :class="{active: view==='decks'}" @click="view='decks'">Deck 列表</button>
     <button :class="{active: view==='slides'}" @click="view='slides'">幻灯片</button>
     <button :class="{active: view==='stories'}" @click="view='stories'">故事</button>
+    <button :class="{active: view==='skills'}" @click="view='skills'">技能</button>
   </div>
   <input class="search" type="search"
          :placeholder="view==='decks' ? '搜索 Deck（按名称）'
                        : view==='stories' ? '搜索故事（按名称）'
+                       : view==='skills' ? '搜索技能（按名称 / 触发词）'
                        : '搜索幻灯片（标题 / 正文 / 标签）'"
          x-model.debounce.300ms="filters.search" @input="refresh()" />
   <span class="stats-pill" x-show="stats">
@@ -571,7 +615,138 @@
       </div>
     </div>
   </template>
+
+  <!-- Skills view -->
+  <template x-if="view === 'skills'">
+    <div>
+      <h2>技能 · <span x-text="skills.length"></span> 个
+        <span x-show="loading" class="spinner"></span>
+      </h2>
+      <p style="color:var(--text-dim);font-size:13px;margin:0 0 20px;">
+        所有 skill 都在 <code>plugin/skills/</code> 下，按类别分组。
+        改 SKILL.md 后刷新即可——字段说明见
+        <code>plugin/_spec/skill-md-format.md</code>。
+      </p>
+      <template x-for="kind in skillsKindOrder" :key="kind">
+        <template x-if="(skillsGrouped[kind] || []).length">
+          <div style="margin-bottom:32px;">
+            <h3 style="font-size:13px;color:var(--text-faint);
+                       letter-spacing:0.16em;text-transform:uppercase;
+                       margin:0 0 12px;border-bottom:1px solid var(--hairline);
+                       padding-bottom:6px;">
+              <span x-text="kind"></span>
+              <span style="color:var(--text-faint);font-weight:400;
+                           text-transform:none;letter-spacing:0;margin-left:8px;"
+                    x-text="'(' + (skillsGrouped[kind] || []).length + ')'"></span>
+            </h3>
+            <div class="skill-grid">
+              <template x-for="sk in (skillsGrouped[kind] || [])" :key="sk.id">
+                <div class="skill-card" @click="openSkill(sk)">
+                  <div class="skill-card-head">
+                    <h4 x-text="sk.name"></h4>
+                    <span class="skill-version" x-text="'v' + (sk.version || '?')"></span>
+                  </div>
+                  <div class="skill-card-kinds">
+                    <template x-for="k in sk.kind" :key="k">
+                      <span class="chip" :class="{ 'chip-pack': sk.produces_layout_pack }"
+                            x-text="k"></span>
+                    </template>
+                  </div>
+                  <p class="skill-card-desc" x-text="sk.description.split('\n')[0]"></p>
+                  <template x-if="(sk.triggers || []).length">
+                    <div class="skill-card-triggers">
+                      触发：
+                      <template x-for="(t, i) in sk.triggers.slice(0, 3)" :key="i">
+                        <span class="trigger" x-text="'「' + t + '」'"></span>
+                      </template>
+                    </div>
+                  </template>
+                </div>
+              </template>
+            </div>
+          </div>
+        </template>
+      </template>
+    </div>
+  </template>
 </main>
+
+<!-- ===== Skill drawer ===== -->
+<div class="drawer" :class="{open: !!skillDetail}">
+  <template x-if="skillDetail">
+    <div>
+      <div class="drawer-header">
+        <span class="page-no">🛠</span>
+        <h3>
+          <span x-text="skillDetail.name"></span>
+          <span style="color:var(--text-faint);font-weight:400;font-size:13px;
+                       margin-left:8px;"
+                x-text="'v' + (skillDetail.version || '?')"></span>
+        </h3>
+        <button class="close" @click="skillDetail = null">✕</button>
+      </div>
+      <div class="drawer-body">
+        <div style="margin-bottom:16px;">
+          <template x-for="k in skillDetail.kind" :key="k">
+            <span class="chip" x-text="k"></span>
+          </template>
+        </div>
+        <div style="color:var(--text-dim);font-size:13px;
+                    background:var(--panel-2);padding:10px 14px;
+                    border-radius:6px;margin-bottom:16px;
+                    white-space:pre-wrap;"
+             x-text="skillDetail.description"></div>
+
+        <template x-if="skillDetail.input">
+          <div class="field-row">
+            <label>输入</label>
+            <span x-text="skillDetail.input"></span>
+          </div>
+        </template>
+        <template x-if="skillDetail.output">
+          <div class="field-row">
+            <label>输出</label>
+            <span x-text="skillDetail.output"></span>
+          </div>
+        </template>
+        <template x-if="(skillDetail.triggers || []).length">
+          <div class="field-row">
+            <label>触发</label>
+            <div>
+              <template x-for="(t, i) in skillDetail.triggers" :key="i">
+                <div style="margin-bottom:2px;color:var(--text-dim);"
+                     x-text="'· ' + t"></div>
+              </template>
+            </div>
+          </div>
+        </template>
+        <template x-if="skillDetail.invocation">
+          <div style="margin-top:16px;">
+            <div style="font-size:12px;color:var(--text-dim);font-weight:600;
+                        letter-spacing:0.04em;margin-bottom:6px;">命令</div>
+            <pre style="background:var(--panel-2);padding:12px 14px;
+                        border-radius:6px;font-size:12px;line-height:1.5;
+                        color:var(--text);overflow-x:auto;"
+                 x-text="skillDetail.invocation"></pre>
+          </div>
+        </template>
+        <template x-if="(skillDetail.requires || []).length">
+          <div style="margin-top:16px;">
+            <div style="font-size:12px;color:var(--text-dim);font-weight:600;
+                        letter-spacing:0.04em;margin-bottom:6px;">前置依赖</div>
+            <template x-for="(r, i) in skillDetail.requires" :key="i">
+              <div style="color:var(--text-dim);font-size:13px;"
+                   x-text="'· ' + r"></div>
+            </template>
+          </div>
+        </template>
+        <div style="margin-top:20px;font-size:11px;color:var(--text-faint);">
+          源文件：<code x-text="skillDetail.path"></code>
+        </div>
+      </div>
+    </div>
+  </template>
+</div>
 
 <!-- ===== Story drawer ===== -->
 <div class="drawer" :class="{open: !!storyDetail}">
@@ -743,6 +918,10 @@ function app() {
     stories: [],
     detail: null,           // slide detail
     storyDetail: null,      // story detail
+    skills: [],
+    skillsGrouped: {},
+    skillsKindOrder: ['构思', '创建', '布局风格', '调整', '管理分析'],
+    skillDetail: null,      // skill detail (drawer)
     editBuf: {},
     // Click-to-edit (story title in card, slide title in row).
     // editingId is the row/card id being edited; null means none.
@@ -774,6 +953,7 @@ function app() {
       if (this.view === 'slides')       await this.loadSlides();
       else if (this.view === 'stories') await this.loadStories();
       else if (this.view === 'decks')   await this.loadDecks();
+      else if (this.view === 'skills')  await this.loadSkills();
       this.loading = false;
     },
 
@@ -806,6 +986,39 @@ function app() {
       const r = await fetch('/api/stories?' + params);
       const d = await r.json();
       this.stories = d.stories;
+    },
+
+    async loadSkills() {
+      const r = await fetch('/api/skills');
+      const d = await r.json();
+      let skills = d.skills || [];
+      // Client-side search across name + triggers (server-side keeps
+      // /api/skills simple — the list is tiny so this is fine).
+      const q = (this.filters.search || '').trim().toLowerCase();
+      if (q) {
+        skills = skills.filter(s =>
+          (s.name || '').toLowerCase().includes(q)
+          || (s.id || '').toLowerCase().includes(q)
+          || (s.description || '').toLowerCase().includes(q)
+          || (s.triggers || []).some(t => t.toLowerCase().includes(q))
+        );
+      }
+      this.skills = skills;
+      // Re-group on the client so search filters carry over.
+      const grouped = {};
+      for (const s of skills) {
+        for (const k of (s.kind && s.kind.length ? s.kind : ['其他'])) {
+          (grouped[k] = grouped[k] || []).push(s);
+        }
+      }
+      this.skillsGrouped = grouped;
+    },
+
+    openSkill(sk) {
+      this.skillDetail = sk;
+      this.$nextTick(() => {
+        document.querySelectorAll('.drawer').forEach(d => d.scrollTop = 0);
+      });
     },
 
     toggleFilter(k, v) {

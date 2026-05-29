@@ -26,6 +26,7 @@ from __future__ import annotations
 
 import json
 import sqlite3
+import sys
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Optional
@@ -42,6 +43,8 @@ REPO = ROOT.parent.parent
 DB_PATH = REPO / "library" / "db" / "data" / "slides.db"
 THUMBS_DIR = REPO / "library" / "db" / "data" / "thumbs"
 STATIC_DIR = ROOT / "static"
+SKILLS_DIR = REPO / "plugin" / "skills"
+sys.path.insert(0, str(REPO / "plugin"))
 
 # Decks live outside the public repo (imports/ is gitignored). The admin
 # server only proxies them locally for the preview iframe.
@@ -379,6 +382,40 @@ def list_decks(search: Optional[str] = None):
         decks.append(d)
     conn.close()
     return {"count": len(decks), "decks": decks}
+
+
+# ---- API: skills ----
+# Backed by plugin/skills/registry.py. Re-scanned per request so editing
+# any SKILL.md / pack.json is reflected without a server restart.
+@app.get("/api/skills")
+def list_skills_api(kind: Optional[str] = None):
+    try:
+        # Lazy import so a registry bug doesn't take the server down at boot.
+        from skills import registry  # type: ignore
+        # Force a fresh module read on every request (cheap; ~10ms for 10 skills).
+        import importlib
+        importlib.reload(registry)
+        skills = registry.list_skills()
+    except Exception as e:
+        raise HTTPException(500, f"registry failed: {e}")
+    if kind:
+        skills = [s for s in skills if kind in (s.get("kind") or [])]
+    grouped = {}
+    for s in skills:
+        for k in (s.get("kind") or ["其他"]):
+            grouped.setdefault(k, []).append(s)
+    # Canonical kind order; unknown kinds tacked on the end.
+    KIND_ORDER = ["构思", "创建", "布局风格", "调整", "管理分析"]
+    ordered = {k: grouped[k] for k in KIND_ORDER if k in grouped}
+    for k, v in grouped.items():
+        if k not in ordered:
+            ordered[k] = v
+    return {
+        "count":  len(skills),
+        "skills": skills,
+        "grouped": ordered,
+        "kind_order": KIND_ORDER,
+    }
 
 
 # ---- API: stats ----

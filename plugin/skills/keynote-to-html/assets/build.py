@@ -1144,6 +1144,11 @@ def compose_slide_html(slide: Slide, resolver: AssetResolver,
         f".slide[data-slide-key='{key}'] > img.el,"
         f".slide[data-slide-key='{key}'] > video.el {{ z-index: 0; }}"
     )
+    # iwa-fill backdrops (card fills, banner fills synthesized from IWA
+    # ShapeStyle) sit above the slide background image but below text/icons.
+    parts.append(
+        f".slide[data-slide-key='{key}'] > div.el.iwa-fill {{ z-index: 5; }}"
+    )
     parts.append(
         f".slide[data-slide-key='{key}'] > div.el:not(.iwa-fill) {{ z-index: 10; }}"
     )
@@ -1194,12 +1199,33 @@ def compose_slide_html(slide: Slide, resolver: AssetResolver,
             iwa_fill_for_idx[best_idx] = sf
             iwa_consumed.add(fi)
 
+    # Suppress any iwa-fill that covers (essentially) the entire canvas IF
+    # a same-size image sits at the same position. Such an iwa-fill is the
+    # slide's master backdrop in Keynote — completely hidden by the photo
+    # on top — but we were emitting it as a foreground div, which (due to
+    # CSS z-index discipline) ends up covering the photo. Drop it here.
+    SLIDE_W_CHECK, SLIDE_H_CHECK = 1920, 1080
+    has_full_canvas_image = any(
+        e.type == "image" and abs(e.x) < 20 and abs(e.y) < 20
+        and e.w >= SLIDE_W_CHECK * 0.97 and e.h >= SLIDE_H_CHECK * 0.97
+        for e in slide.elements
+    )
+    canvas_backdrop_idxs: set[int] = set()
+    if has_full_canvas_image:
+        for idx in list(iwa_fill_for_idx.keys()):
+            sf2 = iwa_fill_for_idx[idx]
+            if (sf2.w >= SLIDE_W_CHECK * 0.97 and sf2.h >= SLIDE_H_CHECK * 0.97
+                    and abs(sf2.x) < 20 and abs(sf2.y) < 20):
+                del iwa_fill_for_idx[idx]
+                canvas_backdrop_idxs.add(idx)
+
     # Pre-pass: detect shape+image pairs occupying the same bbox.
     # In Keynote these are "stylized image placeholders" — a shape with a fill
     # (often gradient/theme) acting as a frame, with an image inside it.
     # AppleScript can't extract the shape's fill in many cases, so we render
     # the entire pair as a single raster crop. Mark both elements as skipped.
     skip_idx: set[int] = set()
+    skip_idx.update(canvas_backdrop_idxs)
     used_via_raster_pair: set[int] = set()
     bbox_pair_crops: dict[int, str] = {}  # element idx → cropped png rel path
 

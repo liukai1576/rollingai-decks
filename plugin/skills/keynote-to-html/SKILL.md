@@ -1,5 +1,22 @@
 ---
 name: keynote-to-html
+kind: [创建]
+version: "0.17"
+input:  Apple .key file (path)
+output: deck output dir (deck.json + index.html + assets/ + history.json)
+triggers:
+  - "把 Keynote 转成 HTML"
+  - "import keynote"
+  - ".key 转 deck"
+  - "用户提供 .key 文件路径"
+  - "用户在 Keynote 中打开了一个文档"
+invocation: |
+  bash plugin/skills/keynote-to-html/assets/run.sh \
+    "<path-to-.key>" "<output-dir>" [--limit N]
+requires:
+  - macOS + Keynote Creator Studio (com.apple.Keynote)
+  - "pip: PyMuPDF Pillow keynote-parser"
+appends_history: true
 description: |
   Convert an Apple Keynote (.key) presentation into a deck.json + HTML deck
   by walking the presentation slide-by-slide and reconstructing each slide as

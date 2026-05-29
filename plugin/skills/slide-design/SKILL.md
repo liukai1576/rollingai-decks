@@ -1,5 +1,17 @@
 ---
 name: slide-design
+kind: [创建, 构思]
+version: "0.5"
+input:  existing deck.json (optional) + author intent
+output: deck.json with new slides appended (or fresh deck.json)
+triggers:
+  - "我想新加一页"
+  - "在 deck 里加一张 slide"
+  - "重新设计一张 slide"
+  - "从零写一个 deck"
+invocation: |
+  # Conversational. Claude reads intent, picks layout, fills data, writes slide entry.
+  # See body for the two modes (structured layout vs raw HTML).
 description: |
   Author NEW slides from scratch and append them to a deck.json (or start a
   new deck). Use this when the user wants a fresh slide that doesn't exist

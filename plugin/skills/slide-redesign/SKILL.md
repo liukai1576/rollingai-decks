@@ -1,5 +1,16 @@
 ---
 name: slide-redesign
+kind: [调整]
+version: "0.5"
+input:  deck.json + redesigns/ directory of slide-NN.html files
+output: deck.json with targeted slides converted to layout=raw using author's HTML
+triggers:
+  - "重新设计第 N 页"
+  - "把这页换成手写 HTML"
+  - "this slide doesn't render well, redesign it"
+invocation: |
+  bash plugin/skills/slide-redesign/assets/apply.sh \
+    <deck.json> <redesigns-dir>
 description: |
   Replace one or more slides in an existing deck.json with hand-authored HTML.
   Use this when an imported or auto-generated slide doesn't render well in

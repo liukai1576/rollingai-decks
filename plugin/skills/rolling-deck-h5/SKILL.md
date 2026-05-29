@@ -1,5 +1,18 @@
 ---
 name: rolling-deck-h5
+kind: [布局风格, 创建]
+version: "0.20"
+input:  deck.json (with layout_pack=rolling-deck-h5 or none)
+output: index.html with present-mode chrome, scaled to 1920×1080
+triggers:
+  - "feishu style"
+  - "lark style"
+  - "rolling-deck-h5"
+  - "用户要默认风格的 deck"
+invocation: |
+  python3 plugin/skills/rolling-deck-h5/deck-json/render-deck.py \
+    <deck.json> <output-dir>
+produces_layout_pack: true
 description: |
   **Renderer foundation for the RollingAI Deck system.** Takes a deck.json
   conforming to the DeckJSON schema and produces a single self-contained HTML
