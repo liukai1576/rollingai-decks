@@ -1,0 +1,25 @@
+{
+  "$comment": "Layout pack manifest. See plugin/_player/README.md.",
+  "id":             "rolling-deck-h5",
+  "display_name":   "Rolling Deck H5 (feishu-deck-h5 lineage)",
+  "version":        "0.20",
+  "render_entry":   "deck-json/render-deck.py",
+  "layouts": [
+    {"name": "cover"        },
+    {"name": "agenda"       },
+    {"name": "section"      },
+    {"name": "content"      },
+    {"name": "stats"        },
+    {"name": "flow"         },
+    {"name": "quote"        },
+    {"name": "image-text"   },
+    {"name": "table"        },
+    {"name": "logo-wall"    },
+    {"name": "arch-stack"   },
+    {"name": "iframe-embed" },
+    {"name": "end"          },
+    {"name": "replica"      },
+    {"name": "raw"          }
+  ],
+  "$comment_layouts": "data_schema for each layout currently lives in deck-json/deck-schema.json under $defs/data_<layout>. We don't duplicate it here yet — when more packs ship, the schemas will move into this file so each pack is self-describing."
+}

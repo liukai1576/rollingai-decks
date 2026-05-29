@@ -321,7 +321,7 @@ class Slide:
 # TSV parsing
 # ----------------------------------------------------------------------------
 
-def parse_tsv(tsv_path: Path) -> tuple[int, list[Slide]]:
+def parse_tsv(tsv_path: Path) -> tuple[int, list[Slide], float, float]:
     total = 0
     slides: list[Slide] = []
     current: Optional[Slide] = None
@@ -462,7 +462,7 @@ def parse_tsv(tsv_path: Path) -> tuple[int, list[Slide]]:
                     if "size" in run and run["size"]:
                         run["size"] = float(run["size"]) * s_font
 
-    return total, slides
+    return total, slides, src_w, src_h
 
 
 # ----------------------------------------------------------------------------
@@ -930,6 +930,37 @@ _PLACEHOLDER_PATTERNS = [
     re.compile(r"^\s*Section\s+Title\s*$", re.IGNORECASE),
     re.compile(r"^\s*Chapter\s+Title\s*$", re.IGNORECASE),
 ]
+
+
+def pick_title(slide: "Slide") -> str:
+    """Choose a title string for a Keynote-imported slide.
+
+    Heuristic: largest font_size among non-master text-bearing elements,
+    breaking ties by document order. Strips trailing whitespace and
+    collapses to the first line if multi-line. Returns "" when there is
+    no usable text on the slide (pure image / video slide).
+    """
+    best = None
+    best_size = -1.0
+    for el in slide.elements:
+        if el.is_master:
+            continue
+        text = (el.text or "").strip()
+        if not text:
+            continue
+        if is_placeholder_text(text):
+            continue
+        if el.font_size > best_size:
+            best_size = el.font_size
+            best = text
+    if not best:
+        return ""
+    # Title is one line — take the first non-empty line.
+    for line in best.splitlines():
+        line = line.strip()
+        if line:
+            return line
+    return ""
 
 
 def is_placeholder_text(text: str) -> bool:
@@ -1706,7 +1737,7 @@ def main() -> int:
     args.output_dir.mkdir(parents=True, exist_ok=True)
 
     print(f"==> parsing TSV: {args.tsv}")
-    total, slides = parse_tsv(args.tsv)
+    total, slides, src_w, src_h = parse_tsv(args.tsv)
     non_skipped = [s for s in slides if not s.skipped]
     print(f"    total slides: {total}  ·  non-skipped: {len(non_skipped)}")
 
@@ -1724,6 +1755,26 @@ def main() -> int:
             iwa_map = IWAAssetMap.from_key(args.key_bundle)
             n_assets = sum(len(iwa_map.assets_for_slide(s)) for s in range(1, 200))
             print(f"    IWA asset map: {n_assets} image/movie refs across slides")
+            # IWA bboxes come in source-canvas coords (e.g. 0–960 for a
+            # 960×540 .key). Element coords from parse_tsv have already
+            # been scaled to 1920×1080. Bring the IWA fixtures into the
+            # same coordinate space so bbox matching works.
+            if abs(src_w - 1920.0) > 0.5 or abs(src_h - 1080.0) > 0.5:
+                sx = 1920.0 / src_w
+                sy = 1080.0 / src_h
+                for a in iwa_map._assets:
+                    a.x *= sx; a.y *= sy; a.w *= sx; a.h *= sy
+                for fills in iwa_map._fills_by_slide.values():
+                    for sf in fills:
+                        sf.x *= sx; sf.y *= sy; sf.w *= sx; sf.h *= sy
+                for ta_list in iwa_map._aligns_by_slide.values():
+                    for ta in ta_list:
+                        ta.x *= sx; ta.y *= sy; ta.w *= sx; ta.h *= sy
+                # master_bboxes: dict[(slide_no, fn)] → (x, y, w, h)
+                iwa_map._master_bbox = {
+                    k: (v[0]*sx, v[1]*sy, v[2]*sx, v[3]*sy)
+                    for k, v in iwa_map._master_bbox.items()
+                }
         except Exception as e:
             print(f"    IWA asset map: build failed ({e}); falling back to heuristic only")
     else:
@@ -1789,6 +1840,8 @@ def main() -> int:
 
         deck_slides.append({
             "key": f"slide-{slide.keynote_no:03d}",
+            "title": pick_title(slide),       # v2: first-class title field
+            "notes": "",
             "layout": "raw",
             "screen_label": f"{i:02d}",
             "data": {"html": html_body},
@@ -1797,11 +1850,12 @@ def main() -> int:
               + (f"  ⚠ {warns_count}" if warns_count else ""))
 
     deck = {
-        "version": "1.0",
+        "version": "2",                      # see plugin/_spec/deck-json-v2.md
         "deck": {
             "title": args.output_dir.parent.name,
             "language": "zh-only",
             "mode": "rewrite",
+            "layout_pack": "rolling-deck-h5",
         },
         "slides": deck_slides,
     }
@@ -1814,12 +1868,23 @@ def main() -> int:
         warnings_path.write_text("\n".join(all_warnings))
         print(f"    ⚠ {len(all_warnings)} warnings → {warnings_path.name}")
 
-    render_script = args.renderer / "deck-json/render-deck.py"
-    if not render_script.is_file():
-        print(f"ERROR: render-deck.py not at {render_script}", file=sys.stderr)
-        return 1
-
-    print(f"\n==> rendering via feishu-deck-h5/render-deck.py")
+    # Render via the player dispatcher (plugin/_player/render.py). It reads
+    # `deck.layout_pack` from deck.json and invokes the appropriate pack's
+    # render entry. This decouples the importer from any specific pack —
+    # changing layout_pack in deck.json + re-running the player switches
+    # the look without touching this skill.
+    player_script = Path(__file__).resolve().parents[3] / "_player" / "render.py"
+    if player_script.is_file():
+        render_script = player_script
+        print(f"\n==> rendering via plugin/_player/render.py")
+    else:
+        # Back-compat: fall through to the pack's render entry directly.
+        render_script = args.renderer / "deck-json/render-deck.py"
+        if not render_script.is_file():
+            print(f"ERROR: render-deck.py not at {render_script}", file=sys.stderr)
+            return 1
+        print(f"\n==> rendering via {args.renderer.name}/render-deck.py "
+              f"(player dispatcher not found)")
     cmd = [
         sys.executable, str(render_script),
         str(deck_path), str(args.output_dir),
@@ -1870,6 +1935,22 @@ def main() -> int:
         'python3 -m http.server "$PORT"\n'
     )
     serve_path.chmod(0o755)
+
+    # Append a history record so anyone looking at this output dir can see
+    # which skill / version produced it. See plugin/_lib/history.py.
+    try:
+        sys.path.insert(0, str(Path(__file__).resolve().parents[3]))
+        from _lib import history  # type: ignore
+        history.append(
+            args.output_dir,
+            skill="keynote-to-html",
+            version="0.17",
+            input=str(args.key_bundle),
+            slide_count=len(deck_slides),
+            warnings=len(all_warnings),
+        )
+    except Exception as e:
+        print(f"  (could not append history.json: {e})", file=sys.stderr)
 
     print(f"\n==> DONE  →  {args.output_dir / 'index.html'}")
     print(f"          or  bash {serve_path}  (recommended — avoids file:// quirks)")
