@@ -225,7 +225,7 @@ PDF page N → keynote_no varies (some keynote slides are "skipped" in deck).
 ### `keynote-to-html/assets/build.py` — redesign override matching
 - Accepts BOTH `slide-NN.html` (PDF index) AND `slide-NNN.html` (3-digit slide_key) in `--redesigns DIR`
 
-### `rolling-deck-h5/deck-json/render-deck.py`
+### `feishu-deck-h5/deck-json/render-deck.py`
 - Dropped the `if "/runs/" not in output_dir` gate on copy-assets (made `--inline` opt-out only)
 
 ---

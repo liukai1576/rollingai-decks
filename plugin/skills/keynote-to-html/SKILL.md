@@ -34,7 +34,7 @@ description: |
     3. Each non-text element becomes an <img>/<video> at the original (x, y, w, h).
        Each text becomes a real HTML <h1/h2/div/li> with the original font + size.
     4. The slide is emitted as a `layout: "raw"` entry in deck.json.
-    5. rolling-deck-h5's render-deck.py wraps everything in present-mode chrome.
+    5. feishu-deck-h5's render-deck.py wraps everything in present-mode chrome.
 
   Lossy / acceptable failures (do NOT block on these):
     · Custom Keynote fonts (HarmonyOS / Alibaba PuHui / 方正兰亭) fall back to
@@ -55,7 +55,7 @@ open in Keynote Creator Studio) and wants an HTML version that:
   - Has editable text (HTML elements, not pixels)
   - Has playable videos (where the original had video; positioning extracted
     via AppleScript movie items)
-  - Carries rolling-deck-h5's present-mode chrome (left/right keys, F fullscreen,
+  - Carries feishu-deck-h5's present-mode chrome (left/right keys, F fullscreen,
     bottom controls, progress bar)
 
 Do NOT use this skill for:
@@ -75,8 +75,8 @@ Do NOT use this skill for:
    older app — extract.applescript pins to the new bundle for consistent
    behavior. If only the old one is available, edit the bundle id at the
    top of extract.applescript and run.sh.
-4. Confirm the rolling-deck-h5 skill is reachable. Default lookup is
-   `../rolling-deck-h5/` (sibling skill in `plugin/skills/`); override via
+4. Confirm the feishu-deck-h5 skill is reachable. Default lookup is
+   `../feishu-deck-h5/` (sibling skill in `plugin/skills/`); override via
    `--renderer <path>` flag.
 
 ## Invocation
@@ -86,7 +86,7 @@ bash plugin/skills/keynote-to-html/assets/run.sh \
   "<path-to-.key>" \
   "<output-dir>" \
   [--limit N]              # only convert first N non-skipped slides
-  [--renderer PATH]    # path to renderer skill (default: ../rolling-deck-h5/)
+  [--renderer PATH]    # path to renderer skill (default: ../feishu-deck-h5/)
   [--rasters-dir DIR]      # per-page PNG dir for fallback crops (slide-NN.png)
   [--pdf PATH]             # source PDF for on-demand fallback rasterization
   [--redesigns DIR]        # dir with slide-NN.html HTML overrides (1-based PDF page)
@@ -108,7 +108,7 @@ bash plugin/skills/slide-redesign/assets/apply.sh \
   out/deck.json  out/redesigns/
 
 # 3. Re-render
-python3 plugin/skills/rolling-deck-h5/deck-json/render-deck.py \
+python3 plugin/skills/feishu-deck-h5/deck-json/render-deck.py \
   out/deck.json  out/
 ```
 
@@ -136,7 +136,7 @@ The .key file stays untouched. The Keynote Creator Studio document opens read-on
 | File | Role |
 |---|---|
 | `assets/extract.applescript` | Drives Keynote Creator Studio; emits TSV with one row per (slide, element) |
-| `assets/build.py` | Parses TSV → matches images → composes positioned HTML → writes deck.json → invokes rolling-deck-h5 render |
+| `assets/build.py` | Parses TSV → matches images → composes positioned HTML → writes deck.json → invokes feishu-deck-h5 render |
 | `assets/run.sh` | Bash entry point |
 
 ## Verifying

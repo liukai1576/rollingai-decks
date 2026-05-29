@@ -982,10 +982,10 @@ def _localize_renderer_refs(html_path: Path, renderer_local: Path,
     index.html refs to use that local path.
 
     Scans for any `href="..."` or `src="..."` URL containing
-    `rolling-deck-h5/` (with any number of `../` prefixes). For each:
+    `feishu-deck-h5/` (with any number of `../` prefixes). For each:
       1. Resolves the path relative to renderer_skill_root.
       2. Copies the file into renderer_local/, preserving subfolders
-         after `rolling-deck-h5/`.
+         after `feishu-deck-h5/`.
       3. Rewrites the HTML ref to the local path.
 
     Idempotent: safe to re-run.
@@ -994,10 +994,10 @@ def _localize_renderer_refs(html_path: Path, renderer_local: Path,
         return
     html = html_path.read_text(encoding="utf-8")
 
-    # Skill name in the path is "rolling-deck-h5"; trailing capture is
+    # Skill name in the path is "feishu-deck-h5"; trailing capture is
     # everything after that until quote / whitespace / fragment / query.
     pat = re.compile(
-        r'((?:\.\./)+)plugin/skills/rolling-deck-h5/([^\'")\s?#]+)'
+        r'((?:\.\./)+)plugin/skills/feishu-deck-h5/([^\'")\s?#]+)'
     )
     renderer_local.mkdir(parents=True, exist_ok=True)
     copied = 0
@@ -1701,12 +1701,12 @@ def main() -> int:
                     help="Path to the .key bundle (directory containing Data/, Index.zip)")
     ap.add_argument("output_dir", type=Path)
     ap.add_argument("--limit", type=int, default=0)
-    # Renderer skill — points to the rolling-deck-h5 skill (or a compatible
+    # Renderer skill — points to the feishu-deck-h5 skill (or a compatible
     # fork). Used to produce the final HTML from deck.json. Kept as a flag
     # so this skill stays decoupled from any specific renderer.
     ap.add_argument("--renderer", type=Path,
-                    default=Path(__file__).resolve().parents[2] / "rolling-deck-h5",
-                    help="Path to renderer skill root (default: ../rolling-deck-h5/). "
+                    default=Path(__file__).resolve().parents[2] / "feishu-deck-h5",
+                    help="Path to renderer skill root (default: ../feishu-deck-h5/). "
                          "Decoupled so this skill can render against any compatible renderer.")
     ap.add_argument("--redesigns", type=Path, default=None,
                     help="Directory with per-slide HTML overrides "
@@ -1881,7 +1881,7 @@ def main() -> int:
             "title": args.output_dir.parent.name,
             "language": "zh-only",
             "mode": "rewrite",
-            "layout_pack": "rolling-deck-h5",
+            "layout_pack": "feishu-deck-h5",
         },
         "slides": deck_slides,
     }
@@ -1918,7 +1918,7 @@ def main() -> int:
         # We re-localize the HTML's renderer refs ourselves below — the
         # renderer's own copy-assets.py is feishu-deck-h5-specific (hardcoded
         # `skills/feishu-deck-h5/` regex + requires `runs/<ts>/output/`
-        # layout) so it does nothing for our `rolling-deck-h5` fork OR for
+        # layout) so it does nothing for our `feishu-deck-h5` fork OR for
         # our `imports/.../render-output-full/` layout. Our localizer is
         # smaller and just-works.
     ]
@@ -1934,7 +1934,7 @@ def main() -> int:
 
     # Localize the renderer's CSS/JS refs. After render-deck.py finishes,
     # index.html contains <link>/<script> URLs like
-    #   ../../../plugin/skills/rolling-deck-h5/assets/feishu-deck.css
+    #   ../../../plugin/skills/feishu-deck-h5/assets/feishu-deck.css
     # which only resolve when serving from above the skill root — they break
     # the moment you serve from the output dir (paths escape the server
     # root → 404 → all slides stack unstyled, JS doesn't run, no nav).

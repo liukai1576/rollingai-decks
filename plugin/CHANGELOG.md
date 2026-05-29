@@ -8,7 +8,7 @@ and `feishu-deck.js`, plus per-skill architectural changes. Reverse chronologica
 
 ### Skill structure
 - **Plugin split into 4 decoupled skills** (replaces single skill):
-  - `rolling-deck-h5` — renderer + design system (forked from feishu-deck-h5)
+  - `feishu-deck-h5` — renderer + design system (forked from feishu-deck-h5)
   - `keynote-to-html` — `.key` → `deck.json` import only (no redesign)
   - `slide-redesign` — apply HTML overrides to any `deck.json`
   - `slide-design` — scaffold for authoring new slides (scripts deferred)
@@ -52,11 +52,11 @@ and `feishu-deck.js`, plus per-skill architectural changes. Reverse chronologica
 - **Multi-run skips fit-to-box**: `fit_font_to_box()` only runs for
   single-run text. Multi-run uses each run's authored size verbatim.
 - **`--renderer PATH` flag** (replaces `--feishu-skill`): defaults to
-  `../rolling-deck-h5/`; decoupled so any compatible renderer works.
+  `../feishu-deck-h5/`; decoupled so any compatible renderer works.
 - **`--redesigns DIR` deprecated**: redesign now lives in the
   `slide-redesign` skill; kept for backward compatibility.
 
-### `rolling-deck-h5` (forked from feishu-deck-h5)
+### `feishu-deck-h5` (forked from feishu-deck-h5)
 - **Lazy-video JS** (new top-level IIFE in `feishu-deck.js`): polls
   `.slide-frame.is-current`, attaches `src` only within ±1 slide of
   current, removes `src` when out of range. Frees decoder slots; deck

@@ -61,14 +61,14 @@ appends_history: true
 
 ```yaml
 ---
-name: rolling-deck-h5
+name: feishu-deck-h5
 kind: [布局风格]
 version: "0.20"
 description: |
   Lark-flavored deck H5 layout pack. 13 base layouts (cover, agenda,
   section, content, stats, flow, quote, image-text, table, logo-wall,
   arch-stack, iframe-embed, end) + 2 specials (replica, raw).
-input:  deck.json with layout_pack="rolling-deck-h5"
+input:  deck.json with layout_pack="feishu-deck-h5"
 output: index.html + per-slide rendered HTML
 triggers:
   - "feishu style"

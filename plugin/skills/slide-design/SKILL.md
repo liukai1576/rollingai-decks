@@ -19,7 +19,7 @@ description: |
   Kangshifu pitch that came from Keynote import.
 
   Two authoring modes:
-    A. Structured: use a rolling-deck-h5 layout (cover / agenda / section /
+    A. Structured: use a feishu-deck-h5 layout (cover / agenda / section /
        content (3up/2col/blocks/story-case) / stats / quote / image-text /
        table / flow / end). Fill the layout's data fields; renderer applies
        the design system automatically. Best for slides that fit a known
@@ -29,7 +29,7 @@ description: |
 
   Output is one or more new slide entries appended to a deck.json, OR a
   fresh deck.json if starting from scratch. Then renderable via
-  rolling-deck-h5.
+  feishu-deck-h5.
 
   Common triggers: "做一张新 slide", "在这个 deck 里加一页讲...",
   "新建一份关于 X 的 deck".
@@ -55,7 +55,7 @@ description: |
    └─────────────────────────┘
 ```
 
-The output is a standard deck.json. Render via **rolling-deck-h5**.
+The output is a standard deck.json. Render via **feishu-deck-h5**.
 
 ## When to invoke
 
@@ -76,7 +76,7 @@ Do NOT use this skill for:
    - If it's a custom hero / dashboard / unique composition → mode B (raw).
 3. Generate the slide entry and append to `deck.json`'s `slides` array, OR
    create a new `deck.json` if starting fresh.
-4. Hand off to user to render via `rolling-deck-h5`.
+4. Hand off to user to render via `feishu-deck-h5`.
 
 ## Constraints
 

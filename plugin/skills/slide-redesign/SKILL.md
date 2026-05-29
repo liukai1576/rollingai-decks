@@ -51,7 +51,7 @@ description: |
    └────────────────┘
 ```
 
-The output is still a normal deck.json — pass it to **rolling-deck-h5** to
+The output is still a normal deck.json — pass it to **feishu-deck-h5** to
 render to HTML.
 
 ## When to invoke
@@ -141,5 +141,5 @@ If `<output-deck.json>` omitted, the input is updated in place (with a
 
 ## Verification
 
-After `slide-redesign` runs, follow up with `rolling-deck-h5` to render
+After `slide-redesign` runs, follow up with `feishu-deck-h5` to render
 HTML and visually verify each redesigned slide.

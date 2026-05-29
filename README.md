@@ -14,7 +14,7 @@
 
 ## 1. 致敬
 
-本项目的渲染器 `rolling-deck-h5` 直接 fork 自我同事 **杰森** 的 **[`feishu-deck-h5`](https://github.com/FuQiang/feishu-deck-h5)**——一个简洁、扎实的 16:9 HTML deck 渲染框架。它给了我们：
+本项目的渲染器 `feishu-deck-h5` 直接 fork 自我同事 **杰森** 的 **[`feishu-deck-h5`](https://github.com/FuQiang/feishu-deck-h5)**——一个简洁、扎实的 16:9 HTML deck 渲染框架。它给了我们：
 
 - 一套稳定的 present-mode chrome（← → 翻页 / F 全屏 / 进度条 / scroll mode）
 - 一套基于 design tokens 的排版系统（字体 / 字号 / 间距 / 颜色变量化）
@@ -124,12 +124,12 @@ bash plugin/skills/slide-redesign/assets/apply.sh \
 
 **触发词**："改 deck 第 24 页" / "重设计这张"
 
-### 3.3 `rolling-deck-h5` — 渲染器（很少直接调用）
+### 3.3 `feishu-deck-h5` — 渲染器（很少直接调用）
 
 `deck.json` → 完整自包含的 HTML deck。其他 skill 默认自动调它，但你也可以手动：
 
 ```bash
-python3 plugin/skills/rolling-deck-h5/deck-json/render-deck.py \
+python3 plugin/skills/feishu-deck-h5/deck-json/render-deck.py \
   out/deck.json out/
 open out/index.html
 ```
@@ -160,7 +160,7 @@ bash plugin/skills/slide-redesign/assets/apply.sh \
   out/deck.json out/redesigns/
 
 # 4. 重新渲染
-python3 plugin/skills/rolling-deck-h5/deck-json/render-deck.py \
+python3 plugin/skills/feishu-deck-h5/deck-json/render-deck.py \
   out/deck.json out/
 
 # 5. 启动本地服务器看效果
@@ -177,7 +177,7 @@ bash out/serve.sh   # 默认 http://localhost:8765
 
 ```
                     ┌────────────────────────────┐
-                    │   rolling-deck-h5          │  ← 渲染器 + 设计系统
+                    │   feishu-deck-h5          │  ← 渲染器 + 设计系统
                     │   deck.json → index.html   │     （fork 自 feishu-deck-h5）
                     └─────────────▲──────────────┘
                                   │ deck.json
@@ -205,7 +205,7 @@ bash out/serve.sh   # 默认 http://localhost:8765
 |---|---|
 | **单一可信源 = `deck.json`** | 所有 skill 读 / 写它；renderer 是最终消费者 |
 | **运行时零耦合** | 每个 skill 自带 assets 和脚本，只通过磁盘上的 `deck.json` 通信 |
-| **renderer 是 flag，不是硬依赖** | `keynote-to-html --renderer <path>` 默认指向 `rolling-deck-h5`，但任何兼容的渲染器都能换 |
+| **renderer 是 flag，不是硬依赖** | `keynote-to-html --renderer <path>` 默认指向 `feishu-deck-h5`，但任何兼容的渲染器都能换 |
 | **Redesign 是内容 / 排版覆盖，不是 extractor 补丁** | 如果 Keynote 导入结果难看，去写 `slide-NN.html`（设计工作），而不是改 `keynote-to-html` 的 Python（工程工作）。这条边界让导入器保持简洁，让设计判断留在 HTML/CSS 里 |
 | **AI 辅助 + 人工拍板** | 导入后 Claude 提建议，UI 上人工确认；不做端到端自动化 |
 | **小故事 = 4-5 页** | 复用粒度是叙事单位，不是版面单位 |
@@ -265,7 +265,7 @@ cd platform/web && npm install && npm run dev
 
 - ✅ `keynote-to-html` — 在 60+ 页的实际 deck 上跑通
 - ✅ `slide-redesign` — 已重绘十几页
-- ✅ `rolling-deck-h5` — 渲染器稳定
+- ✅ `feishu-deck-h5` — 渲染器稳定
 - 🚧 `slide-design` — scaffold，pipeline 待实现
 - 🚧 `library/` — 入库格式已定，搜索 / 合并 UI 开发中
 - 🚧 `platform/` — 基础 React app 已起，多选合并触发再生待接入

@@ -19,7 +19,7 @@ usage: bash apply.sh <input-deck.json> <redesigns-dir> [<output-deck.json>]
                       (PDF page index OR zero-padded slide-key)
   <output-deck.json>  optional; defaults to in-place update of input
 
-Next step: render with rolling-deck-h5.
+Next step: render with feishu-deck-h5.
 EOF
     exit 1
 fi

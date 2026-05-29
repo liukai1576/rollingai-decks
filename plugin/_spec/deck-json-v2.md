@@ -15,7 +15,7 @@
     "title":       "RollingAI分享-康师傅",
     "language":    "zh-only",
     "mode":        "rewrite",
-    "layout_pack": "rolling-deck-h5"
+    "layout_pack": "feishu-deck-h5"
   },
   "slides": [ ... ]
 }
@@ -35,7 +35,7 @@ deck 的展示名（一般来自原始 .key 文件名）。
 
 ### `deck.layout_pack` (string)
 渲染时使用的布局包 id。Player 据此加载该包的 CSS / JS / layout 模板。
-v2 默认 `"rolling-deck-h5"`，对应 `plugin/skills/rolling-deck-h5/`。
+v2 默认 `"feishu-deck-h5"`，对应 `plugin/skills/feishu-deck-h5/`。
 
 ---
 
@@ -136,7 +136,7 @@ v1 deck 没有 `slides[].title`，importer 重跑一遍即可生成。
 | `deck.title` | string | ✓ | deck 展示名 |
 | `deck.language` | string |   | `zh-only` / ... |
 | `deck.mode` | string |   | `rewrite` / `preserve` |
-| `deck.layout_pack` | string |   | 默认 `rolling-deck-h5` |
+| `deck.layout_pack` | string |   | 默认 `feishu-deck-h5` |
 | `slides[].key` | string | ✓ | 同 deck 唯一 |
 | `slides[].title` | string | ✓ | **v2 新增** · 一等字段 |
 | `slides[].notes` | string |   | **v2 新增** |

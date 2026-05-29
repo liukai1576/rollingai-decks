@@ -52,7 +52,7 @@ python3 platform/admin/server.py
 ## 还没做（hooks 已留好）
 
 - `POST /api/stories/{id}/export-deck` —— 已写桩，返回 deck.json
-  scaffold，下一步真的渲染 → 调用 `plugin/skills/rolling-deck-h5/
+  scaffold，下一步真的渲染 → 调用 `plugin/skills/feishu-deck-h5/
   deck-json/render-deck.py`
 - 多 slide 选中 → 合并成新 story
 - "再生成"功能：选 slide → 调 `slide-redesign` 或 `slide-design`

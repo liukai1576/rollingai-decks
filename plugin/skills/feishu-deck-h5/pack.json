@@ -1,6 +1,6 @@
 {
   "$comment": "Layout pack manifest. See plugin/_player/README.md.",
-  "id":             "rolling-deck-h5",
+  "id":             "feishu-deck-h5",
   "display_name":   "Rolling Deck H5 (feishu-deck-h5 lineage)",
   "version":        "0.20",
   "render_entry":   "deck-json/render-deck.py",

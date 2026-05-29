@@ -1,16 +1,16 @@
 ---
-name: rolling-deck-h5
+name: feishu-deck-h5
 kind: [布局风格, 创建]
 version: "0.20"
-input:  deck.json (with layout_pack=rolling-deck-h5 or none)
+input:  deck.json (with layout_pack=feishu-deck-h5 or none)
 output: index.html with present-mode chrome, scaled to 1920×1080
 triggers:
   - "feishu style"
   - "lark style"
-  - "rolling-deck-h5"
+  - "feishu-deck-h5"
   - "用户要默认风格的 deck"
 invocation: |
-  python3 plugin/skills/rolling-deck-h5/deck-json/render-deck.py \
+  python3 plugin/skills/feishu-deck-h5/deck-json/render-deck.py \
     <deck.json> <output-dir>
 produces_layout_pack: true
 description: |
@@ -24,7 +24,7 @@ description: |
     · slide-redesign   (overlays custom slide HTML on an existing deck.json)
     · slide-design     (authors new slides from scratch)
 
-  All three above produce a deck.json which rolling-deck-h5 then renders.
+  All three above produce a deck.json which feishu-deck-h5 then renders.
   Direct invocation is also fine for hand-authored decks.
 
   Forked from feishu-deck-h5 (FuQiang/feishu-deck-h5). RollingAI branding,
@@ -37,7 +37,7 @@ description: |
   downstream of any of the above skills.
 ---
 
-# rolling-deck-h5
+# feishu-deck-h5
 
 > **Renderer foundation. Forked from feishu-deck-h5. Rebrand in progress.**
 > **🛑 STOP — read this preflight before doing anything else.**

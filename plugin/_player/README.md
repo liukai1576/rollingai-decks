@@ -22,7 +22,7 @@ Each layout pack is a skill under `plugin/skills/<id>/` with a
 
 ```json
 {
-  "id": "rolling-deck-h5",
+  "id": "feishu-deck-h5",
   "render_entry": "deck-json/render-deck.py",
   "css": ["assets/feishu-deck.css"],
   "js":  ["assets/feishu-deck.js"],

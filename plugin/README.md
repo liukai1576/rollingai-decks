@@ -1,13 +1,13 @@
 # RollingAI Deck — plugin
 
 Four decoupled skills for building 1920×1080 HTML decks. The common
-intermediate format is `deck.json` (DeckJSON schema, see `rolling-deck-h5/
+intermediate format is `deck.json` (DeckJSON schema, see `feishu-deck-h5/
 deck-json/deck-schema.json`). Each skill either produces or consumes this
 format, so they compose freely.
 
 ```
                    ┌───────────────────────────┐
-                   │  rolling-deck-h5          │  ← renderer + design system
+                   │  feishu-deck-h5          │  ← renderer + design system
                    │  deck.json → index.html   │     (forked from feishu-deck-h5)
                    └────────────▲──────────────┘
                                 │
@@ -27,7 +27,7 @@ format, so they compose freely.
 
 ## Skills
 
-### `rolling-deck-h5/` — renderer foundation
+### `feishu-deck-h5/` — renderer foundation
 
 Takes a `deck.json` and produces a self-contained HTML deck with
 present-mode chrome (← → arrow nav, F fullscreen, progress bar, scroll
@@ -42,7 +42,7 @@ mode for mobile).
   in progress.
 
 ```bash
-python3 plugin/skills/rolling-deck-h5/deck-json/render-deck.py \
+python3 plugin/skills/feishu-deck-h5/deck-json/render-deck.py \
   <input-deck.json> <output-dir>/
 ```
 
@@ -102,7 +102,7 @@ bash plugin/skills/slide-redesign/assets/apply.sh \
 bash plugin/skills/slide-design/...
 
 # 5. Re-render to HTML
-python3 plugin/skills/rolling-deck-h5/deck-json/render-deck.py \
+python3 plugin/skills/feishu-deck-h5/deck-json/render-deck.py \
   out/deck.json out/
 
 # 6. Open
@@ -116,7 +116,7 @@ open out/index.html
 - **No skill depends on another at runtime** — each ships its own assets
   and scripts. They communicate via the `deck.json` file on disk.
 - **Renderer is a flag, not a hard-coded dependency** —
-  `keynote-to-html --renderer <path>` defaults to `rolling-deck-h5` but
+  `keynote-to-html --renderer <path>` defaults to `feishu-deck-h5` but
   any compatible renderer works.
 - **Redesigns are content + presentation overrides**, not patches to the
   extractor. If a Keynote import looks bad, you fix it by writing

@@ -24,7 +24,7 @@ from pathlib import Path
 
 # Where layout packs live, relative to this file.
 SKILLS_DIR = Path(__file__).resolve().parents[1] / "skills"
-DEFAULT_PACK = "rolling-deck-h5"
+DEFAULT_PACK = "feishu-deck-h5"
 
 
 def find_pack(pack_id: str) -> tuple[Path, dict]:
