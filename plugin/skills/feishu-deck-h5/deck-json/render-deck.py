@@ -1489,18 +1489,43 @@ def main(argv=None) -> int:
     # .deck[data-title-style="X"] / .deck[data-logo-position="Y"]. Per-slide
     # overrides emit on the .slide element instead (handled in render_slide).
     deck_data_attrs_parts = []
+    # P4: emit data-layout-pack so this pack's CSS/JS can scope itself and
+    # multiple packs can coexist on the same page in the future without
+    # colliding. The pack id matches the directory name under plugin/skills/.
+    pack_id = deck["deck"].get("layout_pack", "feishu-deck-h5")
+    deck_data_attrs_parts.append(f' data-layout-pack="{pack_id}"')
     if deck["deck"].get("title_style"):
         deck_data_attrs_parts.append(f' data-title-style="{deck["deck"]["title_style"]}"')
     if deck["deck"].get("logo_position"):
         deck_data_attrs_parts.append(f' data-logo-position="{deck["deck"]["logo_position"]}"')
     deck_data_attrs = "".join(deck_data_attrs_parts)
 
+    # P4: shell brand / language config used to be hardcoded ("· 飞书" suffix,
+    # lang="zh-CN") which made the shell unusable for non-Chinese / non-飞书
+    # rebrands. Now read from pack.json's optional `shell` block; fall back
+    # to the original values to keep existing decks identical.
+    pack_root = Path(__file__).resolve().parent.parent  # plugin/skills/feishu-deck-h5/
+    shell_cfg: dict = {}
+    pack_manifest_path = pack_root / "pack.json"
+    if pack_manifest_path.is_file():
+        try:
+            shell_cfg = (json.loads(pack_manifest_path.read_text(encoding="utf-8"))
+                         .get("shell") or {})
+        except Exception:
+            shell_cfg = {}
+    # Per-deck override beats pack default.
+    deck_lang = deck["deck"].get("language", "zh-only")
+    # zh-only / zh-en → "zh-CN" for html lang; others passthrough.
+    auto_html_lang = "zh-CN" if deck_lang.startswith("zh") else deck_lang
+
     final = render_template(shell_tpl.read_text(encoding="utf-8"), {
         "title":                      deck["deck"]["title"],
+        "title_suffix":               shell_cfg.get("title_suffix", " · 飞书"),
+        "html_lang":                  shell_cfg.get("html_lang", auto_html_lang),
         "asset_path":                 asset_path,
         "deck_json_templates_path":   templates_path,
         "patterns_css_link":          patterns_css_link,
-        "language":                   deck["deck"].get("language", "zh-only"),
+        "language":                   deck_lang,
         "slides_html":                "\n".join(slides_html),
         "deck_data_attrs":            deck_data_attrs,
     })

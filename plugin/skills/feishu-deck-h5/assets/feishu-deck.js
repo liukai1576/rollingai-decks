@@ -13,6 +13,12 @@
 (function () {
   'use strict';
 
+  // P4: this pack's CSS / JS now scope to .deck[data-layout-pack="feishu-deck-h5"]
+  // so multiple packs can coexist on one page. The init() / deck-selector / window
+  // export are all namespaced under this id.
+  const PACK_ID = "feishu-deck-h5";
+  const DECK_SEL = '.deck[data-layout-pack="' + PACK_ID + '"]';
+
   const DESIGN_W = 1920;
   const DESIGN_H = 1080;
   const MOBILE_BREAKPOINT = 900;
@@ -24,7 +30,9 @@
   let activeController = null;       // tracks the current init's AbortController
 
   function init() {
-    const deck = document.querySelector('.deck');
+    // Prefer pack-scoped deck; fall back to bare `.deck` for back-compat
+    // with decks rendered before P4 (data-layout-pack absent).
+    const deck = document.querySelector(DECK_SEL) || document.querySelector('.deck');
     if (!deck) return null;
 
     // If a previous init is still alive, destroy it first (idempotent)
@@ -399,9 +407,14 @@
     init();
   }
 
-  // Expose programmatic API for SPA hosts
+  // Expose programmatic API for SPA hosts. P4: also expose under a multi-pack
+  // namespace so different packs' runtimes can coexist without name war.
+  // The old `window.feishuDeck` is preserved for back-compat (anything calling
+  // `feishuDeck.init()` directly still works).
   if (typeof window !== 'undefined') {
     window.feishuDeck = { init };
+    window.__layoutPacks = window.__layoutPacks || {};
+    window.__layoutPacks[PACK_ID] = { init };
   }
 })();
 
@@ -425,8 +438,11 @@
   if (typeof window === 'undefined') return;
   if (!window.matchMedia('(max-width: 900px)').matches) return;
 
+  // P4: pack-scoped, with bare .deck back-compat (same convention as main init).
+  const PACK_SEL = '.deck[data-layout-pack="feishu-deck-h5"]';
+
   function wire() {
-    const deck = document.querySelector('.deck');
+    const deck = document.querySelector(PACK_SEL) || document.querySelector('.deck');
     if (!deck) return;
     const frames = Array.from(deck.querySelectorAll('.slide-frame'));
     if (!frames.length) return;
@@ -548,6 +564,12 @@
 (function () {
   if (typeof window === 'undefined' || typeof document === 'undefined') return;
 
+  // P4: pack-scoped. Find our deck once; the lazy-video runtime only manages
+  // videos inside it. (No back-compat selector fallback here because the
+  // lazy-video CSS class is internal — pre-P4 decks rendered by this pack
+  // still get data-layout-pack from the migration when re-rendered.)
+  const PACK_SEL = '.deck[data-layout-pack="feishu-deck-h5"]';
+
   const PRELOAD_RADIUS = 1;
 
   // Track whether the user has interacted with the page. Browsers block
@@ -567,7 +589,10 @@
     document.addEventListener(ev, markEngaged, { once: false, passive: true }));
 
   function activateRange(currentIdx) {
-    const frames = document.querySelectorAll('.slide-frame');
+    // Scope to this pack's deck. Fall back to bare `.slide-frame` for
+    // decks that pre-date the data-layout-pack attribute.
+    const root = document.querySelector(PACK_SEL) || document;
+    const frames = root.querySelectorAll('.slide-frame');
     frames.forEach((frame, idx) => {
       const inRange = Math.abs(idx - currentIdx) <= PRELOAD_RADIUS;
       const isCurrent = idx === currentIdx;
@@ -604,9 +629,11 @@
 
   let lastIdx = -1;
   function tick() {
-    const cur = document.querySelector('.slide-frame.is-current');
+    // Pack-scoped (with bare fallback) — see activateRange comment.
+    const root = document.querySelector(PACK_SEL) || document;
+    const cur = root.querySelector('.slide-frame.is-current');
     if (cur) {
-      const frames = Array.from(document.querySelectorAll('.slide-frame'));
+      const frames = Array.from(root.querySelectorAll('.slide-frame'));
       const idx = frames.indexOf(cur);
       if (idx !== lastIdx) {
         lastIdx = idx;

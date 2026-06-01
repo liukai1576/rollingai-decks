@@ -26,6 +26,7 @@ import base64
 import io
 import json
 import os
+import re
 import signal
 import socket
 import sqlite3
@@ -55,6 +56,13 @@ CHROME = "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome"
 # dimensions and computes --fs-scale to fit the 1920×1080 slide in.
 VIEW_W, VIEW_H = 960, 540
 THUMB_W, THUMB_H = 480, 270
+
+# slide_key is interpolated into both a filesystem path AND a JS hash
+# expression. Tight allowlist defangs `..`, `/`, null, quote injection.
+# The keynote-to-html convention produces `slide-NNN`; hand-authored decks
+# may use kebab-case slugs. Both are covered by this pattern.
+_SLIDE_KEY_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$")
+_DECK_ID_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._-]{0,63}$")
 
 
 # ---- CDP plumbing ----
@@ -310,6 +318,20 @@ def main() -> int:
     skipped = made = failed = 0
     for r in rows:
         deck_id, slide_key = r["deck_id"], r["slide_key"]
+
+        # Defend the filesystem path AND the JS `location.hash` interpolation
+        # against weird keys. Bad rows fall into `failed` rather than crashing
+        # the whole batch — the batch may legitimately span many decks and
+        # one bad row shouldn't cancel the rest.
+        if not _DECK_ID_RE.match(deck_id or ""):
+            print(f"{r['id']}  invalid deck_id (skipped)", file=sys.stderr)
+            failed += 1
+            continue
+        if not _SLIDE_KEY_RE.match(slide_key or ""):
+            print(f"{r['id']}  invalid slide_key (skipped)", file=sys.stderr)
+            failed += 1
+            continue
+
         out_rel = f"thumbs/{deck_id}/{slide_key}.jpg"
         out_abs = THUMBS_DIR.parent / out_rel
         if out_abs.is_file() and not args.force:

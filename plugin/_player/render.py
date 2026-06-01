@@ -18,6 +18,7 @@ to deck.json + a re-run.
 from __future__ import annotations
 
 import json
+import re
 import subprocess
 import sys
 from pathlib import Path
@@ -26,10 +27,39 @@ from pathlib import Path
 SKILLS_DIR = Path(__file__).resolve().parents[1] / "skills"
 DEFAULT_PACK = "feishu-deck-h5"
 
+# pack_id is consumed from deck.json's `deck.layout_pack`. We treat that as
+# untrusted (deck.json can come from any source — Keynote, hand-edit, LLM
+# output, third-party pipeline). Restricting to a tight allowlist defangs
+# `"layout_pack": "../../../etc/x"` and similar.
+_PACK_ID_RE = re.compile(r"^[a-zA-Z0-9][a-zA-Z0-9._-]{0,63}$")
+
+# How long a pack's render is allowed to run before we kill it. Generous
+# enough for big decks (500 slides) but bounded so a hung / interactive pack
+# doesn't hang the dispatcher forever.
+RENDER_TIMEOUT_S = 600
+
+
+def _validate_pack_id(pack_id: str) -> None:
+    if not _PACK_ID_RE.match(pack_id or ""):
+        raise ValueError(
+            f"Invalid layout_pack id: {pack_id!r}. Must match "
+            f"{_PACK_ID_RE.pattern} (no path separators, no traversal)."
+        )
+
 
 def find_pack(pack_id: str) -> tuple[Path, dict]:
     """Return (pack_dir, pack_manifest) or raise."""
-    pack_dir = SKILLS_DIR / pack_id
+    _validate_pack_id(pack_id)
+
+    pack_dir = (SKILLS_DIR / pack_id).resolve()
+    # Containment: even with the regex, defense-in-depth.
+    try:
+        pack_dir.relative_to(SKILLS_DIR.resolve())
+    except ValueError:
+        raise ValueError(
+            f"Layout pack '{pack_id}' resolves outside {SKILLS_DIR}/"
+        )
+
     manifest_path = pack_dir / "pack.json"
     if not manifest_path.is_file():
         raise FileNotFoundError(
@@ -65,9 +95,24 @@ def main() -> int:
 
     deck = json.loads(deck_path.read_text(encoding="utf-8"))
     pack_id = (deck.get("deck", {}) or {}).get("layout_pack") or DEFAULT_PACK
-    pack_dir, manifest = find_pack(pack_id)
+    try:
+        pack_dir, manifest = find_pack(pack_id)
+    except (ValueError, FileNotFoundError, RuntimeError) as e:
+        print(f"[player] {e}", file=sys.stderr)
+        return 2
 
-    entry = pack_dir / manifest["render_entry"]
+    # Resolve render_entry under pack_dir and require containment. Defends
+    # against a malicious / typo'd `render_entry: "../../../etc/x"`.
+    entry = (pack_dir / manifest["render_entry"]).resolve()
+    try:
+        entry.relative_to(pack_dir)
+    except ValueError:
+        print(
+            f"[player] render_entry escapes pack dir: {entry} not under "
+            f"{pack_dir}",
+            file=sys.stderr,
+        )
+        return 2
     if not entry.is_file():
         print(
             f"render_entry not found for pack '{pack_id}': {entry}",
@@ -79,7 +124,22 @@ def main() -> int:
            *passthrough]
     print(f"[player] dispatch → pack '{pack_id}' v{manifest.get('version','?')}",
           file=sys.stderr)
-    result = subprocess.run(cmd)
+    try:
+        # stdin=DEVNULL: an interactive pack (input(), getpass(), etc.) would
+        # otherwise hang the dispatcher forever waiting for stdin that never
+        # comes. With DEVNULL the read returns EOF immediately so the pack
+        # either falls back to a default or crashes — both better than hang.
+        result = subprocess.run(
+            cmd,
+            stdin=subprocess.DEVNULL,
+            timeout=RENDER_TIMEOUT_S,
+        )
+    except subprocess.TimeoutExpired:
+        print(
+            f"[player] pack '{pack_id}' exceeded {RENDER_TIMEOUT_S}s; killed.",
+            file=sys.stderr,
+        )
+        return 124  # GNU coreutils 'timeout' exit convention
     return result.returncode
 
 

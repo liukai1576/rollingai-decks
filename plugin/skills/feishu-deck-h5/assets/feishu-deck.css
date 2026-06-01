@@ -4,7 +4,10 @@
    Canvas: 1920×1080. Scaled by JS via --fs-scale on each .slide-frame.
    ============================================================================ */
 
-:root {
+/* P4: design tokens are scoped to this pack's deck container so a second
+   layout pack on the same page won't see ours and vice versa. Inheriting
+   into descendants via CSS variable cascade still works. */
+.deck[data-layout-pack="feishu-deck-h5"] {
   /* — Backgrounds — */
   --fs-bg-0: #000000;
   --fs-bg-1: #04060F;
@@ -91,13 +94,25 @@
 .deck ul, .deck ol { list-style: none; }
 .deck img { display: block; max-width: 100%; }
 
-/* ---------- Page chrome ---------- */
-html, body { height: 100%; }
-body {
-  margin: 0; background: #000; color: var(--fs-text);
+/* ---------- Page chrome ----------
+   P4: page-level black background + font defaults USED to live on html,body
+   global selectors — that polluted any embedding host page (admin preview,
+   slide library thumbnails, future multi-pack pages). Move them onto .deck
+   instead. Standalone-deck decks (full page = one deck) still look black
+   because the deck fills the viewport at 100%×100%; embedding contexts
+   keep their own host styling.
+
+   The body { margin:0 } we keep on body though — the deck needs a margin-
+   less host or its slide-frame's 100vw math is off. That's a reasonable
+   request to make of any host.
+*/
+body { margin: 0; }
+.deck[data-layout-pack="feishu-deck-h5"] {
+  background: #000; color: var(--fs-text);
   font-family: var(--fs-font-cjk); font-weight: 500;
   -webkit-font-smoothing: antialiased; -moz-osx-font-smoothing: grayscale;
   text-rendering: optimizeLegibility;
+  min-height: 100vh;
 }
 
 /* ============================================================================

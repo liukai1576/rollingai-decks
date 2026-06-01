@@ -4,6 +4,11 @@
   "display_name":   "Rolling Deck H5 (feishu-deck-h5 lineage)",
   "version":        "0.20",
   "render_entry":   "deck-json/render-deck.py",
+  "shell": {
+    "$comment":     "Defaults for the HTML shell that's pack-specific. Other packs override; deck.json can further override these (TODO).",
+    "title_suffix": " · 飞书",
+    "html_lang":    "zh-CN"
+  },
   "layouts": [
     {"name": "cover"        },
     {"name": "agenda"       },

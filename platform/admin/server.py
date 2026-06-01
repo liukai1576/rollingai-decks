@@ -395,7 +395,10 @@ def list_skills_api(kind: Optional[str] = None):
         # Force a fresh module read on every request (cheap; ~10ms for 10 skills).
         import importlib
         importlib.reload(registry)
-        skills = registry.list_skills()
+        # Lenient mode: the admin UI prefers "show everything with warnings"
+        # over "halt on first structural problem". CI / `python3 registry.py`
+        # uses strict mode by default.
+        skills = registry.list_skills(strict=False)
     except Exception as e:
         raise HTTPException(500, f"registry failed: {e}")
     if kind:

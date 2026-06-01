@@ -35,6 +35,17 @@ except ImportError:
 
 SKILLS_DIR = Path(__file__).resolve().parent
 KIND_ORDER = ["构思", "创建", "布局风格", "调整", "管理分析"]
+CANONICAL_KINDS = set(KIND_ORDER)
+
+
+class RegistryError(Exception):
+    """Raised on a structural problem the registry must surface (collision,
+    missing required field on a layout pack, etc.). Lint-style soft issues
+    are warned via stderr, not raised."""
+
+
+def _warn(msg: str) -> None:
+    print(f"registry: WARN {msg}", file=sys.stderr)
 
 # Match a single YAML frontmatter block at the very top of a markdown file.
 _FRONTMATTER_RE = re.compile(r"\A---\s*\n(.*?)\n---\s*\n(.*)\Z", re.DOTALL)
@@ -94,11 +105,26 @@ def _normalise_str_list(raw: Any) -> list[str]:
     return [str(raw)]
 
 
-def list_skills() -> list[dict]:
-    """Return one record per skill dir that has a SKILL.md."""
+def list_skills(strict: bool = True) -> list[dict]:
+    """Return one record per skill dir that has a SKILL.md.
+
+    `strict=True` (default) raises RegistryError when it finds:
+      · two skills declaring the same `name:`
+      · a skill with `produces_layout_pack: true` but no/broken pack.json
+      · a pack.json whose `id` disagrees with the directory name
+
+    Non-fatal issues — `kind` values outside the canonical 5, broken
+    individual pack.json on a non-layout-pack skill, missing `name:` —
+    print a WARN line on stderr and the record is still emitted.
+    `strict=False` downgrades the structural errors to WARNs too (used by
+    the admin UI / non-CI callers that prefer "show what's there" over
+    "halt").
+    """
     out: list[dict] = []
     if not SKILLS_DIR.is_dir():
         return out
+
+    name_to_id: dict[str, str] = {}
 
     for skill_dir in sorted(SKILLS_DIR.iterdir()):
         if not skill_dir.is_dir() or skill_dir.name.startswith("_"):
@@ -110,10 +136,42 @@ def list_skills() -> list[dict]:
         description = (meta.get("description") or "").strip()
         if not description:
             description = _first_prose_paragraph(body)
+
+        # ---- Validation passes ----
+        skill_id = skill_dir.name
+        name = meta.get("name") or skill_id
+        if not meta.get("name"):
+            _warn(f"{skill_id}: SKILL.md has no `name:` (using dir id)")
+
+        # Name collision
+        if name in name_to_id and name_to_id[name] != skill_id:
+            msg = (f"duplicate skill name {name!r} in "
+                   f"{name_to_id[name]} AND {skill_id}")
+            if strict:
+                raise RegistryError(msg)
+            _warn(msg)
+        name_to_id[name] = skill_id
+
+        # Kind validation against the canonical list
+        kinds = _normalise_kind(meta.get("kind"))
+        bad_kinds = [k for k in kinds if k not in CANONICAL_KINDS]
+        if bad_kinds:
+            _warn(f"{skill_id}: kind value(s) {bad_kinds} not in canonical "
+                  f"{sorted(CANONICAL_KINDS)} — slot under '其他'")
+        if not kinds:
+            _warn(f"{skill_id}: no `kind:` declared — slot under '其他'")
+
+        # Try-relative-path; fall back to absolute if outside the repo
+        # (e.g. when plugin/ is vendored elsewhere — see review note).
+        try:
+            rel_path = str(skill_md.relative_to(SKILLS_DIR.parent.parent))
+        except ValueError:
+            rel_path = str(skill_md)
+
         record: dict[str, Any] = {
-            "id":           skill_dir.name,
-            "name":         meta.get("name") or skill_dir.name,
-            "kind":         _normalise_kind(meta.get("kind")),
+            "id":           skill_id,
+            "name":         name,
+            "kind":         kinds,
             "version":      meta.get("version") or "",
             "description":  description,
             "input":        meta.get("input") or "",
@@ -124,17 +182,43 @@ def list_skills() -> list[dict]:
             "appends_history":        bool(meta.get("appends_history", False)),
             "reads_history":          bool(meta.get("reads_history", False)),
             "produces_layout_pack":   bool(meta.get("produces_layout_pack", False)),
-            "path":         str(skill_md.relative_to(SKILLS_DIR.parent.parent)),
+            "path":         rel_path,
             "body_markdown": body.strip(),
         }
+
         # Layout pack manifest (if any)
         pack_path = skill_dir / "pack.json"
+        pack_required = record["produces_layout_pack"]
+        if pack_required and not pack_path.is_file():
+            msg = (f"{skill_id}: produces_layout_pack=true but pack.json "
+                   f"missing at {pack_path}")
+            if strict:
+                raise RegistryError(msg)
+            _warn(msg)
         if pack_path.is_file():
             try:
-                record["pack"] = json.loads(pack_path.read_text(encoding="utf-8"))
+                pack = json.loads(pack_path.read_text(encoding="utf-8"))
             except json.JSONDecodeError as e:
-                print(f"registry: bad pack.json in {skill_dir}: {e}",
-                      file=sys.stderr)
+                msg = f"{skill_id}: pack.json is invalid JSON: {e}"
+                if strict and pack_required:
+                    raise RegistryError(msg)
+                _warn(msg)
+                pack = None
+            if pack is not None:
+                record["pack"] = pack
+                # pack.id must match dir name (avoids silent mismatches
+                # where dispatcher loads by dir but a tool keys by pack.id).
+                if pack.get("id") and pack["id"] != skill_id:
+                    msg = (f"{skill_id}: pack.json id={pack['id']!r} "
+                           f"disagrees with directory name")
+                    if strict:
+                        raise RegistryError(msg)
+                    _warn(msg)
+                if "render_entry" not in pack and pack_required:
+                    msg = f"{skill_id}: pack.json missing 'render_entry'"
+                    if strict:
+                        raise RegistryError(msg)
+                    _warn(msg)
         out.append(record)
     return out
 
@@ -161,9 +245,15 @@ def main() -> int:
     ap.add_argument("--kind", help="Filter to one kind (e.g. 创建)")
     ap.add_argument("--raw", action="store_true",
                     help="Flat list instead of grouped-by-kind")
+    ap.add_argument("--lenient", action="store_true",
+                    help="Treat structural problems as warnings, not errors")
     args = ap.parse_args()
 
-    skills = list_skills()
+    try:
+        skills = list_skills(strict=not args.lenient)
+    except RegistryError as e:
+        print(f"registry: ERROR {e}", file=sys.stderr)
+        return 2
     if args.kind:
         skills = [s for s in skills if args.kind in (s.get("kind") or [])]
 
