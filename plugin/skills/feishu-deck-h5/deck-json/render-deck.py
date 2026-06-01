@@ -1252,6 +1252,44 @@ def _enrich_iframe_embed(ctx, slide):
         ctx["iframe_inline_style"] = ""
 
 
+# Matches a single element carrying `data-role="title"`. The capture groups
+# are: (open_tag, tag_name, attrs_after_role, inner_html, close_tag).
+# Assumes the title element doesn't contain a same-name nested tag (true for
+# keynote-to-html's emission: title is a <div> containing only text / spans).
+_TITLE_ROLE_RE = re.compile(
+    r'(<(\w+)([^>]*\bdata-role="title"[^>]*)>)(.*?)(</\2>)',
+    re.DOTALL,
+)
+
+
+def _sync_raw_title(html_str: str, title: str) -> str:
+    """v2 contract (see plugin/_spec/deck-json-v2.md §"raw layout title 同步规则"):
+    when `slides[].title` differs from the visible text of the raw HTML's
+    `data-role="title"` element, replace the element's inner content.
+
+    No-op when:
+      · title is empty
+      · no `data-role="title"` element exists
+      · visible text already matches `title`
+    """
+    if not title:
+        return html_str
+
+    def visible(inner: str) -> str:
+        return html.unescape(re.sub(r"<[^>]+>", "", inner)).strip()
+
+    def repl(m):
+        open_tag, _name, _attrs, inner, close_tag = m.groups()
+        if visible(inner) == title.strip():
+            return m.group(0)  # already in sync
+        # Replace inner; wrap in <span> to keep any inline-style parent styling
+        # (color / font-size / etc lives on the outer div, not the span).
+        return f'{open_tag}<span>{html.escape(title)}</span>{close_tag}'
+
+    # Only patch the first match — there should be exactly one per slide.
+    return _TITLE_ROLE_RE.sub(repl, html_str, count=1)
+
+
 def _enrich_raw(ctx, slide):
     # Verbatim html — template uses {{{ html }}}, no processing.
     # `_orig_layout` lets a raw slide claim a layout name so the framework
@@ -1259,6 +1297,12 @@ def _enrich_raw(ctx, slide):
     # engage. The template uses {{ effective_layout }} for the data-layout
     # attribute; we default to "raw" if no override.
     ctx["effective_layout"] = slide.get("_orig_layout") or "raw"
+
+    # v2: sync slides[].title into the data-role="title" element so any
+    # skill that edits only the title field gets it through to render.
+    title = slide.get("title") or ""
+    if title and "html" in ctx:
+        ctx["html"] = _sync_raw_title(ctx["html"], title)
 
 
 ENRICHERS = {

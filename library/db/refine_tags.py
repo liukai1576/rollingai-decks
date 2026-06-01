@@ -64,9 +64,15 @@ def propagate_from_stories(conn: sqlite3.Connection) -> None:
                 type_override = t
                 break
 
+        # Range-model membership: slides in this story = slides on the
+        # deck whose page_no is between the story's start_page / end_page.
+        # (story_slides M:N table was removed 2026-05-29 — see schema.sql.)
         slide_ids = [r[0] for r in conn.execute(
-            "SELECT slide_id FROM story_slides WHERE story_id = ? "
-            "ORDER BY position",
+            "SELECT s.id FROM slides s "
+            "JOIN stories st ON st.id = ? "
+            " AND st.deck_id = s.deck_id "
+            " AND s.page_no BETWEEN st.start_page AND st.end_page "
+            "ORDER BY s.page_no",
             (story_id,)
         )]
         for sid in slide_ids:
@@ -95,10 +101,15 @@ def propagate_from_stories(conn: sqlite3.Connection) -> None:
 def flag_unstoried(conn: sqlite3.Connection) -> None:
     """Slides not in any story → free_tags += 'needs-review'."""
     now = now_iso()
+    # Orphan = slide on a deck where no story's [start_page, end_page]
+    # range contains the slide's page_no.
     orphan_ids = [r[0] for r in conn.execute(
         "SELECT s.id FROM slides s "
-        "LEFT JOIN story_slides ss ON ss.slide_id = s.id "
-        "WHERE ss.slide_id IS NULL"
+        "WHERE NOT EXISTS ( "
+        "  SELECT 1 FROM stories st "
+        "  WHERE st.deck_id = s.deck_id "
+        "    AND s.page_no BETWEEN st.start_page AND st.end_page "
+        ")"
     )]
     for sid in orphan_ids:
         free = conn.execute(
@@ -170,7 +181,6 @@ def main():
         ("type=公司介绍      ", "SELECT COUNT(*) FROM slides WHERE type_tag='公司介绍'"),
         ("flagged needs-review", "SELECT COUNT(*) FROM slides WHERE free_tags LIKE '%needs-review%'"),
         ("stories            ", "SELECT COUNT(*) FROM stories"),
-        ("story_slides rows  ", "SELECT COUNT(*) FROM story_slides"),
     ]:
         print(f"  {lbl}: {conn.execute(q).fetchone()[0]}")
     conn.close()

@@ -36,15 +36,20 @@ def main():
     # ----- Stories with their member slides -----
     lines.append("\n## 1️⃣ Stories（已入库）\n")
     stories = conn.execute(
-        "SELECT id, title, description FROM stories ORDER BY id"
+        "SELECT id, title, description, deck_id, start_page, end_page "
+        "FROM stories ORDER BY deck_id, start_page"
     ).fetchall()
-    for sid, st_title, desc in stories:
+    for sid, st_title, desc, deck_id, sp, ep in stories:
+        # Range-model membership: any slide on the same deck whose
+        # page_no falls inside [start_page, end_page]. (See schema.sql —
+        # the old story_slides M:N table was removed 2026-05-29.)
         members = conn.execute(
             "SELECT s.page_no, s.title, s.type_tag, s.subtype_tag, "
             "       s.customer_tag, s.media_tag "
-            "FROM story_slides ss JOIN slides s ON s.id = ss.slide_id "
-            "WHERE ss.story_id = ? ORDER BY ss.position",
-            (sid,)
+            "FROM slides s "
+            "WHERE s.deck_id = ? AND s.page_no BETWEEN ? AND ? "
+            "ORDER BY s.page_no",
+            (deck_id, sp, ep)
         ).fetchall()
         lines.append(f"\n### {st_title}\n")
         lines.append(f"- id: `{sid}`\n")
@@ -63,8 +68,12 @@ def main():
     lines.append("\n## 2️⃣ Needs review（未归入任何 story 的孤立 slide）\n")
     orphans = conn.execute(
         "SELECT s.page_no, s.id, s.title, s.type_tag, s.media_tag, s.free_tags "
-        "FROM slides s LEFT JOIN story_slides ss ON ss.slide_id = s.id "
-        "WHERE ss.slide_id IS NULL ORDER BY s.page_no"
+        "FROM slides s "
+        "WHERE NOT EXISTS ( "
+        "  SELECT 1 FROM stories st "
+        "  WHERE st.deck_id = s.deck_id "
+        "    AND s.page_no BETWEEN st.start_page AND st.end_page "
+        ") ORDER BY s.page_no"
     ).fetchall()
     lines.append("\n| 页 | id | 标题 | 类型 | 媒体 | free_tags |\n")
     lines.append("|---|---|---|---|---|---|\n")
@@ -81,9 +90,9 @@ def main():
     rows = conn.execute(
         "SELECT s.page_no, s.title, s.type_tag, s.subtype_tag, "
         "       s.customer_tag, s.media_tag, "
-        "       (SELECT GROUP_CONCAT(st.title) FROM story_slides ss "
-        "        JOIN stories st ON st.id = ss.story_id "
-        "        WHERE ss.slide_id = s.id) "
+        "       (SELECT GROUP_CONCAT(st.title) FROM stories st "
+        "        WHERE st.deck_id = s.deck_id "
+        "          AND s.page_no BETWEEN st.start_page AND st.end_page) "
         "FROM slides s ORDER BY s.page_no"
     ).fetchall()
     for n, t, typ, sub, cust, media, story_titles in rows:

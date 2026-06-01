@@ -75,6 +75,37 @@ CREATE INDEX IF NOT EXISTS idx_stories_range ON stories(deck_id, start_page);
 -- from start_page / end_page range, since stories are always consecutive
 -- slide sets. See DESIGN.md.)
 
+-- ---------------------------------------------------------------------------
+-- Content-addressed asset registry  (see library/db/collect_assets.py)
+--
+-- One row per unique asset content (keyed by SHA-256). Used for cross-deck
+-- dedup: spotting when two decks reuse the same image / video binary.
+-- ---------------------------------------------------------------------------
+CREATE TABLE IF NOT EXISTS assets (
+  hash         TEXT PRIMARY KEY,  -- SHA-256 hex
+  size_bytes   INTEGER NOT NULL,
+  ext          TEXT,              -- ".png" / ".mp4" / ".jpeg" / ...
+  filename     TEXT,              -- canonical filename inside the first .key bundle that produced this asset
+  first_deck   TEXT,              -- deck_id where this hash first appeared
+  first_seen   TEXT               -- ISO timestamp
+);
+
+CREATE INDEX IF NOT EXISTS idx_assets_first_deck ON assets(first_deck);
+
+-- M:N link between slides and assets. A slide can use multiple assets;
+-- the same asset can appear on many slides (the same logo across a deck,
+-- or the same image reused across decks).
+CREATE TABLE IF NOT EXISTS slide_assets (
+  slide_id     TEXT NOT NULL REFERENCES slides(id) ON DELETE CASCADE,
+  asset_hash   TEXT NOT NULL REFERENCES assets(hash),
+  role         TEXT,              -- 'image' / 'movie' / 'background' / ...
+  iwa_data_id  INTEGER,           -- the iWork identifier inside the .key, for traceability
+  PRIMARY KEY (slide_id, asset_hash, iwa_data_id)
+);
+
+CREATE INDEX IF NOT EXISTS idx_slide_assets_hash  ON slide_assets(asset_hash);
+CREATE INDEX IF NOT EXISTS idx_slide_assets_slide ON slide_assets(slide_id);
+
 -- Full-text search over title + body_text (queryable via slides_fts MATCH ...)
 CREATE VIRTUAL TABLE IF NOT EXISTS slides_fts USING fts5(
   id UNINDEXED,

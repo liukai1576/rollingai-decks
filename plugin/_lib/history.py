@@ -37,18 +37,30 @@ from typing import Any
 HISTORY_FILENAME = "history.json"
 
 
+class HistoryCorruptError(Exception):
+    """Raised when an existing history.json can't be parsed. We never overwrite
+    a corrupted history silently — losing provenance is unrecoverable."""
+
+
 def load(output_dir: Path | str) -> list[dict]:
-    """Return the current history list, or [] if no history yet."""
+    """Return the current history list, or [] if no history yet.
+
+    Raises HistoryCorruptError if the file exists but isn't a valid JSON
+    list. Callers (typically `append`) are responsible for deciding what
+    to do: rename to .bak and start fresh, or fail loud. We do NOT silently
+    return [] in the corrupt case — that path leads to provenance data
+    loss on the next append().
+    """
     path = Path(output_dir) / HISTORY_FILENAME
     if not path.is_file():
         return []
     try:
         data = json.loads(path.read_text(encoding="utf-8"))
-        if isinstance(data, list):
-            return data
-        return []
-    except (json.JSONDecodeError, OSError):
-        return []
+    except (json.JSONDecodeError, OSError) as e:
+        raise HistoryCorruptError(f"{path}: {e}") from e
+    if not isinstance(data, list):
+        raise HistoryCorruptError(f"{path}: top-level is not a JSON list")
+    return data
 
 
 def append(
@@ -75,7 +87,25 @@ def append(
     out.mkdir(parents=True, exist_ok=True)
     path = out / HISTORY_FILENAME
 
-    existing = load(out)
+    try:
+        existing = load(out)
+    except HistoryCorruptError as e:
+        # Don't clobber a corrupt history. Rename to .bak (with a numeric
+        # suffix if .bak is already taken) and start a fresh chain. The
+        # new chain begins at step 1 but its first entry records the
+        # rescue so the break is auditable.
+        bak = path.with_suffix(path.suffix + ".bak")
+        n = 1
+        while bak.exists():
+            bak = path.with_suffix(path.suffix + f".bak.{n}")
+            n += 1
+        path.rename(bak)
+        print(
+            f"history: corrupt {path.name} rescued to {bak.name} ({e}). "
+            f"Starting fresh chain.",
+            flush=True,
+        )
+        existing = []
     entry: dict[str, Any] = {
         "step":    len(existing) + 1,
         "skill":   skill,

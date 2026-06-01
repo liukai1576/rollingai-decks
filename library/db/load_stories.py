@@ -131,45 +131,51 @@ def main():
         slug = make_slug(title)
         story_id = f"{deck_id}/{slug}"
 
-        # Build the slide list. Pages bullet is authoritative when present;
-        # slides_explicit is just an example/hint. Falling back to slides
-        # only when pages missing.
-        slide_ids: list[str] = []
+        # Stories are now stored as a (start_page, end_page) range — see
+        # schema.sql. We resolve the range from the proposal's `pages`
+        # bullet directly. The `slides_explicit` hint is kept as a
+        # back-compat path: derive a range from the min/max page of the
+        # listed keys.
+        start_page = end_page = None
         if prop["pages"]:
-            lo, hi = prop["pages"]
-            for p in range(lo, hi + 1):
-                if p in slide_by_page:
-                    slide_ids.append(slide_by_page[p])
+            start_page, end_page = prop["pages"]
         elif prop["slides_explicit"]:
+            # Derive the bracket from the explicit list — assumes the
+            # listed slides are consecutive (per the new story model).
+            pages = []
             for k in prop["slides_explicit"]:
                 if k in slide_by_key:
-                    slide_ids.append(slide_by_key[k])
+                    # slide_by_key maps slide_key → slide.id; we need page_no.
+                    for pno, sid in slide_by_page.items():
+                        if sid == slide_by_key[k]:
+                            pages.append(pno)
+                            break
                 else:
                     print(f"  WARN: story '{title}' references unknown {k}",
                           file=sys.stderr)
+            if pages:
+                start_page, end_page = min(pages), max(pages)
 
-        if not slide_ids:
+        if start_page is None:
             print(f"  SKIP empty story: {title}", file=sys.stderr)
             continue
 
-        # Upsert story
+        # Upsert story (id is the natural key; range model — no
+        # story_slides table).
         conn.execute(
-            "INSERT INTO stories (id, title, description, deck_id, notes, created_at, updated_at) "
-            "VALUES (?, ?, ?, ?, ?, ?, ?) "
+            "INSERT INTO stories (id, title, description, deck_id, "
+            "                     start_page, end_page, notes, "
+            "                     created_at, updated_at) "
+            "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?) "
             "ON CONFLICT(id) DO UPDATE SET title=excluded.title, "
-            "  description=excluded.description, notes=excluded.notes, "
-            "  updated_at=excluded.updated_at",
-            (story_id, title, prop["note"], deck_id, prop["note"], now, now)
+            "  description=excluded.description, "
+            "  start_page=excluded.start_page, end_page=excluded.end_page, "
+            "  notes=excluded.notes, updated_at=excluded.updated_at",
+            (story_id, title, prop["note"], deck_id,
+             start_page, end_page, prop["note"], now, now)
         )
-        # Replace story_slides
-        conn.execute("DELETE FROM story_slides WHERE story_id = ?", (story_id,))
-        for pos, sid in enumerate(slide_ids):
-            conn.execute(
-                "INSERT INTO story_slides (story_id, slide_id, position) "
-                "VALUES (?, ?, ?)",
-                (story_id, sid, pos)
-            )
-        print(f"  ✓ {story_id}  ({len(slide_ids)} slides)", file=sys.stderr)
+        print(f"  ✓ {story_id}  (p{start_page}–{end_page})",
+              file=sys.stderr)
 
     conn.commit()
     conn.close()

@@ -251,6 +251,11 @@ class Element:
     # text has non-uniform fonts/sizes/colors). Each run is a dict:
     # {"text": str, "font": str, "size": float, "r": int, "g": int, "b": int}
     runs: list = field(default_factory=list)
+    # v2 deck.json: the element that pick_title selects gets data_role="title".
+    # All text-div emission sites in compose_slide_html honor this and render
+    # `data-role="title"` so downstream skills can find / replace the title
+    # element. See plugin/_spec/deck-json-v2.md §"raw layout title 同步规则".
+    data_role: str = ""
 
     @property
     def text_color_hex(self) -> str:
@@ -932,15 +937,26 @@ _PLACEHOLDER_PATTERNS = [
 ]
 
 
+def _role_attr(el: "Element") -> str:
+    """Emit ` data-role="..."` (leading space) when an element has a role,
+    empty string otherwise. See plugin/_spec/deck-json-v2.md §"raw layout
+    title 同步规则" — downstream skills find / replace the title element
+    via this attribute."""
+    return f' data-role="{el.data_role}"' if el.data_role else ""
+
+
 def pick_title(slide: "Slide") -> str:
-    """Choose a title string for a Keynote-imported slide.
+    """Choose a title string for a Keynote-imported slide and mark the
+    chosen element with `data_role="title"` so compose_slide_html emits
+    the `data-role="title"` attribute at the right spot.
 
     Heuristic: largest font_size among non-master text-bearing elements,
     breaking ties by document order. Strips trailing whitespace and
     collapses to the first line if multi-line. Returns "" when there is
-    no usable text on the slide (pure image / video slide).
+    no usable text on the slide (pure image / video slide) — in that
+    case no element is marked.
     """
-    best = None
+    best_el = None
     best_size = -1.0
     for el in slide.elements:
         if el.is_master:
@@ -952,11 +968,13 @@ def pick_title(slide: "Slide") -> str:
             continue
         if el.font_size > best_size:
             best_size = el.font_size
-            best = text
-    if not best:
+            best_el = el
+    if best_el is None:
         return ""
+    # Mark the source element so the renderer emits data-role="title".
+    best_el.data_role = "title"
     # Title is one line — take the first non-empty line.
-    for line in best.splitlines():
+    for line in (best_el.text or "").splitlines():
         line = line.strip()
         if line:
             return line
@@ -1107,14 +1125,22 @@ def compose_slide_html(slide: Slide, resolver: AssetResolver,
         # and slide-level shapes with placeholder content (e.g. "金句页底图"
         # which is a decor placeholder named with black theme text) would
         # also pollute the check. Filter both out.
-        has_dark_text = any(
-            (not el.is_master)
-            and el.type in ("text", "shape") and el.text.strip()
-            and not is_placeholder_text(el.text)
-            and (el.r + el.g + el.b) < 20000
-            for el in slide.elements
-        )
-        bg = "#FFFFFF" if has_dark_text else "#000"
+        # Area-weighted: compare TOTAL bbox area of dark-text vs near-white
+        # text elements. Whichever wins decides the slide bg. Old heuristic
+        # ("any black text → white bg") was tripped by a single small icon
+        # glyph and flipped dark-bg slides to white (eCINDI 6/7/9).
+        dark_area = 0.0
+        white_area = 0.0
+        for el in slide.elements:
+            if el.is_master: continue
+            if el.type not in ("text", "shape"): continue
+            if not el.text.strip(): continue
+            if is_placeholder_text(el.text): continue
+            s = el.r + el.g + el.b
+            a = max(0.0, el.w) * max(0.0, el.h)
+            if s < 20000:    dark_area += a
+            elif s > 180000: white_area += a
+        bg = "#000" if white_area > dark_area else "#FFFFFF"
 
     parts.append(f"<style>")
     parts.append(f".slide[data-slide-key='{key}'] {{ background: {bg}; overflow: hidden; }}")
@@ -1591,7 +1617,7 @@ def compose_slide_html(slide: Slide, resolver: AssetResolver,
 
                 style = ";".join(p for p in style_parts if p) + ";" + rot.strip()
                 parts.append(
-                    f'<div class="el shape" style="{style}">{text_inner}</div>'
+                    f'<div class="el shape"{_role_attr(el)} style="{style}">{text_inner}</div>'
                 )
             else:
                 # No fill, no text from AppleScript. If IWA reports a fill
@@ -1621,7 +1647,7 @@ def compose_slide_html(slide: Slide, resolver: AssetResolver,
             inner = _render_text_runs(el, default_color=text_color,
                                        default_font=el.font, default_size=size)
             parts.append(
-                f'<div class="el" style="left:{el.x}px;top:{el.y}px;width:{el.w}px;'
+                f'<div class="el"{_role_attr(el)} style="left:{el.x}px;top:{el.y}px;width:{el.w}px;'
                 f'min-height:{el.h}px;color:{text_color};'
                 f'font-family:{font_stack};font-size:{size:.1f}px;'
                 f'font-weight:{weight};font-style:{fstyle};line-height:1.4;'
@@ -1854,6 +1880,12 @@ def main() -> int:
                     override_label = cand_name
                     break
 
+        # IMPORTANT: pick_title mutates the chosen element's data_role
+        # field — it MUST run before compose_slide_html so the renderer
+        # emits the `data-role="title"` attribute. See plugin/_spec/
+        # deck-json-v2.md.
+        slide_title = pick_title(slide)
+
         if override_html is not None:
             html_body = override_html
             warns_count = 0
@@ -1866,7 +1898,7 @@ def main() -> int:
 
         deck_slides.append({
             "key": f"slide-{slide.keynote_no:03d}",
-            "title": pick_title(slide),       # v2: first-class title field
+            "title": slide_title,             # v2: first-class title field
             "notes": "",
             "layout": "raw",
             "screen_label": f"{i:02d}",

@@ -248,6 +248,18 @@ def main():
     args = ap.parse_args()
 
     deck = json.loads(args.deck_json.read_text(encoding="utf-8"))
+
+    # deck.json version handling. v2 (current) has slides[].title /
+    # slides[].notes as first-class fields — we MUST prefer them over
+    # re-scraping HTML, otherwise edits to title via admin / transformer
+    # skills get silently overwritten on the next ingest. v1.0 / unset
+    # → fall back to HTML scraping.
+    deck_version = str(deck.get("version", "1.0"))
+    if deck_version not in ("1.0", "2"):
+        sys.exit(f"ERROR: unknown deck.json version '{deck_version}' "
+                 f"(supported: 1.0, 2). See plugin/_spec/deck-json-v2.md.")
+    is_v2 = (deck_version == "2")
+
     slides = deck.get("slides", [])
     total = len(slides)
     if total == 0:
@@ -256,14 +268,24 @@ def main():
     conn = open_db()
     now = datetime.now(timezone.utc).isoformat(timespec="seconds")
 
-    print(f"Ingesting {total} slides from {args.deck_id} …", file=sys.stderr)
+    print(f"Ingesting {total} slides from {args.deck_id} "
+          f"(deck.json v{deck_version}) …", file=sys.stderr)
     for idx, s in enumerate(slides, start=1):
         slide_key = s["key"]
         html = (s.get("data") or {}).get("html", "")
         body = strip_html(html)
-        title, src = extract_title(html, body)
-        n_img, n_vid = count_media(html)
 
+        # v2: canonical title is slides[].title. v1: scrape from HTML.
+        if is_v2 and "title" in s:
+            title = s.get("title") or ""
+            src = "extracted" if title else "stub"
+            if not title:
+                # Pure-image slide — keep the stub convention used elsewhere
+                title = f"(p{idx} · 无标题)"
+        else:
+            title, src = extract_title(html, body)
+
+        n_img, n_vid = count_media(html)
         type_tag = guess_type(body, title, idx, total, n_img, n_vid)
         sub_tag  = guess_subtype(body, title, type_tag)
         media    = guess_media_tag(n_img, n_vid, len(body))
@@ -283,7 +305,9 @@ def main():
             "customer_tag": cust,
             "media_tag": media,
             "free_tags": "[]",
-            "notes": None,
+            # v2: pull notes from slides[].notes (transformer skills may have
+            # added editorial context). v1: stays NULL.
+            "notes": (s.get("notes") or None) if is_v2 else None,
             "created_at": now,
             "updated_at": now,
         }
