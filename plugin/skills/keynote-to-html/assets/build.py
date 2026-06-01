@@ -1720,7 +1720,15 @@ def main() -> int:
     ap.add_argument("key_bundle", type=Path,
                     help="Path to the .key bundle (directory containing Data/, Index.zip)")
     ap.add_argument("output_dir", type=Path)
-    ap.add_argument("--limit", type=int, default=0)
+    ap.add_argument("--limit", type=int, default=0,
+                    help="Build only the first N non-skipped slides.")
+    ap.add_argument("--slides", type=str, default="",
+                    help="Comma-separated 1-based slide numbers / ranges to "
+                         "build (e.g. '1,3,5-8,12'). Numbers refer to the "
+                         "keynote_no field (= position in the source deck, "
+                         "skipped slides excluded). When set, --limit is "
+                         "ignored. Use this after the user reviews the "
+                         "extract-time slide list and picks what to convert.")
     # Renderer skill — points to the feishu-deck-h5 skill (or a compatible
     # fork). Used to produce the final HTML from deck.json. Kept as a flag
     # so this skill stays decoupled from any specific renderer.
@@ -1787,7 +1795,25 @@ def main() -> int:
     non_skipped = [s for s in slides if not s.skipped]
     print(f"    total slides: {total}  ·  non-skipped: {len(non_skipped)}")
 
-    if args.limit:
+    if args.slides:
+        # Parse "1,3,5-8,12" → {1,3,5,6,7,8,12}
+        wanted: set[int] = set()
+        for part in args.slides.split(","):
+            part = part.strip()
+            if not part: continue
+            if "-" in part:
+                a, b = part.split("-", 1)
+                wanted.update(range(int(a), int(b) + 1))
+            else:
+                wanted.add(int(part))
+        non_skipped = [s for s in non_skipped if s.keynote_no in wanted]
+        missing = sorted(wanted - {s.keynote_no for s in non_skipped})
+        if missing:
+            print(f"    warning: --slides asked for {missing} but those "
+                  f"don't exist (or are marked skipped)", file=sys.stderr)
+        print(f"    --slides filter: building {len(non_skipped)} slides "
+              f"(keynote_no in {sorted(s.keynote_no for s in non_skipped)})")
+    elif args.limit:
         non_skipped = non_skipped[: args.limit]
         print(f"    limit: building first {len(non_skipped)} slides")
 

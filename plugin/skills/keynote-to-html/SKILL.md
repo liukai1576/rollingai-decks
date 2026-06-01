@@ -78,6 +78,39 @@ Do NOT use this skill for:
 4. Confirm the feishu-deck-h5 skill is reachable. Default lookup is
    `../feishu-deck-h5/` (sibling skill in `plugin/skills/`); override via
    `--renderer <path>` flag.
+5. **Fingerprint probe**. Before launching Keynote (which is slow), run
+   a pure-IWA fingerprint pass against the library DB so the user knows
+   which slides already exist as verbatim copies / template reuse /
+   fuzzy-text matches in other decks:
+   ```bash
+   python3 library/db/collect_fingerprints.py --probe "<path-to-.key>"
+   ```
+   No Keynote, no AppleScript — just unzip the `.key` and walk each
+   `Slide-*.iwa`. The report flags per-page matches against `slides.db`.
+   Show this report to the user before the slow path.
+
+## End-to-end flow (with user-confirmation gate)
+
+The slow steps are (a) AppleScript extract (~30s per slide for big decks)
+and (b) per-slide raster fallbacks. Always:
+
+1. **Preflight**: deps + fingerprint probe (above). Surface the probe
+   report. Skip this entirely only if the user said so.
+2. **Extract**: run AppleScript on the WHOLE deck (cheap relative to the
+   rest, and we need extracted titles to label the selection list).
+3. **Confirmation gate (REQUIRED)**: After extract.tsv is written, parse
+   it (or read the deck.json that build.py would produce in dry-run mode)
+   and present a numbered list of slides with their titles + fingerprint
+   match status. Ask the user which slides to actually convert. Default
+   on no answer = "all of them". Examples of valid replies:
+     · `all` — convert everything
+     · `1,3,5-8,12` — explicit list
+     · `skip 4,7` — convert all except these
+   Pass the result through to `build.py --slides 1,3,5-8,12`.
+4. **Build + render**: run build.py with `--slides` filter. Only the
+   selected slides are composed into HTML + assets.
+
+Do NOT skip step 3 unless the user explicitly says "convert all".
 
 ## Invocation
 
