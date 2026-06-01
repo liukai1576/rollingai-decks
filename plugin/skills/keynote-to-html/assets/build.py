@@ -1166,18 +1166,12 @@ def compose_slide_html(slide: Slide, resolver: AssetResolver,
     #   img / video : 0   (slide backgrounds)
     #   .iwa-fill   : 5   (the backdrops we synthesize from style chain)
     #   text/shape  : 10  (all <div class="el ..."> except .iwa-fill)
-    parts.append(
-        f".slide[data-slide-key='{key}'] > img.el,"
-        f".slide[data-slide-key='{key}'] > video.el {{ z-index: 0; }}"
-    )
-    # iwa-fill backdrops (card fills, banner fills synthesized from IWA
-    # ShapeStyle) sit above the slide background image but below text/icons.
-    parts.append(
-        f".slide[data-slide-key='{key}'] > div.el.iwa-fill {{ z-index: 5; }}"
-    )
-    parts.append(
-        f".slide[data-slide-key='{key}'] > div.el:not(.iwa-fill) {{ z-index: 10; }}"
-    )
+    # No z-index categories. Source draw order (= DOM order) is the truth
+    # from Keynote: bg image → card backdrops → content images → text. The
+    # earlier discipline (img:0 / iwa-fill:5 / text:10) flattened all images
+    # to one layer and broke decks where a content image lives ABOVE a card
+    # backdrop (eCINDI slide 6: white card + dashboard image inside it).
+    # Equal stacking, later DOM = on top.
     parts.append(f"</style>")
 
     SLIDE_W, SLIDE_H = 1920, 1080
