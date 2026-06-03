@@ -1,0 +1,212 @@
+<!--
+  Slide 39 redesign · "价值落地：以AI服务为支点"
+  Per user feedback on the previous attempt:
+    · 横向扩展 cards shorter (was tall and wasteful, now 178px)
+    · 纵向深化 funnel bars TALL and fill the space below
+      (3 × 130px stacked at y=504/644/784, no overlap, no clipping)
+    · 01/02/03 numbers FULLY visible inside each bar
+  Verbatim text from kn slide 58.
+-->
+<style>
+  .slide[data-slide-key='slide-058'] {
+    background: linear-gradient(135deg, #FBF7FC 0%, #F0E8F5 60%, #E8D9EC 100%) !important;
+    color: #1a1a1a;
+    overflow: hidden !important;
+    font-family: 'PingFang SC','Microsoft YaHei',sans-serif;
+  }
+  .slide[data-slide-key='slide-058'].slide > * {
+    animation: none !important;
+    transform: none !important;
+    opacity: 1 !important;
+  }
+  .slide[data-slide-key='slide-058'] .r39-eyebrow {
+    position: absolute; left: 60px; top: 40px;
+    font-size: 14px; font-weight: 700; letter-spacing: 0.18em;
+    color: #3B5BFF;
+  }
+  .slide[data-slide-key='slide-058'] .r39-title {
+    position: absolute; left: 360px; right: 360px; top: 36px;
+    text-align: center; margin: 0;
+    font-size: 44px; font-weight: 800; letter-spacing: -0.005em;
+    line-height: 1.2;
+  }
+  .slide[data-slide-key='slide-058'] .r39-subtitle {
+    position: absolute; left: 360px; right: 360px; top: 116px;
+    text-align: center;
+    font-size: 22px; font-weight: 400; color: rgba(0,0,0,.62);
+  }
+
+  /* Section chip helper */
+  .slide[data-slide-key='slide-058'] .r39-section-chip {
+    position: absolute; left: 60px;
+    display: inline-flex; align-items: center; gap: 14px;
+    font-size: 22px; font-weight: 700; color: #5C1474;
+  }
+  .slide[data-slide-key='slide-058'] .r39-section-chip .badge {
+    background: linear-gradient(135deg, #FF7AB8, #D8225F);
+    color: #fff; padding: 5px 14px; border-radius: 999px;
+    font-size: 13px; font-weight: 700; letter-spacing: 0.08em;
+  }
+
+  /* 横向 cards — SHORTER per feedback */
+  .slide[data-slide-key='slide-058'] .r39-h-chip { top: 200px; }
+  .slide[data-slide-key='slide-058'] .r39-cards {
+    position: absolute; left: 60px; right: 60px; top: 252px; height: 178px;
+    display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 28px;
+  }
+  .slide[data-slide-key='slide-058'] .r39-card {
+    position: relative;
+    background: rgba(255,255,255,0.88);
+    border-radius: 20px;
+    padding: 22px 26px;
+    box-shadow: 0 6px 22px rgba(170, 100, 180, 0.10);
+  }
+  .slide[data-slide-key='slide-058'] .r39-card .icon {
+    width: 44px; height: 44px; border-radius: 12px;
+    background: linear-gradient(135deg, #FF7AB8, #D8225F);
+    display: grid; place-items: center; color: #fff;
+    font-size: 22px; font-weight: 700;
+    margin-bottom: 8px;
+  }
+  .slide[data-slide-key='slide-058'] .r39-card .num {
+    position: absolute; top: 20px; right: 24px;
+    font-size: 32px; font-weight: 800;
+    color: rgba(120, 50, 150, 0.18);
+    letter-spacing: -0.02em;
+  }
+  .slide[data-slide-key='slide-058'] .r39-card h3 {
+    margin: 4px 0 6px 0; font-size: 26px; font-weight: 700;
+    color: #1a1a1a;
+  }
+  .slide[data-slide-key='slide-058'] .r39-card p {
+    margin: 0; font-size: 17px; line-height: 1.45;
+    color: rgba(0,0,0,.65);
+  }
+
+  /* 纵向 funnel — BIGGER per feedback, fills space */
+  .slide[data-slide-key='slide-058'] .r39-v-chip { top: 460px; }
+  .slide[data-slide-key='slide-058'] .r39-bar {
+    position: absolute; height: 130px;
+    border-radius: 0 65px 65px 0;
+    display: flex; align-items: center; gap: 28px;
+    padding: 0 40px 0 56px;
+    color: #fff;
+    box-shadow: 0 6px 22px rgba(120, 30, 80, 0.20);
+  }
+  .slide[data-slide-key='slide-058'] .r39-bar .n {
+    font-size: 64px; font-weight: 800; line-height: 1;
+    letter-spacing: -0.02em;
+    flex-shrink: 0;
+    width: 88px;
+  }
+  .slide[data-slide-key='slide-058'] .r39-bar .label { flex: 0 0 240px; }
+  .slide[data-slide-key='slide-058'] .r39-bar .label .eyebrow {
+    font-size: 13px; font-weight: 700; letter-spacing: 0.18em;
+    color: rgba(255,255,255,.65);
+  }
+  .slide[data-slide-key='slide-058'] .r39-bar .label .head {
+    font-size: 32px; font-weight: 800; margin-top: 4px;
+    white-space: nowrap;
+  }
+  .slide[data-slide-key='slide-058'] .r39-bar .desc {
+    flex: 1;
+    font-size: 19px; line-height: 1.45;
+  }
+  .slide[data-slide-key='slide-058'] .r39-bar .tag {
+    display: inline-block;
+    background: rgba(255,255,255,.22);
+    border: 1px solid rgba(255,255,255,.40);
+    padding: 4px 12px; border-radius: 8px;
+    font-weight: 700; margin: 0 4px;
+  }
+  .slide[data-slide-key='slide-058'] .r39-b1 {
+    left: 60px; top: 504px; width: 1800px;
+    background: linear-gradient(90deg, #5C1474 0%, #B8255E 100%);
+  }
+  .slide[data-slide-key='slide-058'] .r39-b2 {
+    left: 160px; top: 644px; width: 1620px;
+    background: linear-gradient(90deg, #921141 0%, #D8225F 100%);
+  }
+  .slide[data-slide-key='slide-058'] .r39-b3 {
+    left: 260px; top: 784px; width: 1440px;
+    background: linear-gradient(90deg, #B8255E 0%, #F23070 100%);
+  }
+
+  .slide[data-slide-key='slide-058'] .r39-bottom {
+    position: absolute; left: 60px; right: 60px; bottom: 30px;
+    text-align: center;
+    background: rgba(255,255,255,.88);
+    border-radius: 14px;
+    padding: 16px 24px;
+    font-size: 26px; font-weight: 600;
+    color: #1a1a1a;
+    box-shadow: 0 4px 14px rgba(120, 30, 80, 0.10);
+  }
+  .slide[data-slide-key='slide-058'] .r39-bottom .accent { color: #9E1A5C; }
+</style>
+
+<div class="r39-eyebrow">VALUE DELIVERY</div>
+<h1 class="r39-title">价值落地：以AI服务为支点，撬动用户互动和增长</h1>
+<div class="r39-subtitle">在对的时间、对的场景，以对的话术，推送对的产品和服务</div>
+
+<div class="r39-section-chip r39-h-chip">
+  <span class="badge">横向</span>
+  <span>横向扩展：拓展服务人群范围</span>
+</div>
+
+<div class="r39-cards">
+  <div class="r39-card">
+    <div class="num">01</div>
+    <div class="icon">↗</div>
+    <h3>0-3岁婴幼儿</h3>
+    <p>核心业务，提供婴幼儿配方奶粉和健康的深度咨询。</p>
+  </div>
+  <div class="r39-card">
+    <div class="num">02</div>
+    <div class="icon">✦</div>
+    <h3>4-12岁儿童</h3>
+    <p>拓履至儿童营养食品与4段奶粉。</p>
+  </div>
+  <div class="r39-card">
+    <div class="num">03</div>
+    <div class="icon">♥</div>
+    <h3>未来：全家营养</h3>
+    <p>链接成人线产品，服务家庭所有成员。</p>
+  </div>
+</div>
+
+<div class="r39-section-chip r39-v-chip">
+  <span class="badge">纵向</span>
+  <span>纵向深化：挖掘用户生命周期价值</span>
+</div>
+
+<div class="r39-bar r39-b1">
+  <div class="n">01</div>
+  <div class="label">
+    <div class="eyebrow">ACQUISITION</div>
+    <div class="head">获客 / 激活</div>
+  </div>
+  <div class="desc">以 <span class="tag">AI 科学育儿工具</span> 为抓手，解决用户高频痛点</div>
+</div>
+
+<div class="r39-bar r39-b2">
+  <div class="n">02</div>
+  <div class="label">
+    <div class="eyebrow">RETENTION</div>
+    <div class="head">留存</div>
+  </div>
+  <div class="desc">以 <span class="tag">AI 宝宝成长助手</span> 增加日活，沉淀用户数据</div>
+</div>
+
+<div class="r39-bar r39-b3">
+  <div class="n">03</div>
+  <div class="label">
+    <div class="eyebrow">REVENUE</div>
+    <div class="head">复购 / 增购</div>
+  </div>
+  <div class="desc">在服务过程中以 <span class="tag">AI 产品推荐</span> 引导转化，提升客单价</div>
+</div>
+
+<div class="r39-bottom">
+  鹤小飞将成为<span class="accent">会员体系的服务中枢</span>，全面提升用户生命周期价值
+</div>
