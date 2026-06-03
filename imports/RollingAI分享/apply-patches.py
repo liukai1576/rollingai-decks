@@ -220,6 +220,28 @@ print("#7 slide-012 vertical column dividers + 邮政储蓄银行 shift")
 edit_html("slide-012", fix7)
 
 
+# ── #11 · slide-017 (page 11): user-curated curve background ────────────
+def fix11(html):
+    return html.replace(
+        "assets/_shared/image-2-1-9202.png",
+        "assets/slide-017/curve-bg.png",
+        1,  # only the first (full-canvas bg) ref
+    )
+print("#11 slide-017 (page 11) bg → curve-bg.png")
+edit_html("slide-017", fix11)
+
+
+# ── #12 · slide-050 (page 31): user-curated drone background ────────────
+def fix12(html):
+    return html.replace(
+        "assets/_shared/image-2-1-9202.png",
+        "assets/slide-031/drone-bg.png",
+        1,
+    )
+print("#12 slide-050 (page 31) bg → drone-bg.png")
+edit_html("slide-050", fix12)
+
+
 # ── Write back ───────────────────────────────────────────────────────────
 DECK.write_text(json.dumps(data, ensure_ascii=False, indent=2), encoding="utf-8")
 print(f"\n==> deck.json updated ({DECK})")
