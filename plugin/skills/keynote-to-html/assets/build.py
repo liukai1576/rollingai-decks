@@ -994,6 +994,239 @@ def _bbox_close(a: Element, b: Element, tol: float = 8.0) -> bool:
             and abs(a.w - b.w) <= tol and abs(a.h - b.h) <= tol)
 
 
+def _localize_redesign_assets(
+    html: str, redesigns_dir: Path,
+    slide_assets_dir: Path, slide_assets_subdir: str,
+) -> tuple[str, list[str]]:
+    """Take a redesign HTML snippet (which can reference its sibling files
+    via `../foo/bar.mp4` style paths) and rewrite it to be self-contained
+    inside `<output>/assets/slide-NNN/`.
+
+    For every `src=`, `poster=`, `href=` attribute:
+      · Skip absolute URLs (http://, https://, data:, blob:), fragments,
+        and refs that already live under `assets/slide-NNN/` or `_renderer/`.
+      · Resolve the path against redesigns_dir.
+      · If the resolved file exists, copy it into slide_assets_dir/
+        (preserving basename) and rewrite the attribute to
+        `<slide_assets_subdir>/<basename>`.
+      · If the file doesn't exist, leave the ref alone and warn.
+
+    Returns (rewritten_html, warnings).
+
+    This is what makes a deck genuinely zip-and-ship: redesigns that
+    pointed OUTSIDE the render-output dir get pulled in.
+    """
+    import shutil
+    warnings: list[str] = []
+    if not redesigns_dir or not redesigns_dir.is_dir():
+        return html, warnings
+
+    # Match src="..."  src='...'  href="..."  poster="..." etc.
+    attr_re = re.compile(
+        r'((?:src|href|poster|data-src)\s*=\s*)(["\'])([^"\']+)\2'
+    )
+
+    def _rewrite(m):
+        prefix, quote, url = m.group(1), m.group(2), m.group(3)
+        # Skip stuff we shouldn't touch.
+        if url.startswith((
+            "http://", "https://", "data:", "blob:", "javascript:",
+            "mailto:", "#",
+        )):
+            return m.group(0)
+        # Strip ?query / #frag for filesystem resolution, preserve them
+        # for the rewritten URL.
+        clean = url.split("?", 1)[0].split("#", 1)[0]
+        tail = url[len(clean):]
+        if not clean:
+            return m.group(0)
+        # If already pointing inside the output dir's slide_assets_subdir
+        # or under _renderer/, leave alone.
+        if clean.startswith(slide_assets_subdir + "/") or clean.startswith("_renderer/"):
+            return m.group(0)
+        # Resolve relative to redesigns_dir (the HTML's own location).
+        src = (redesigns_dir / clean).resolve()
+        if not src.is_file():
+            warnings.append(
+                f"redesign ref not found: {url!r} (resolved {src})"
+            )
+            return m.group(0)
+        # Copy in (basename only; redesigns don't tend to need subfolders).
+        slide_assets_dir.mkdir(parents=True, exist_ok=True)
+        dst = slide_assets_dir / src.name
+        if not dst.exists() or dst.stat().st_size != src.stat().st_size:
+            shutil.copy2(src, dst)
+        new_url = f"{slide_assets_subdir}/{src.name}{tail}"
+        return f"{prefix}{quote}{new_url}{quote}"
+
+    return attr_re.sub(_rewrite, html), warnings
+
+
+_REF_ATTR_RE = re.compile(
+    r'(?:src|href|poster|data-src)\s*=\s*["\']([^"\']+)["\']'
+)
+
+
+def _collect_refs(html: str) -> set[str]:
+    """Return the set of local (non-URL, non-data:) paths referenced by the
+    HTML's src/href/poster/data-src attributes, normalised so they can be
+    compared against on-disk relative paths."""
+    refs: set[str] = set()
+    for m in _REF_ATTR_RE.finditer(html):
+        url = m.group(1).strip().split("?", 1)[0].split("#", 1)[0]
+        if not url:
+            continue
+        if url.startswith((
+            "http://", "https://", "data:", "blob:",
+            "javascript:", "mailto:",
+        )):
+            continue
+        refs.add(os.path.normpath(url))
+    return refs
+
+
+def _sweep_orphans(output_dir: Path, deck: dict) -> None:
+    """Slim the rendered deck dir down to what's actually needed for serving.
+
+    Removes:
+      · `.cache/` — per-build .key extraction cache (recreated on next run).
+      · `extract.tsv` / `deck.json.bak` — build intermediates.
+      · Files under `assets/` that no slide HTML (or `index.html`) references.
+
+    Doesn't touch `_renderer/`, `serve.sh`, `history.json`, `warnings.txt`,
+    or `deck.json` — those are part of the shippable deck.
+    """
+    # 1. Easy wins: drop build artifacts wholesale.
+    for trash in (".cache", "extract.tsv", "deck.json.bak"):
+        p = output_dir / trash
+        if p.is_dir():
+            shutil.rmtree(p, ignore_errors=True)
+            print(f"    swept {p.name}/")
+        elif p.is_file():
+            p.unlink()
+            print(f"    swept {p.name}")
+
+    # 2. Build the set of paths referenced by ANY slide body or by
+    # index.html itself. deck.json is the source of truth for slide HTML,
+    # but the renderer also wraps it in chrome that may reference _renderer
+    # paths — those live outside assets/, so scanning index.html catches
+    # them too.
+    referenced: set[str] = set()
+    for slide in deck.get("slides", []):
+        referenced |= _collect_refs(
+            (slide.get("data") or {}).get("html", "")
+        )
+    idx = output_dir / "index.html"
+    if idx.is_file():
+        referenced |= _collect_refs(idx.read_text(encoding="utf-8", errors="ignore"))
+
+    # 3. Anything under assets/ that isn't referenced → orphan.
+    assets_root = output_dir / "assets"
+    if not assets_root.is_dir():
+        return
+    deleted_files = 0
+    bytes_freed = 0
+    for p in assets_root.rglob("*"):
+        if not p.is_file():
+            continue
+        rel = os.path.normpath(str(p.relative_to(output_dir)))
+        if rel in referenced:
+            continue
+        try:
+            sz = p.stat().st_size
+            p.unlink()
+            deleted_files += 1
+            bytes_freed += sz
+        except OSError:
+            pass
+    if deleted_files:
+        print(f"    swept {deleted_files} orphan asset(s), "
+              f"freed {bytes_freed / 1024 / 1024:.1f} MB")
+
+    # 4. Cross-slide dedup. Many slides reuse the SAME source asset (e.g.
+    # the Rolling AI brand video, master backdrops, repeated UI mockups) —
+    # AssetResolver copies a fresh per-slide copy each time. Hash every
+    # remaining file; for any group of byte-identical files across two or
+    # more slides, keep one in `assets/_shared/<basename>` and rewrite all
+    # slide-HTML refs (in deck.json + index.html) to point there.
+    import hashlib
+    by_hash: dict[str, list[Path]] = {}
+    for p in assets_root.rglob("*"):
+        if not p.is_file() or p.parent == assets_root:
+            continue  # skip top-level (e.g. anything in _shared/ from a prior run)
+        h = hashlib.sha256()
+        with p.open("rb") as f:
+            for chunk in iter(lambda: f.read(1 << 20), b""):
+                h.update(chunk)
+        by_hash.setdefault(h.hexdigest(), []).append(p)
+
+    rewrites: dict[str, str] = {}        # old rel path → new rel path
+    shared_dir = assets_root / "_shared"
+    shared_saved = 0
+    shared_files = 0
+    for digest, paths in by_hash.items():
+        if len(paths) < 2:
+            continue
+        # Pick a stable shared name. Use basename. On collision (same name,
+        # different content) prefix with a short hash slice — but in practice
+        # collisions within a dedup group can't happen (same hash → same bytes).
+        canonical_name = paths[0].name
+        shared_dir.mkdir(parents=True, exist_ok=True)
+        shared_target = shared_dir / canonical_name
+        if shared_target.exists() and shared_target.stat().st_size != paths[0].stat().st_size:
+            # Different file already squatting on this name. Disambiguate.
+            shared_target = shared_dir / f"{paths[0].stem}-{digest[:8]}{paths[0].suffix}"
+        # Move the first copy in (rename, not copy — saves bytes immediately).
+        if not shared_target.exists():
+            paths[0].rename(shared_target)
+        else:
+            paths[0].unlink()
+        rewrites[os.path.normpath(str(paths[0].relative_to(output_dir)))] = (
+            os.path.normpath(str(shared_target.relative_to(output_dir)))
+        )
+        shared_files += 1
+        # Delete the rest, queue rewrite.
+        for dup in paths[1:]:
+            sz = dup.stat().st_size
+            rewrites[os.path.normpath(str(dup.relative_to(output_dir)))] = (
+                os.path.normpath(str(shared_target.relative_to(output_dir)))
+            )
+            dup.unlink()
+            shared_saved += sz
+            shared_files += 1
+    if rewrites:
+        print(f"    deduped {shared_files} files → {len(by_hash) - sum(1 for v in by_hash.values() if len(v)<2)} shared, "
+              f"freed {shared_saved / 1024 / 1024:.1f} MB")
+
+        # Apply rewrites to deck.json + index.html. The HTML stores paths
+        # like `assets/slide-NNN/foo.mp4`; replace with the shared path.
+        def _apply(text: str) -> str:
+            for old, new in rewrites.items():
+                text = text.replace(old, new)
+            return text
+
+        deck_path = output_dir / "deck.json"
+        if deck_path.is_file():
+            deck_path.write_text(
+                _apply(deck_path.read_text(encoding="utf-8")),
+                encoding="utf-8",
+            )
+        if idx.is_file():
+            idx.write_text(
+                _apply(idx.read_text(encoding="utf-8")),
+                encoding="utf-8",
+            )
+
+    # 5. Sweep empty slide dirs.
+    for d in sorted(assets_root.iterdir(), reverse=True):
+        if d.is_dir() and d.name != "_shared":
+            try:
+                if not any(d.iterdir()):
+                    d.rmdir()
+            except OSError:
+                pass
+
+
 def _localize_renderer_refs(html_path: Path, renderer_local: Path,
                             renderer_skill_root: Path) -> None:
     """Copy renderer CSS/JS files into <output>/_renderer/ and rewrite
@@ -1907,8 +2140,11 @@ def main() -> int:
         slide_title = pick_title(slide)
 
         if override_html is not None:
-            html_body = override_html
-            warns_count = 0
+            html_body, redesign_warns = _localize_redesign_assets(
+                override_html, redesigns_dir, slide_assets_dir, sub
+            )
+            all_warnings.extend(redesign_warns)
+            warns_count = len(redesign_warns)
             label = f"REDESIGN {override_label}"
         else:
             html_body, warns = compose_slide_html(slide, resolver, raster, sub, slide_assets_dir)
@@ -2013,6 +2249,11 @@ def main() -> int:
         'python3 -m http.server "$PORT"\n'
     )
     serve_path.chmod(0o755)
+
+    # Sweep orphan assets + the unzipped .key cache. Both are byproducts
+    # of the build pipeline that don't need to ship: the deck must be
+    # self-contained under <output>/ but every byte should be referenced.
+    _sweep_orphans(args.output_dir, deck)
 
     # Append a history record so anyone looking at this output dir can see
     # which skill / version produced it. See plugin/_lib/history.py.

@@ -49,7 +49,7 @@ sys.path.insert(0, str(REPO / "plugin"))
 # Decks live outside the public repo (imports/ is gitignored). The admin
 # server only proxies them locally for the preview iframe.
 DECK_PATHS: dict[str, Path] = {
-    "kangshifu": REPO / "imports" / "RollingAI分享-康师傅" / "render-output-full",
+    "kangshifu": REPO / "imports" / "RollingAI分享" / "render-output-full",
 }
 
 _DECK_TITLE_CACHE: dict[str, str] = {}

@@ -47,7 +47,7 @@ DB_PATH = REPO / "library" / "db" / "data" / "slides.db"
 THUMBS_DIR = REPO / "library" / "db" / "data" / "thumbs"
 
 DECK_RENDER_DIRS: dict[str, Path] = {
-    "kangshifu": REPO / "imports" / "RollingAI分享-康师傅" / "render-output-full",
+    "kangshifu": REPO / "imports" / "RollingAI分享" / "render-output-full",
 }
 
 CHROME = "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome"
