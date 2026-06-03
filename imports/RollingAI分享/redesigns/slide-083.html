@@ -1,14 +1,17 @@
 <!--
-  Slide 61 v3 · "从场景重构到组织进化"
-  Cleaner curve-based growth diagram. Verbatim text from kn 83.
+  Slide 61 v4 · "从场景重构到组织进化"
+  Cleaner curve diagram. Verbatim text from kn 83.
 
-  v3 changes:
-    · Drop the orbit decoration (was overlapping phase-1 column).
-    · Phases sit BELOW their curve points in three vertical columns,
-      so the curve never crosses phase text.
-    · Right enablement column gets its own vertical divider, no longer
-      crowds phase-3.
-    · X-axis ticks align with their phase columns, not with the chart edge.
+  v4 changes (user feedback):
+    · Curve now spans nearly the FULL slide width (60 → 1860). Right
+      enablement column no longer crowds the curve's upper-right end.
+    · Enablement moved DOWN to the lower-right region below the curve
+      (the natural empty space). Three rows stack vertically there.
+    · Phase columns spaced further apart so phase-3 text + chip no
+      longer collides with anything on the right.
+    · X-axis ticks pulled INTO the chart area, anchored to each phase
+      column. Phase-1 tick is positioned BELOW the phase-1 chip, not
+      overlapping it.
 -->
 <style>
   .slide[data-slide-key='slide-083'] {
@@ -17,8 +20,6 @@
     overflow: hidden !important;
     font-family: 'PingFang SC','Microsoft YaHei',sans-serif;
   }
-  /* Cancel the framework's stagger-reveal animation that would otherwise
-     keep our children at opacity:0 forever (no auto-play in this layout). */
   .slide[data-slide-key='slide-083'].slide > * {
     animation: none !important;
     transform: none !important;
@@ -33,7 +34,6 @@
     background: linear-gradient(90deg, #33D6C0, #3C7FFF 55%, #9F6FF1);
     -webkit-background-clip: text; background-clip: text; color: transparent;
   }
-  /* Y-axis label (top-left, above the chart) */
   .slide[data-slide-key='slide-083'] .r61-y-label {
     position: absolute; left: 80px; top: 156px;
     font-size: 18px; line-height: 1.4;
@@ -43,116 +43,105 @@
     color: rgba(255,255,255,.55); font-size: 16px; margin-top: 4px;
   }
 
-  /* Vertical divider between chart and enablement column */
-  .slide[data-slide-key='slide-083'] .r61-divider {
-    position: absolute; left: 1380px; top: 220px; bottom: 110px;
-    width: 1px; background: linear-gradient(180deg,
-      rgba(255,255,255,0.02) 0%,
-      rgba(255,255,255,0.18) 50%,
-      rgba(255,255,255,0.02) 100%);
-  }
-
-  /* Growth curve SVG — left 1320px chart area */
+  /* Growth curve SVG — spans the full slide width */
   .slide[data-slide-key='slide-083'] .r61-curve-svg {
     position: absolute; left: 60px; top: 220px;
-    width: 1320px; height: 620px;
+    width: 1800px; height: 700px;
     pointer-events: none;
   }
 
-  /* Phase clusters — circle sits AT the curve milestone, text grows DOWNWARD.
-     Coords are slide-absolute. Each milestone X is also the X-axis tick X. */
+  /* Phase clusters — circle on curve, text DOWN.
+     Slide-absolute milestones (chosen for visual breathing room):
+        P1 ≈ (200, 860)
+        P2 ≈ (760, 560)
+        P3 ≈ (1320, 280) */
   .slide[data-slide-key='slide-083'] .r61-phase {
     position: absolute;
-    display: flex; flex-direction: column; gap: 12px;
-    align-items: flex-start; width: 380px;
+    display: flex; flex-direction: column; gap: 10px;
+    align-items: flex-start; width: 360px;
   }
   .slide[data-slide-key='slide-083'] .r61-phase-num {
     width: 46px; height: 46px; border-radius: 50%;
     display: grid; place-items: center;
     font-size: 22px; font-weight: 800;
     box-shadow: 0 0 22px currentColor;
-    margin-left: -23px; /* centered on the curve point */
+    margin-left: -23px;
   }
   .slide[data-slide-key='slide-083'] .r61-phase-num.c1 { background: #6BFF6B; color: #003a00; }
   .slide[data-slide-key='slide-083'] .r61-phase-num.c2 { background: #33D6C0; color: #003834; }
   .slide[data-slide-key='slide-083'] .r61-phase-num.c3 { background: #6BFF6B; color: #003a00; }
   .slide[data-slide-key='slide-083'] .r61-phase-head {
-    font-size: 38px; font-weight: 800; letter-spacing: -0.005em; line-height: 1.1;
-    margin-top: 2px;
+    font-size: 36px; font-weight: 800; letter-spacing: -0.005em; line-height: 1.1;
+    margin-top: 6px; white-space: nowrap;
   }
   .slide[data-slide-key='slide-083'] .r61-phase-sub {
-    font-size: 19px; font-weight: 400;
+    font-size: 18px; font-weight: 400;
     color: rgba(255,255,255,.78); line-height: 1.3;
   }
   .slide[data-slide-key='slide-083'] .r61-phase-tag {
     background: rgba(51,214,192,.16);
     border: 1px solid rgba(51,214,192,.55);
-    border-radius: 999px; padding: 8px 18px;
-    font-size: 16px; font-weight: 600;
+    border-radius: 999px; padding: 7px 16px;
+    font-size: 15px; font-weight: 600;
     color: #5EE7D3;
-    margin-top: 4px;
+    margin-top: 2px;
   }
-  /* Anchor each cluster so its circle center sits on the curve milestone.
-     Curve points (slide-absolute, see SVG path below):
-        P1 ≈ (200,  800)
-        P2 ≈ (680,  560)
-        P3 ≈ (1160, 320) */
-  .slide[data-slide-key='slide-083'] .r61-p1 { left: 200px; top: 800px; }
-  .slide[data-slide-key='slide-083'] .r61-p2 { left: 680px; top: 560px; }
-  .slide[data-slide-key='slide-083'] .r61-p3 { left: 1160px; top: 320px; }
-  /* Phase 3 + 1 may extend past slide bottom; cap each phase block height. */
-  .slide[data-slide-key='slide-083'] .r61-p1 .r61-phase-head,
-  .slide[data-slide-key='slide-083'] .r61-p2 .r61-phase-head,
-  .slide[data-slide-key='slide-083'] .r61-p3 .r61-phase-head { white-space: nowrap; }
-
-  /* X-axis ticks aligned with phase columns */
-  .slide[data-slide-key='slide-083'] .r61-x-tick {
-    position: absolute; bottom: 80px;
-    font-size: 22px; font-weight: 700;
+  .slide[data-slide-key='slide-083'] .r61-p1 { left: 200px; top: 860px; }
+  .slide[data-slide-key='slide-083'] .r61-p2 { left: 760px; top: 560px; }
+  .slide[data-slide-key='slide-083'] .r61-p3 { left: 1320px; top: 280px; }
+  /* Time pill — last row of each phase cluster, sits BELOW the tag chip.
+     Same column as the rest of the phase, so no horizontal overlap risk
+     with the separate enablement section. */
+  .slide[data-slide-key='slide-083'] .r61-phase-time {
+    margin-top: 6px;
+    font-size: 18px; font-weight: 700;
     background: linear-gradient(90deg, #33D6C0, #3C7FFF);
     -webkit-background-clip: text; background-clip: text; color: transparent;
-    transform: translateX(-50%);
+    letter-spacing: 0.02em;
   }
-  .slide[data-slide-key='slide-083'] .r61-tick-1 { left: 200px; }
-  .slide[data-slide-key='slide-083'] .r61-tick-2 { left: 680px; }
-  .slide[data-slide-key='slide-083'] .r61-tick-3 { left: 1160px; }
 
-  /* X-axis name label, bottom-right of chart area */
+  /* "时间 / 从感知到内化" sits at very bottom, just inside right edge */
   .slide[data-slide-key='slide-083'] .r61-x-label {
-    position: absolute; left: 1280px; bottom: 30px;
-    font-size: 18px; line-height: 1.4; text-align: left;
+    position: absolute; right: 80px; bottom: 30px;
+    font-size: 18px; line-height: 1.4; text-align: right;
   }
   .slide[data-slide-key='slide-083'] .r61-x-label .strong { font-weight: 700; }
   .slide[data-slide-key='slide-083'] .r61-x-label .dim {
     color: rgba(255,255,255,.55); font-size: 16px;
   }
 
-  /* Right-side enablement column */
+  /* Enablement cluster — lower-right region, below where curve is
+     already high. Coords chosen so this never overlaps phase-3 or the
+     curve itself. */
   .slide[data-slide-key='slide-083'] .r61-enablement {
-    position: absolute; right: 80px; top: 320px;
-    width: 460px; display: flex; flex-direction: column; gap: 24px;
+    position: absolute; right: 80px; top: 580px;
+    width: 480px;
+    display: flex; flex-direction: column; gap: 16px;
   }
   .slide[data-slide-key='slide-083'] .r61-enable-section-head {
-    font-size: 14px; font-weight: 700; letter-spacing: 0.18em;
+    font-size: 13px; font-weight: 700; letter-spacing: 0.18em;
     color: rgba(255,255,255,.55); text-transform: uppercase;
-    margin-bottom: 4px;
+    margin-bottom: 2px;
   }
   .slide[data-slide-key='slide-083'] .r61-enable-row {
-    display: flex; flex-direction: column; gap: 8px;
+    display: grid;
+    grid-template-columns: 168px 1fr;
+    align-items: center;
+    gap: 14px;
   }
   .slide[data-slide-key='slide-083'] .r61-enable-head {
-    font-size: 22px; font-weight: 700; color: #5EE7D3;
+    font-size: 20px; font-weight: 700; color: #5EE7D3;
   }
   .slide[data-slide-key='slide-083'] .r61-enable-tag {
     background: rgba(60,127,255,.16);
     border: 1px solid rgba(60,127,255,.55);
-    border-radius: 10px; padding: 12px 16px;
-    font-size: 16px; font-weight: 500; line-height: 1.4;
+    border-radius: 10px; padding: 10px 14px;
+    font-size: 15px; font-weight: 500; line-height: 1.4;
   }
 
   .slide[data-slide-key='slide-083'] .r61-pageno {
-    position: absolute; right: 60px; bottom: 32px; font-size: 16px;
-    color: rgba(255,255,255,.4);
+    position: absolute; right: 60px; bottom: 8px; font-size: 14px;
+    color: rgba(255,255,255,.32);
   }
 </style>
 
@@ -163,12 +152,13 @@
   <div class="dim">从共识到共生</div>
 </div>
 
-<!-- Growth curve SVG. Three curve milestones (SVG coords, vbox 1320×620):
-       P1 = (140, 580)  → slide (60+140, 220+580) = (200, 800)
-       P2 = (620, 340)  → slide (60+620, 220+340) = (680, 560)
-       P3 = (1100, 100) → slide (60+1100, 220+100) = (1160, 320)
+<!-- Growth curve SVG. SVG vbox 1800×700, anchored at slide (60, 220).
+     Slide milestones → SVG coords:
+       P1 slide (200, 860)  → SVG (140, 640)
+       P2 slide (760, 560)  → SVG (700, 340)
+       P3 slide (1320, 280) → SVG (1260,  60)
 -->
-<svg class="r61-curve-svg" viewBox="0 0 1320 620" preserveAspectRatio="none">
+<svg class="r61-curve-svg" viewBox="0 0 1800 700" preserveAspectRatio="none">
   <defs>
     <linearGradient id="r61-grad" x1="0%" y1="100%" x2="100%" y2="0%">
       <stop offset="0%"  stop-color="#33D6C0" stop-opacity="0.95"/>
@@ -177,59 +167,53 @@
     </linearGradient>
     <linearGradient id="r61-fill" x1="0%" y1="100%" x2="0%" y2="0%">
       <stop offset="0%"  stop-color="#33D6C0" stop-opacity="0"/>
-      <stop offset="100%" stop-color="#3C7FFF" stop-opacity="0.14"/>
+      <stop offset="100%" stop-color="#3C7FFF" stop-opacity="0.12"/>
     </linearGradient>
     <filter id="r61-glow" x="-50%" y="-50%" width="200%" height="200%">
       <feGaussianBlur stdDeviation="6" result="blur"/>
       <feMerge><feMergeNode in="blur"/><feMergeNode in="SourceGraphic"/></feMerge>
     </filter>
   </defs>
-  <!-- S-curve from lower-left through P1, P2, P3, ending upper-right.
-       Tuned so each milestone lies on the path. -->
-  <path d="M 40 600 C 100 600, 140 580, 140 580 S 420 480, 620 340 S 980 180, 1100 100 L 1280 60"
+  <!-- S-curve through three milestones, extending nearly edge-to-edge -->
+  <path d="M 20 680 C 80 680, 140 640, 140 640 S 480 480, 700 340 S 1080 200, 1260 60 L 1780 20"
         fill="none" stroke="url(#r61-grad)" stroke-width="4"
         stroke-linecap="round" filter="url(#r61-glow)"/>
-  <!-- Soft fill under the curve -->
-  <path d="M 40 600 C 100 600, 140 580, 140 580 S 420 480, 620 340 S 980 180, 1100 100 L 1280 60 L 1280 620 L 40 620 Z"
+  <!-- Soft fill under curve -->
+  <path d="M 20 680 C 80 680, 140 640, 140 640 S 480 480, 700 340 S 1080 200, 1260 60 L 1780 20 L 1780 700 L 20 700 Z"
         fill="url(#r61-fill)"/>
-  <!-- Subtle baseline -->
-  <line x1="40" y1="610" x2="1280" y2="610" stroke="rgba(255,255,255,0.16)" stroke-width="1" stroke-dasharray="4 6"/>
+  <!-- Dashed baseline -->
+  <line x1="20" y1="690" x2="1780" y2="690" stroke="rgba(255,255,255,0.14)" stroke-width="1" stroke-dasharray="4 6"/>
 </svg>
 
-<!-- Phase clusters (circle on curve, text descends below) -->
+<!-- Phase clusters -->
 <div class="r61-phase r61-p1">
   <div class="r61-phase-num c1">1</div>
   <div class="r61-phase-head">场景共创</div>
   <div class="r61-phase-sub">100+ 价值场景全景</div>
   <div class="r61-phase-tag">场景创新工作坊</div>
+  <div class="r61-phase-time">1-2 天</div>
 </div>
 <div class="r61-phase r61-p2">
   <div class="r61-phase-num c2">2</div>
   <div class="r61-phase-head">创新冲刺</div>
   <div class="r61-phase-sub">10+ 核心增长场景创新</div>
   <div class="r61-phase-tag">AI 原型敏捷孵化</div>
+  <div class="r61-phase-time">1-2 月</div>
 </div>
 <div class="r61-phase r61-p3">
   <div class="r61-phase-num c3">3</div>
   <div class="r61-phase-head">经营管理重塑</div>
   <div class="r61-phase-sub">1-2 条核心业务链条重构</div>
   <div class="r61-phase-tag">经营范式 AI 转型陪跑</div>
+  <div class="r61-phase-time">0.5-1 年</div>
 </div>
-
-<!-- X-axis ticks aligned with phase columns -->
-<div class="r61-x-tick r61-tick-1">1-2 天</div>
-<div class="r61-x-tick r61-tick-2">1-2 月</div>
-<div class="r61-x-tick r61-tick-3">0.5-1 年</div>
 
 <div class="r61-x-label">
   <div class="strong">时间</div>
   <div class="dim">从感知到内化</div>
 </div>
 
-<!-- Vertical divider between chart area and right enablement column -->
-<div class="r61-divider"></div>
-
-<!-- Right-side enablement column -->
+<!-- Enablement cluster — lower-right, below curve -->
 <div class="r61-enablement">
   <div class="r61-enable-section-head">组织 · 经营 · 业务</div>
   <div class="r61-enable-row">
