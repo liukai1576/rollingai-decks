@@ -7,6 +7,15 @@ See ../SKILL.md for the design.
 
 Usage:
     python3 slim.py <project-dir> [--dry-run] [--keep-source] [--keep-media]
+
+‼ IMPORTANT — DO NOT re-render after slim.
+slim edits index.html in place via str.replace on path strings. It
+does NOT need (and must not trigger) a render.py call to "sync"
+index.html from deck.json. The user's workflow treats index.html as
+the source of truth — re-rendering would destroy any hand-edits not
+mirrored in deck.json. slim's responsibility ends at "every byte on
+disk is reachable from index.html (and deck.json) without going
+outside the deck dir."
 """
 from __future__ import annotations
 
