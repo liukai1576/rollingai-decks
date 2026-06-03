@@ -177,6 +177,18 @@ def step1_absorb_external(deck_dir: Path, project_root: Path,
             idx.write_text(_apply(idx.read_text(encoding="utf-8", errors="ignore")),
                            encoding="utf-8")
 
+        # Also rewrite the source redesign HTMLs at `<project_root>/redesigns/`
+        # so a later `slide-redesign apply` doesn't re-introduce the same
+        # external refs and break the deck again. This is the difference
+        # between slim being a one-shot post-process vs the canonical state.
+        redesigns_dir = project_root / "redesigns"
+        if redesigns_dir.is_dir():
+            for rf in redesigns_dir.glob("*.html"):
+                txt = rf.read_text(encoding="utf-8", errors="ignore")
+                new = _apply(txt)
+                if new != txt:
+                    rf.write_text(new, encoding="utf-8")
+
     return pulled, warnings
 
 
