@@ -120,6 +120,26 @@ def main() -> int:
         )
         return 2
 
+    # Safety: snapshot the existing index.html (if any) before letting the
+    # pack regenerate it. Many users keep hand-edits inside index.html that
+    # the renderer would otherwise blow away — this gives them a known
+    # recovery point at output_dir/.render-snapshots/index-YYYYMMDD-HHMMSS.html.
+    idx = output_dir / "index.html"
+    if idx.is_file():
+        import shutil, datetime
+        snap_dir = output_dir / ".render-snapshots"
+        snap_dir.mkdir(parents=True, exist_ok=True)
+        ts = datetime.datetime.now().strftime("%Y%m%d-%H%M%S")
+        snap = snap_dir / f"index-{ts}.html"
+        shutil.copy2(idx, snap)
+        # Keep only the latest 10 to avoid unbounded growth.
+        snaps = sorted(snap_dir.glob("index-*.html"))
+        for old in snaps[:-10]:
+            try: old.unlink()
+            except OSError: pass
+        print(f"[player] snapshotted index.html → {snap.relative_to(output_dir)}",
+              file=sys.stderr)
+
     cmd = [sys.executable, str(entry), str(deck_path), str(output_dir),
            *passthrough]
     print(f"[player] dispatch → pack '{pack_id}' v{manifest.get('version','?')}",
