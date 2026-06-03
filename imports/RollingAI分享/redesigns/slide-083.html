@@ -1,0 +1,249 @@
+<!--
+  Slide 61 v3 · "从场景重构到组织进化"
+  Cleaner curve-based growth diagram. Verbatim text from kn 83.
+
+  v3 changes:
+    · Drop the orbit decoration (was overlapping phase-1 column).
+    · Phases sit BELOW their curve points in three vertical columns,
+      so the curve never crosses phase text.
+    · Right enablement column gets its own vertical divider, no longer
+      crowds phase-3.
+    · X-axis ticks align with their phase columns, not with the chart edge.
+-->
+<style>
+  .slide[data-slide-key='slide-083'] {
+    background: radial-gradient(140% 100% at 100% 0%, #1A2256 0%, #0F1A4A 38%, #060B22 78%, #000000 100%) !important;
+    color: #fff;
+    overflow: hidden !important;
+    font-family: 'PingFang SC','Microsoft YaHei',sans-serif;
+  }
+  /* Cancel the framework's stagger-reveal animation that would otherwise
+     keep our children at opacity:0 forever (no auto-play in this layout). */
+  .slide[data-slide-key='slide-083'].slide > * {
+    animation: none !important;
+    transform: none !important;
+    opacity: 1 !important;
+  }
+  .slide[data-slide-key='slide-083'] .r61-title {
+    position: absolute; left: 80px; top: 56px; right: 80px;
+    font-size: 46px; font-weight: 800; line-height: 1.2; letter-spacing: -0.005em;
+    margin: 0;
+  }
+  .slide[data-slide-key='slide-083'] .r61-title .grad {
+    background: linear-gradient(90deg, #33D6C0, #3C7FFF 55%, #9F6FF1);
+    -webkit-background-clip: text; background-clip: text; color: transparent;
+  }
+  /* Y-axis label (top-left, above the chart) */
+  .slide[data-slide-key='slide-083'] .r61-y-label {
+    position: absolute; left: 80px; top: 156px;
+    font-size: 18px; line-height: 1.4;
+  }
+  .slide[data-slide-key='slide-083'] .r61-y-label .strong { font-weight: 700; }
+  .slide[data-slide-key='slide-083'] .r61-y-label .dim {
+    color: rgba(255,255,255,.55); font-size: 16px; margin-top: 4px;
+  }
+
+  /* Vertical divider between chart and enablement column */
+  .slide[data-slide-key='slide-083'] .r61-divider {
+    position: absolute; left: 1380px; top: 220px; bottom: 110px;
+    width: 1px; background: linear-gradient(180deg,
+      rgba(255,255,255,0.02) 0%,
+      rgba(255,255,255,0.18) 50%,
+      rgba(255,255,255,0.02) 100%);
+  }
+
+  /* Growth curve SVG — left 1320px chart area */
+  .slide[data-slide-key='slide-083'] .r61-curve-svg {
+    position: absolute; left: 60px; top: 220px;
+    width: 1320px; height: 620px;
+    pointer-events: none;
+  }
+
+  /* Phase clusters — circle sits AT the curve milestone, text grows DOWNWARD.
+     Coords are slide-absolute. Each milestone X is also the X-axis tick X. */
+  .slide[data-slide-key='slide-083'] .r61-phase {
+    position: absolute;
+    display: flex; flex-direction: column; gap: 12px;
+    align-items: flex-start; width: 380px;
+  }
+  .slide[data-slide-key='slide-083'] .r61-phase-num {
+    width: 46px; height: 46px; border-radius: 50%;
+    display: grid; place-items: center;
+    font-size: 22px; font-weight: 800;
+    box-shadow: 0 0 22px currentColor;
+    margin-left: -23px; /* centered on the curve point */
+  }
+  .slide[data-slide-key='slide-083'] .r61-phase-num.c1 { background: #6BFF6B; color: #003a00; }
+  .slide[data-slide-key='slide-083'] .r61-phase-num.c2 { background: #33D6C0; color: #003834; }
+  .slide[data-slide-key='slide-083'] .r61-phase-num.c3 { background: #6BFF6B; color: #003a00; }
+  .slide[data-slide-key='slide-083'] .r61-phase-head {
+    font-size: 38px; font-weight: 800; letter-spacing: -0.005em; line-height: 1.1;
+    margin-top: 2px;
+  }
+  .slide[data-slide-key='slide-083'] .r61-phase-sub {
+    font-size: 19px; font-weight: 400;
+    color: rgba(255,255,255,.78); line-height: 1.3;
+  }
+  .slide[data-slide-key='slide-083'] .r61-phase-tag {
+    background: rgba(51,214,192,.16);
+    border: 1px solid rgba(51,214,192,.55);
+    border-radius: 999px; padding: 8px 18px;
+    font-size: 16px; font-weight: 600;
+    color: #5EE7D3;
+    margin-top: 4px;
+  }
+  /* Anchor each cluster so its circle center sits on the curve milestone.
+     Curve points (slide-absolute, see SVG path below):
+        P1 ≈ (200,  800)
+        P2 ≈ (680,  560)
+        P3 ≈ (1160, 320) */
+  .slide[data-slide-key='slide-083'] .r61-p1 { left: 200px; top: 800px; }
+  .slide[data-slide-key='slide-083'] .r61-p2 { left: 680px; top: 560px; }
+  .slide[data-slide-key='slide-083'] .r61-p3 { left: 1160px; top: 320px; }
+  /* Phase 3 + 1 may extend past slide bottom; cap each phase block height. */
+  .slide[data-slide-key='slide-083'] .r61-p1 .r61-phase-head,
+  .slide[data-slide-key='slide-083'] .r61-p2 .r61-phase-head,
+  .slide[data-slide-key='slide-083'] .r61-p3 .r61-phase-head { white-space: nowrap; }
+
+  /* X-axis ticks aligned with phase columns */
+  .slide[data-slide-key='slide-083'] .r61-x-tick {
+    position: absolute; bottom: 80px;
+    font-size: 22px; font-weight: 700;
+    background: linear-gradient(90deg, #33D6C0, #3C7FFF);
+    -webkit-background-clip: text; background-clip: text; color: transparent;
+    transform: translateX(-50%);
+  }
+  .slide[data-slide-key='slide-083'] .r61-tick-1 { left: 200px; }
+  .slide[data-slide-key='slide-083'] .r61-tick-2 { left: 680px; }
+  .slide[data-slide-key='slide-083'] .r61-tick-3 { left: 1160px; }
+
+  /* X-axis name label, bottom-right of chart area */
+  .slide[data-slide-key='slide-083'] .r61-x-label {
+    position: absolute; left: 1280px; bottom: 30px;
+    font-size: 18px; line-height: 1.4; text-align: left;
+  }
+  .slide[data-slide-key='slide-083'] .r61-x-label .strong { font-weight: 700; }
+  .slide[data-slide-key='slide-083'] .r61-x-label .dim {
+    color: rgba(255,255,255,.55); font-size: 16px;
+  }
+
+  /* Right-side enablement column */
+  .slide[data-slide-key='slide-083'] .r61-enablement {
+    position: absolute; right: 80px; top: 320px;
+    width: 460px; display: flex; flex-direction: column; gap: 24px;
+  }
+  .slide[data-slide-key='slide-083'] .r61-enable-section-head {
+    font-size: 14px; font-weight: 700; letter-spacing: 0.18em;
+    color: rgba(255,255,255,.55); text-transform: uppercase;
+    margin-bottom: 4px;
+  }
+  .slide[data-slide-key='slide-083'] .r61-enable-row {
+    display: flex; flex-direction: column; gap: 8px;
+  }
+  .slide[data-slide-key='slide-083'] .r61-enable-head {
+    font-size: 22px; font-weight: 700; color: #5EE7D3;
+  }
+  .slide[data-slide-key='slide-083'] .r61-enable-tag {
+    background: rgba(60,127,255,.16);
+    border: 1px solid rgba(60,127,255,.55);
+    border-radius: 10px; padding: 12px 16px;
+    font-size: 16px; font-weight: 500; line-height: 1.4;
+  }
+
+  .slide[data-slide-key='slide-083'] .r61-pageno {
+    position: absolute; right: 60px; bottom: 32px; font-size: 16px;
+    color: rgba(255,255,255,.4);
+  }
+</style>
+
+<h1 class="r61-title">从场景重构到组织进化：<span class="grad">RollingAI</span> 全周期 AI 转型赋能方案</h1>
+
+<div class="r61-y-label">
+  <div class="strong">商业价值 / 转型势能</div>
+  <div class="dim">从共识到共生</div>
+</div>
+
+<!-- Growth curve SVG. Three curve milestones (SVG coords, vbox 1320×620):
+       P1 = (140, 580)  → slide (60+140, 220+580) = (200, 800)
+       P2 = (620, 340)  → slide (60+620, 220+340) = (680, 560)
+       P3 = (1100, 100) → slide (60+1100, 220+100) = (1160, 320)
+-->
+<svg class="r61-curve-svg" viewBox="0 0 1320 620" preserveAspectRatio="none">
+  <defs>
+    <linearGradient id="r61-grad" x1="0%" y1="100%" x2="100%" y2="0%">
+      <stop offset="0%"  stop-color="#33D6C0" stop-opacity="0.95"/>
+      <stop offset="55%" stop-color="#3C7FFF" stop-opacity="0.95"/>
+      <stop offset="100%" stop-color="#9F6FF1" stop-opacity="0.95"/>
+    </linearGradient>
+    <linearGradient id="r61-fill" x1="0%" y1="100%" x2="0%" y2="0%">
+      <stop offset="0%"  stop-color="#33D6C0" stop-opacity="0"/>
+      <stop offset="100%" stop-color="#3C7FFF" stop-opacity="0.14"/>
+    </linearGradient>
+    <filter id="r61-glow" x="-50%" y="-50%" width="200%" height="200%">
+      <feGaussianBlur stdDeviation="6" result="blur"/>
+      <feMerge><feMergeNode in="blur"/><feMergeNode in="SourceGraphic"/></feMerge>
+    </filter>
+  </defs>
+  <!-- S-curve from lower-left through P1, P2, P3, ending upper-right.
+       Tuned so each milestone lies on the path. -->
+  <path d="M 40 600 C 100 600, 140 580, 140 580 S 420 480, 620 340 S 980 180, 1100 100 L 1280 60"
+        fill="none" stroke="url(#r61-grad)" stroke-width="4"
+        stroke-linecap="round" filter="url(#r61-glow)"/>
+  <!-- Soft fill under the curve -->
+  <path d="M 40 600 C 100 600, 140 580, 140 580 S 420 480, 620 340 S 980 180, 1100 100 L 1280 60 L 1280 620 L 40 620 Z"
+        fill="url(#r61-fill)"/>
+  <!-- Subtle baseline -->
+  <line x1="40" y1="610" x2="1280" y2="610" stroke="rgba(255,255,255,0.16)" stroke-width="1" stroke-dasharray="4 6"/>
+</svg>
+
+<!-- Phase clusters (circle on curve, text descends below) -->
+<div class="r61-phase r61-p1">
+  <div class="r61-phase-num c1">1</div>
+  <div class="r61-phase-head">场景共创</div>
+  <div class="r61-phase-sub">100+ 价值场景全景</div>
+  <div class="r61-phase-tag">场景创新工作坊</div>
+</div>
+<div class="r61-phase r61-p2">
+  <div class="r61-phase-num c2">2</div>
+  <div class="r61-phase-head">创新冲刺</div>
+  <div class="r61-phase-sub">10+ 核心增长场景创新</div>
+  <div class="r61-phase-tag">AI 原型敏捷孵化</div>
+</div>
+<div class="r61-phase r61-p3">
+  <div class="r61-phase-num c3">3</div>
+  <div class="r61-phase-head">经营管理重塑</div>
+  <div class="r61-phase-sub">1-2 条核心业务链条重构</div>
+  <div class="r61-phase-tag">经营范式 AI 转型陪跑</div>
+</div>
+
+<!-- X-axis ticks aligned with phase columns -->
+<div class="r61-x-tick r61-tick-1">1-2 天</div>
+<div class="r61-x-tick r61-tick-2">1-2 月</div>
+<div class="r61-x-tick r61-tick-3">0.5-1 年</div>
+
+<div class="r61-x-label">
+  <div class="strong">时间</div>
+  <div class="dim">从感知到内化</div>
+</div>
+
+<!-- Vertical divider between chart area and right enablement column -->
+<div class="r61-divider"></div>
+
+<!-- Right-side enablement column -->
+<div class="r61-enablement">
+  <div class="r61-enable-section-head">组织 · 经营 · 业务</div>
+  <div class="r61-enable-row">
+    <div class="r61-enable-head">人才 / 组织新生</div>
+    <div class="r61-enable-tag">AIcubator AI 孵化仓 + AI 先锋营</div>
+  </div>
+  <div class="r61-enable-row">
+    <div class="r61-enable-head">隐形经营智慧萃取</div>
+    <div class="r61-enable-tag">Apprentice 专家经验萃取平台</div>
+  </div>
+  <div class="r61-enable-row">
+    <div class="r61-enable-head">业务融合进化</div>
+    <div class="r61-enable-tag">16 个业务流程 AI 解决方案</div>
+  </div>
+</div>
+
+<div class="r61-pageno">61</div>
