@@ -220,6 +220,38 @@ print("#7 slide-012 vertical column dividers + 邮政储蓄银行 shift")
 edit_html("slide-012", fix7)
 
 
+# ── #7d · slide-012 (page 7) logo aspect fixes ──────────────────────────
+# Three logos in the brand grid were being object-fit:cover-cropped to
+# their middle band because the rendered bbox aspect didn't match the
+# source file aspect:
+#   · FOTILE 方太 (jpeg 517×232, displayed 193×31) → 179% mismatch
+#   · 中国邮政储蓄银行 (png 624×53, displayed 206×42) → 58% mismatch
+# For those two we switch to object-fit:contain so the full logo shows.
+#   · Schneider (image8-25327.png) ships as Schneider+Midea bundled →
+#     swap src to the pre-cropped image8-25327-schneider-only.png that
+#     sits next to it.
+def fix7d(html):
+    html = html.replace(
+        'src="assets/slide-012/478d0db1e3ecb40528d262a210911f6b-25334.jpeg" '
+        'style="left:280.0px;top:918.0px;width:193.0px;height:31.0px;object-fit:cover;"',
+        'src="assets/slide-012/478d0db1e3ecb40528d262a210911f6b-25334.jpeg" '
+        'style="left:280.0px;top:918.0px;width:193.0px;height:31.0px;object-fit:contain;"',
+    )
+    html = html.replace(
+        'src="assets/slide-012/已粘贴的影片-24567.png" '
+        'style="left:868.0px;top:576.0px;width:206.0px;height:42.0px;object-fit:cover;"',
+        'src="assets/slide-012/已粘贴的影片-24567.png" '
+        'style="left:868.0px;top:576.0px;width:206.0px;height:42.0px;object-fit:contain;"',
+    )
+    html = html.replace(
+        'src="assets/slide-012/image8-25327.png"',
+        'src="assets/slide-012/image8-25327-schneider-only.png"',
+    )
+    return html
+print("#7d slide-012 FOTILE + 邮政储蓄 contain + Schneider-only swap")
+edit_html("slide-012", fix7d)
+
+
 # ── #11 · slide-017 (page 11): user-curated curve background ────────────
 def fix11(html):
     return html.replace(
