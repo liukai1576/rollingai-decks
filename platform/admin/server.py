@@ -497,6 +497,26 @@ def deck_file(deck_id: str, path: str):
     return FileResponse(target)
 
 
+# Some rendered decks (those produced by `render-deck.py` invoked directly,
+# without the `keynote-to-html` localizer step) reference renderer assets via
+# `../../../plugin/skills/<pack>/...` relative paths. Inside the admin iframe
+# those resolve to `/plugin/skills/...`, so we serve them out of the repo's
+# plugin/ tree. Read-only + traversal guard, same pattern as /decks/.
+PLUGIN_DIR = REPO / "plugin"
+
+
+@app.get("/plugin/{path:path}")
+def plugin_file(path: str):
+    target = (PLUGIN_DIR / path).resolve()
+    try:
+        target.relative_to(PLUGIN_DIR.resolve())
+    except ValueError:
+        raise HTTPException(403, "Path escapes plugin root")
+    if not target.is_file():
+        raise HTTPException(404, f"File not found: {path}")
+    return FileResponse(target)
+
+
 # ---- Static UI ----
 if STATIC_DIR.is_dir():
     app.mount("/static", StaticFiles(directory=STATIC_DIR), name="static")
