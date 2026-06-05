@@ -48,6 +48,7 @@ THUMBS_DIR = REPO / "library" / "db" / "data" / "thumbs"
 
 DECK_RENDER_DIRS: dict[str, Path] = {
     "kangshifu": REPO / "imports" / "RollingAI分享" / "render-output-full",
+    "AI案例分享和AI转型建议-导入": REPO / "imports" / "AI案例分享" / "render-output-full",
 }
 
 CHROME = "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome"
@@ -62,7 +63,11 @@ THUMB_W, THUMB_H = 480, 270
 # The keynote-to-html convention produces `slide-NNN`; hand-authored decks
 # may use kebab-case slugs. Both are covered by this pattern.
 _SLIDE_KEY_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$")
-_DECK_ID_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._-]{0,63}$")
+_DECK_ID_RE = re.compile(
+    r"^[A-Za-z0-9一-鿿]"        # first char: ASCII alnum or CJK
+    r"[A-Za-z0-9._\-一-鿿]"     # body: same set + . _ -
+    r"{0,127}$"
+)
 
 
 # ---- CDP plumbing ----

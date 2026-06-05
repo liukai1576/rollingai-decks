@@ -51,6 +51,7 @@ on run argv
     set outPath to ""
     set nonSkippedLimit to 0  -- 0 = no limit
     set gTargetDocName to ""
+    set targetSlidesArg to ""
     if (count of argv) > 0 then set outPath to item 1 of argv
     if (count of argv) > 1 then
         try
@@ -58,6 +59,24 @@ on run argv
         end try
     end if
     if (count of argv) > 2 then set gTargetDocName to item 3 of argv
+    -- 4th arg: comma-separated 1-based slide numbers to extract (e.g. "74,83,86").
+    -- Empty/missing = extract every non-skipped slide. When set, every slide
+    -- NOT in the list is emitted as a "skipped" stub so build.py knows there's
+    -- nothing to render for it (and the deck stays the same length).
+    if (count of argv) > 3 then set targetSlidesArg to item 4 of argv
+
+    -- Parse "74,83,86" into a list of integers.
+    set targetSlides to {}
+    if targetSlidesArg is not "" then
+        set AppleScript's text item delimiters to ","
+        set rawItems to text items of targetSlidesArg
+        set AppleScript's text item delimiters to ""
+        repeat with ri in rawItems
+            try
+                set end of targetSlides to ((ri as text) as integer)
+            end try
+        end repeat
+    end if
 
     tell application id "com.apple.Keynote"
         if (count of documents) = 0 then
@@ -87,15 +106,20 @@ on run argv
         end try
     end tell
 
-    set output to "#TOTAL" & tab & slideCount & linefeed
-    set output to output & "#DOC-SIZE" & tab & docW & tab & docH & linefeed
+    set headerOut to "#TOTAL" & tab & slideCount & linefeed
+    set headerOut to headerOut & "#DOC-SIZE" & tab & docW & tab & docH & linefeed
 
-    -- Walk slides. Skip extraction of slides marked "skipped" in Keynote —
-    -- they're invisible in present mode and not part of the deliverable.
-    -- We still want their slide_no in the deck.json `keynote_no` numbering
-    -- (it matches IWA's slideTree index), so we DO emit a minimal stub
-    -- `#SLIDE N true` header for them; just no element walk. This skips
-    -- the expensive per-element AppleScript loop on each hidden slide.
+    -- Incremental write: open the output file ONCE (truncate), write the
+    -- header, then append each slide as soon as it's extracted. This way
+    -- if the script is killed mid-run (timeout, user cancel, Keynote
+    -- crash), the partial tsv is salvageable — build.py treats absent
+    -- #DONE as fine. Previous behavior built the WHOLE tsv in memory and
+    -- wrote it at the end, so any interruption wiped everything.
+    if outPath is not "" then
+        my writeToFile(headerOut, outPath)  -- truncates + writes
+    end if
+    set output to headerOut  -- keep growing for the in-memory return path
+
     set nonSkippedSeen to 0
     repeat with slideIdx from 1 to slideCount
         tell application id "com.apple.Keynote"
@@ -105,28 +129,30 @@ on run argv
                 set isSkipped to false
             end try
         end tell
+        if (count of targetSlides) > 0 and (targetSlides does not contain slideIdx) then
+            set isSkipped to true
+        end if
         if isSkipped then
-            -- Stub record only — no #SLIDE-META, no items, no #END-SLIDE.
-            -- (build.py treats absent #END-SLIDE as fine; the next #SLIDE
-            -- closes the previous implicitly.)
-            set output to output & "#SLIDE" & tab & slideIdx & tab & "true" & linefeed
+            set slideRecord to "#SLIDE" & tab & slideIdx & tab & "true" & linefeed
         else
             set slideRecord to my extractSlide(slideIdx)
-            set output to output & slideRecord
             set nonSkippedSeen to nonSkippedSeen + 1
-            if nonSkippedLimit > 0 and nonSkippedSeen >= nonSkippedLimit then
-                exit repeat
-            end if
+        end if
+        if outPath is not "" then
+            my appendToFile(slideRecord, outPath)
+        end if
+        set output to output & slideRecord
+        if (not isSkipped) and nonSkippedLimit > 0 and nonSkippedSeen >= nonSkippedLimit then
+            exit repeat
         end if
     end repeat
 
     set output to output & "#DONE" & linefeed
-
-    if outPath is "" then
-        return output
-    else
-        my writeToFile(output, outPath)
+    if outPath is not "" then
+        my appendToFile("#DONE" & linefeed, outPath)
         return "OK: " & (length of output) & " chars written to " & outPath
+    else
+        return output
     end if
 end run
 
@@ -344,8 +370,172 @@ on extractItemFlat(itm, offsetX, offsetY)
         set rec to rec & my extractTextRuns(itm)
     end if
 
+    -- For TABLE elements, emit one CELL line per cell so build.py can
+    -- reconstruct an HTML <table>.
+    if elemType is "table" then
+        set rec to rec & my extractTableCells(itm)
+    end if
+
+    -- For CHART elements, emit SERIES + POINT records so build.py can
+    -- reconstruct an SVG/HTML chart.
+    if elemType is "chart" then
+        set rec to rec & my extractChartData(itm)
+    end if
+
     return rec
 end extractItemFlat
+
+
+-- Walk a chart iWork item, emit chart metadata + per-series data points.
+-- Format:
+--   CHART_META\ttype\tnRows\tnCols
+--   CATEGORY\tlabel_b64                  (one per category, in row order)
+--   SERIES\tname_b64                     (one per series)
+--   POINT\tseries_idx\tcategory_idx\tvalue
+-- Robust to errors — chart introspection is the least-stable AppleScript
+-- API surface. Always returns a string, never raises.
+on extractChartData(itm)
+    set out to ""
+    tell application id "com.apple.Keynote"
+        try
+            -- Keynote charts have `chart type` (column, bar, line, pie...)
+            -- and a chart_data property. Different versions expose
+            -- different selectors; try several.
+            set chartType to ""
+            try
+                set chartType to (chart type of itm) as text
+            end try
+            set out to out & "CHART_META" & tab & chartType & linefeed
+        on error
+            return ""
+        end try
+        -- Try `chart data of itm` → can be a 2D list or a list of records.
+        -- Keynote 14+ exposes `chart data` as a list of lists: header row +
+        -- value rows. First column = category labels; first row = series
+        -- names. Below code handles that pattern best-effort.
+        try
+            set cd to chart data of itm
+            -- cd is a list of rows; row 1 is series headers (with empty
+            -- first cell). Row 2..N are categories with values.
+            set nRows to count of cd
+            if nRows < 2 then return out
+            set hdrRow to item 1 of cd
+            set nCols to count of hdrRow
+            -- Series names: hdrRow[2..nCols]
+            repeat with cI from 2 to nCols
+                set sName to ""
+                try
+                    set sName to (item cI of hdrRow) as text
+                end try
+                set out to out & "SERIES" & tab & my base64Encode(sName) & linefeed
+            end repeat
+            -- Categories + points
+            repeat with rI from 2 to nRows
+                set rowList to item rI of cd
+                set catLabel to ""
+                try
+                    set catLabel to (item 1 of rowList) as text
+                end try
+                set out to out & "CATEGORY" & tab & my base64Encode(catLabel) & linefeed
+                repeat with cI from 2 to nCols
+                    set v to 0
+                    try
+                        set v to (item cI of rowList) as real
+                    end try
+                    -- series_idx 0-based: cI-2
+                    -- category_idx 0-based: rI-2
+                    set out to out & "POINT" & tab & (cI - 2) & tab & (rI - 2) & tab & v & linefeed
+                end repeat
+            end repeat
+        end try
+    end tell
+    return out
+end extractChartData
+
+
+-- Walk a table iWork item and emit one CELL row per (row, col).
+-- Robust to errors (some Keynote builds throw on tables created via
+-- the Numbers UI). Always returns a string, never raises.
+on extractTableCells(itm)
+    set out to ""
+    tell application id "com.apple.Keynote"
+        try
+            set rowCount to row count of itm
+            set colCount to column count of itm
+        on error
+            return ""
+        end try
+        set colWidths to {}
+        set rowHeights to {}
+        repeat with cI from 1 to colCount
+            try
+                set end of colWidths to (width of column cI of itm) as real
+            on error
+                set end of colWidths to 0.0
+            end try
+        end repeat
+        repeat with rI from 1 to rowCount
+            try
+                set end of rowHeights to (height of row rI of itm) as real
+            on error
+                set end of rowHeights to 0.0
+            end try
+        end repeat
+        repeat with rI from 1 to rowCount
+            repeat with cI from 1 to colCount
+                set cellText to ""
+                set cellFont to ""
+                set cellSize to 0
+                set cellR to 0
+                set cellG to 0
+                set cellB to 0
+                set cellFillR to -1
+                set cellFillG to -1
+                set cellFillB to -1
+                try
+                    set theCell to cell cI of row rI of itm
+                    try
+                        set cellText to (formatted value of theCell) as text
+                    on error
+                        try
+                            set cellText to (value of theCell) as text
+                        end try
+                    end try
+                    -- Cell text font / size. Keynote AppleScript exposes
+                    -- text-style properties on `cell` directly (uniform
+                    -- styling per cell; per-character isn't reachable
+                    -- without diving into IWA).
+                    try
+                        set cellFont to font name of theCell as text
+                    end try
+                    try
+                        set cellSize to size of theCell as real
+                    end try
+                    try
+                        set cTC to text color of theCell
+                        set cellR to item 1 of cTC
+                        set cellG to item 2 of cTC
+                        set cellB to item 3 of cTC
+                    end try
+                    -- Cell fill. Older Keynote versions don't expose this;
+                    -- the try/on-error keeps us silent on those.
+                    try
+                        set cFC to background color of theCell
+                        set cellFillR to item 1 of cFC
+                        set cellFillG to item 2 of cFC
+                        set cellFillB to item 3 of cFC
+                    end try
+                end try
+                set cw to item cI of colWidths
+                set rh to item rI of rowHeights
+                set cellB64 to my base64Encode(cellText)
+                -- CELL\trow\tcol\tcw\trh\tfont\tsize\tr\tg\tb\tfill_r\tfill_g\tfill_b\ttext_b64
+                set out to out & "CELL" & tab & rI & tab & cI & tab & cw & tab & rh & tab & cellFont & tab & cellSize & tab & cellR & tab & cellG & tab & cellB & tab & cellFillR & tab & cellFillG & tab & cellFillB & tab & cellB64 & linefeed
+            end repeat
+        end repeat
+    end tell
+    return out
+end extractTableCells
 
 
 -- Detect multi-run text within a single Keynote text/shape item.
@@ -465,3 +655,14 @@ on writeToFile(content, posixPath)
     end try
     close access fileRef
 end writeToFile
+
+-- Append-mode write. Used for incremental slide-by-slide output so
+-- partial extracts survive an interrupted run. Opens, seeks to EOF,
+-- writes, closes — same pattern as writeToFile but without the truncate.
+on appendToFile(content, posixPath)
+    set fileRef to open for access (POSIX file posixPath) with write permission
+    try
+        write content to fileRef starting at eof as «class utf8»
+    end try
+    close access fileRef
+end appendToFile

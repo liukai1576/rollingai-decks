@@ -18,6 +18,7 @@ to deck.json + a re-run.
 from __future__ import annotations
 
 import json
+import os
 import re
 import subprocess
 import sys
@@ -120,24 +121,86 @@ def main() -> int:
         )
         return 2
 
-    # Safety: snapshot the existing index.html (if any) before letting the
-    # pack regenerate it. Many users keep hand-edits inside index.html that
-    # the renderer would otherwise blow away — this gives them a known
-    # recovery point at output_dir/.render-snapshots/index-YYYYMMDD-HHMMSS.html.
+    # ┌──────────────────────────────────────────────────────────────────┐
+    # │  HAND-EDIT PROTECTION                                            │
+    # │                                                                  │
+    # │  Render destroys hand edits in index.html. Three guard rails:    │
+    # │    1. If <output_dir>/.no-render exists, REFUSE to render.       │
+    # │       The HTML itself stays freely editable — only the render    │
+    # │       pipeline is blocked. Create / remove via the helper        │
+    # │       scripts in library/tools/.                                 │
+    # │    2. If index.html exists, require explicit confirmation —      │
+    # │       either an interactive 'YES' at the terminal OR the         │
+    # │       --force flag OR env var PLAYER_FORCE=1.                    │
+    # │    3. Always snapshot the existing file to                       │
+    # │       .render-snapshots/index-YYYYMMDD-HHMMSS.html before any    │
+    # │       render call so the user can recover.                       │
+    # └──────────────────────────────────────────────────────────────────┘
     idx = output_dir / "index.html"
+    force_flag = ("--force" in passthrough) or os.environ.get("PLAYER_FORCE") == "1"
+    if "--force" in passthrough:
+        passthrough = [a for a in passthrough if a != "--force"]
+
+    # (1) Sentinel-file check. Always honored, even with --force, because
+    # the user explicitly declared "do not render this deck again".
+    no_render = output_dir / ".no-render"
+    if no_render.is_file():
+        print("", file=sys.stderr)
+        print("════════════════════════════════════════════════════════════", file=sys.stderr)
+        print("  ⛔ 拒绝渲染 —— 此 deck 已被锁定（.no-render）", file=sys.stderr)
+        print("════════════════════════════════════════════════════════════", file=sys.stderr)
+        print(f"  锁定文件: {no_render}", file=sys.stderr)
+        reason = no_render.read_text(encoding="utf-8", errors="ignore").strip()
+        if reason:
+            print(f"  锁定原因: {reason[:300]}", file=sys.stderr)
+        print("", file=sys.stderr)
+        print("  这个 index.html 是手动维护的。重新 render 会摧毁所有", file=sys.stderr)
+        print("  没有同步回 deck.json 的手工修改。如果你真要解锁：", file=sys.stderr)
+        print("", file=sys.stderr)
+        print(f"      bash library/tools/unlock-deck.sh \"{output_dir}\"", file=sys.stderr)
+        print(f"      # 或直接删 sentinel:  rm \"{no_render}\"", file=sys.stderr)
+        print("", file=sys.stderr)
+        return 3
+
     if idx.is_file():
+        # (2) Confirmation gate.
+        if not force_flag:
+            print("", file=sys.stderr)
+            print("════════════════════════════════════════════════════════════", file=sys.stderr)
+            print("  ⚠  即将覆盖已存在的 index.html", file=sys.stderr)
+            print("════════════════════════════════════════════════════════════", file=sys.stderr)
+            print(f"  目标文件: {idx}", file=sys.stderr)
+            print(f"  当前大小: {idx.stat().st_size:,} 字节", file=sys.stderr)
+            print("", file=sys.stderr)
+            print("  任何没有同步到 deck.json 的手工修改都会被覆盖丢失。", file=sys.stderr)
+            print("  覆盖前会自动备份到 .render-snapshots/，但仍请确认。", file=sys.stderr)
+            print("", file=sys.stderr)
+            if not sys.stdin.isatty():
+                print("  非交互模式，需 --force 或 PLAYER_FORCE=1 才能继续。", file=sys.stderr)
+                return 3
+            try:
+                ans = input("  请输入 YES 继续，输入其他任意值取消: ").strip()
+            except (EOFError, KeyboardInterrupt):
+                print("\n  已取消。", file=sys.stderr)
+                return 3
+            if ans != "YES":
+                print(f"  收到 {ans!r}，已取消（必须严格输入 'YES'）。", file=sys.stderr)
+                return 3
+            print("", file=sys.stderr)
+
+        # (3) Snapshot — always, even with --force.
         import shutil, datetime
         snap_dir = output_dir / ".render-snapshots"
         snap_dir.mkdir(parents=True, exist_ok=True)
         ts = datetime.datetime.now().strftime("%Y%m%d-%H%M%S")
         snap = snap_dir / f"index-{ts}.html"
         shutil.copy2(idx, snap)
-        # Keep only the latest 10 to avoid unbounded growth.
+        # Keep only the latest 20 to avoid unbounded growth.
         snaps = sorted(snap_dir.glob("index-*.html"))
-        for old in snaps[:-10]:
+        for old in snaps[:-20]:
             try: old.unlink()
             except OSError: pass
-        print(f"[player] snapshotted index.html → {snap.relative_to(output_dir)}",
+        print(f"[player] 已备份 index.html → {snap.relative_to(output_dir)}",
               file=sys.stderr)
 
     cmd = [sys.executable, str(entry), str(deck_path), str(output_dir),

@@ -256,6 +256,13 @@ class Element:
     # `data-role="title"` so downstream skills can find / replace the title
     # element. See plugin/_spec/deck-json-v2.md §"raw layout title 同步规则".
     data_role: str = ""
+    # For type=="table" only: list of cell dicts in row-major order.
+    # Each cell: {"row": int, "col": int, "w": float, "h": float, "text": str}
+    cells: list = field(default_factory=list)
+    # For type=="chart" only: extracted chart data.
+    # {"type": str, "series": [str], "categories": [str],
+    #  "points": [[float, ...]]}  -- points[series_idx][category_idx]
+    chart: dict = field(default_factory=dict)
 
     @property
     def text_color_hex(self) -> str:
@@ -427,6 +434,80 @@ def parse_tsv(tsv_path: Path) -> tuple[int, list[Slide], float, float]:
             except (IndexError, ValueError) as e:
                 print(f"  warning: bad ITEM line: {e!r} — {line[:120]}", file=sys.stderr)
 
+        elif head == "CELL" and current is not None and current.elements:
+            # CELL \t row \t col \t cw \t rh \t font \t size \t r \t g \t b \t
+            #      \t fill_r \t fill_g \t fill_b \t text_b64
+            # Attaches to the most recently appended element (the table).
+            try:
+                last = current.elements[-1]
+                if last.type != "table":
+                    continue
+                # Backwards-compat: older extracts had only 6 fields (row,
+                # col, cw, rh, text_b64) — handle both.
+                if len(parts) <= 6:
+                    cell_text = (base64.b64decode(parts[5]).decode("utf-8")
+                                 if len(parts) > 5 and parts[5] else "")
+                    last.cells.append({
+                        "row":  int(parts[1]),
+                        "col":  int(parts[2]),
+                        "w":    float(parts[3] or 0),
+                        "h":    float(parts[4] or 0),
+                        "text": cell_text,
+                    })
+                else:
+                    cell_text = (base64.b64decode(parts[14]).decode("utf-8")
+                                 if len(parts) > 14 and parts[14] else "")
+                    last.cells.append({
+                        "row":     int(parts[1]),
+                        "col":     int(parts[2]),
+                        "w":       float(parts[3] or 0),
+                        "h":       float(parts[4] or 0),
+                        "font":    parts[5],
+                        "size":    float(parts[6] or 0),
+                        "r":       int(float(parts[7] or 0)),
+                        "g":       int(float(parts[8] or 0)),
+                        "b":       int(float(parts[9] or 0)),
+                        "fill_r":  int(float(parts[10] or -1)),
+                        "fill_g":  int(float(parts[11] or -1)),
+                        "fill_b":  int(float(parts[12] or -1)),
+                        "text":    cell_text,
+                    })
+            except (IndexError, ValueError) as e:
+                print(f"  warning: bad CELL line: {e!r} — {line[:120]}", file=sys.stderr)
+
+        elif head in ("CHART_META", "SERIES", "CATEGORY", "POINT") and \
+                current is not None and current.elements:
+            try:
+                last = current.elements[-1]
+                if last.type != "chart":
+                    continue
+                ch = last.chart
+                if not ch:
+                    last.chart = ch = {"type": "", "series": [], "categories": [], "points": []}
+                if head == "CHART_META":
+                    ch["type"] = parts[1] if len(parts) > 1 else ""
+                elif head == "SERIES":
+                    name = (base64.b64decode(parts[1]).decode("utf-8")
+                            if len(parts) > 1 and parts[1] else "")
+                    ch["series"].append(name)
+                    ch["points"].append([])
+                elif head == "CATEGORY":
+                    label = (base64.b64decode(parts[1]).decode("utf-8")
+                             if len(parts) > 1 and parts[1] else "")
+                    ch["categories"].append(label)
+                elif head == "POINT":
+                    si = int(parts[1])
+                    ci = int(parts[2])
+                    v = float(parts[3] or 0)
+                    while len(ch["points"]) <= si:
+                        ch["points"].append([])
+                    while len(ch["points"][si]) <= ci:
+                        ch["points"][si].append(0.0)
+                    ch["points"][si][ci] = v
+            except (IndexError, ValueError) as e:
+                print(f"  warning: bad {head} line: {e!r} — {line[:120]}",
+                      file=sys.stderr)
+
         elif head == "RUN" and current is not None and current.elements:
             # RUN \t font \t size \t r \t g \t b \t text_b64
             # Attaches to the most recently appended element.
@@ -503,14 +584,24 @@ class AssetResolver:
     def text_align_for_element(self, slide_no: int, x: float, y: float,
                                w: float, h: float) -> Optional[str]:
         """IWA-sourced text alignment ("left"/"center"/"right"/"justify").
-        Returns None when no match — caller falls back to bbox heuristic."""
+        Returns None when no match — caller falls back to "left" (Keynote's
+        default for unstyled text)."""
         if self.iwa_map is None:
             return None
         return self.iwa_map.text_alignment(slide_no, x, y, w, h)
 
+    def text_line_height_for_element(self, slide_no: int, x: float, y: float,
+                                     w: float, h: float) -> float:
+        """IWA-sourced line-height multiplier from lineSpacing.amount.
+        Returns 0.0 when not specified (caller uses its default)."""
+        if self.iwa_map is None:
+            return 0.0
+        return self.iwa_map.text_line_height(slide_no, x, y, w, h)
+
     def resolve_with_bbox(self, slide_no: int, x: float, y: float,
                           w: float, h: float, file_name: str,
-                          kind: Optional[str] = None):
+                          kind: Optional[str] = None,
+                          is_master: bool = False):
         """Like resolve_for_element, but also returns the IWA's TRUE bbox
         AND a `has_mask` flag.
 
@@ -519,6 +610,20 @@ class AssetResolver:
         nothing resolved at all.
         """
         if self.iwa_map is not None:
+            # For MASTER elements, query master_filename FIRST. Master images
+            # aren't in _by_slide[slide_no] (they live in the template, not
+            # in the slide's own iwa), so lookup_with_bbox would either miss
+            # them or wrongly match a same-stem ITEM on the same slide (e.g.
+            # p86 has 4 images all called "已粘贴的影片.png" — the master
+            # bg + 3 UI screenshots — and the legacy path picked a screenshot
+            # for the bg because they're in _by_slide).
+            if is_master and file_name:
+                fname = self.iwa_map.master_filename(slide_no, file_name)
+                if fname:
+                    p = self._by_name.get(fname)
+                    if p is not None:
+                        bbox = self.iwa_map.master_bbox(slide_no, file_name)
+                        return (p, bbox, False)
             hit = self.iwa_map.lookup_with_bbox(slide_no, x, y, w, h,
                                                 file_name=file_name, kind=kind)
             if hit:
@@ -526,7 +631,13 @@ class AssetResolver:
                 p = self._by_name.get(fname)
                 if p is not None:
                     return (p, bbox, has_mask)
-        if file_name:
+        # Legacy stem+dimension fallback. We INTENTIONALLY skip this for
+        # master images: when IWA can't resolve a master file, falling back
+        # to a global stem-match by aspect ratio was the source of every
+        # cross-slide pollination bug (p64/p65/p70 all picked the wrong
+        # master image because they shared a stem with another slide's
+        # asset). Rather miss a master image than show the wrong one.
+        if file_name and not is_master:
             p = self.resolve(file_name, w, h)
             if p is not None:
                 return (p, None, False)
@@ -1312,6 +1423,59 @@ def _object_fit_for(natural_w: float, natural_h: float,
     return "cover"
 
 
+# Keynote named shape paths in a 100×100 viewBox. Add new entries to handle
+# additional shape kinds without changing the renderer logic.
+#
+# Coordinate system: SVG y-axis points DOWN (top=0, bottom=100). Each path is
+# pre-oriented so it visually looks right when drawn with NO rotation applied.
+# Rotation comes from the IWA geometry.angle (or AppleScript's el.rotation),
+# applied as `transform: rotate(angle deg)` around the bbox center.
+_NAMED_SHAPE_PATHS = {
+    # Single arrows. Shape is drawn pointing RIGHT; Keynote left/up/down
+    # variants are typically just the same shape with a 90/180/270° angle.
+    "kTSDRightSingleArrow": "M0 32 L60 32 L60 8 L100 50 L60 92 L60 68 L0 68 Z",
+    "kTSDLeftSingleArrow":  "M100 32 L40 32 L40 8 L0 50 L40 92 L40 68 L100 68 Z",
+    "kTSDUpSingleArrow":    "M32 100 L32 40 L8 40 L50 0 L92 40 L68 40 L68 100 Z",
+    "kTSDDownSingleArrow":  "M32 0 L32 60 L8 60 L50 100 L92 60 L68 60 L68 0 Z",
+    # Bidirectional arrow. Two arrowheads, stem in middle.
+    "kTSDDoubleArrow":      "M0 50 L20 25 L20 40 L80 40 L80 25 L100 50 "
+                            "L80 75 L80 60 L20 60 L20 75 Z",
+    # Up-down bidirectional.
+    "kTSDDoubleArrowVertical": "M50 0 L25 20 L40 20 L40 80 L25 80 L50 100 "
+                               "L75 80 L60 80 L60 20 L75 20 Z",
+    # Five-pointed star, geometric center at (50, 53). Outer radius 47,
+    # inner radius 18.5 — standard proportions.
+    "kTSDStar": "M50 5 L61 39 L95 39 L68 60 L79 95 L50 73 "
+                "L21 95 L32 60 L5 39 L39 39 Z",
+    # Triangle variants. SVG path is the OUTLINE filled solid.
+    "kTSDIsoscelesTriangle": "M50 0 L100 100 L0 100 Z",
+    "kTSDTriangle":          "M50 0 L100 100 L0 100 Z",
+    "kTSDRightTriangle":     "M0 0 L100 100 L0 100 Z",
+}
+
+def _render_named_shape_svg(kind: str, x: float, y: float, w: float, h: float,
+                            fill_css: str, angle: float, opacity: float = 1.0,
+                            extra_style: str = "") -> str:
+    """Emit an SVG positioned at (x,y) with size (w,h), drawing the named
+    Keynote shape with the given fill. Rotation is applied around the bbox
+    center via SVG's transform. Returns "" if `kind` is unknown."""
+    path = _NAMED_SHAPE_PATHS.get(kind)
+    if not path:
+        return ""
+    # SVG's transform-origin defaults to (0,0). Use a centered rotation by
+    # applying transform on the inner <g>: translate to center, rotate, then
+    # translate back. Simpler: rotate via CSS transform on the wrapper.
+    op_css = f"opacity:{opacity:.3f};" if opacity < 0.999 else ""
+    rot_css = f"transform:rotate({angle:.3f}deg);" if abs(angle) > 0.01 else ""
+    return (
+        f'<svg class="el" xmlns="http://www.w3.org/2000/svg" '
+        f'viewBox="0 0 100 100" preserveAspectRatio="none" '
+        f'style="position:absolute;left:{x}px;top:{y}px;'
+        f'width:{w}px;height:{h}px;{rot_css}{op_css}{extra_style}">'
+        f'<path d="{path}" fill="{fill_css}"/></svg>'
+    )
+
+
 def _emit_iwa_fill_div(sf, in_place: bool) -> str:
     """Render an IWA `_ShapeFill` as a positioned `<div>`.
 
@@ -1350,7 +1514,30 @@ def compose_slide_html(slide: Slide, resolver: AssetResolver,
     # bg_r/g/b are all zero AND we're in a "white master" context, the user
     # can override). For now: keep extracted bg; if (0,0,0) and the slide has
     # ANY element with text color #000, assume the master is white.
-    bg = slide.bg_hex if slide.has_bg_color else None
+    # Priority: IWA SlideStyleArchive (authored bg, color or gradient) →
+    # AppleScript #SLIDE-META (color fills only — gradient/image fall through)
+    # → text-color heuristic. Heuristic is the last resort, NOT first.
+    bg = (resolver.iwa_map.slide_background(slide.keynote_no)
+          if resolver.iwa_map is not None else None)
+    # Slide-bg image fill sentinel: resolver emits "__SLIDE_BG_IMAGE__:<file>"
+    # when the slide style's fill is an image. Stage the file into _shared/
+    # and turn into a real CSS url(). Falls back to a transparent bg if the
+    # file can't be located in Data/.
+    if isinstance(bg, str) and bg.startswith("__SLIDE_BG_IMAGE__:"):
+        img_fn = bg[len("__SLIDE_BG_IMAGE__:"):]
+        src = resolver._by_name.get(img_fn) if hasattr(resolver, "_by_name") else None
+        if src and src.is_file():
+            shared_dir = resolver.out_assets_dir / "_shared"
+            shared_dir.mkdir(parents=True, exist_ok=True)
+            dst = shared_dir / src.name
+            if not dst.exists():
+                import shutil as _sh
+                _sh.copy2(src, dst)
+            bg = f"url('assets/_shared/{src.name}') center/cover no-repeat"
+        else:
+            bg = None  # image not findable → fall through
+    if bg is None and slide.has_bg_color:
+        bg = slide.bg_hex
     if bg is None:
         # Heuristic: if any SLIDE-LEVEL (not master, not placeholder) text
         # element uses near-black color, the slide background is probably
@@ -1364,11 +1551,47 @@ def compose_slide_html(slide: Slide, resolver: AssetResolver,
         # glyph and flipped dark-bg slides to white (eCINDI 6/7/9).
         dark_area = 0.0
         white_area = 0.0
+        # Build the set of "colored panels" on this slide — any shape with
+        # AppleScript fill, plus all IWA fills. A text element sitting inside
+        # one of these panels tells us about the PANEL bg, not the slide bg.
+        # Without this filter, p74's white title text ("通过WOW健康+...")
+        # sitting inside a green bar drowned out the dark body text and
+        # resolved the slide to #000 (it should be #FFF).
+        iwa_fills_here = (resolver.iwa_map.shape_fills_for_slide(slide.keynote_no)
+                          if resolver.iwa_map else [])
+        panels = []  # list of (x, y, w, h) bboxes of filled regions
+        for el in slide.elements:
+            if el.type == "shape" and el.has_fill and not el.is_master:
+                panels.append((el.x, el.y, el.w, el.h))
+        for sf in iwa_fills_here:
+            panels.append((sf.x, sf.y, sf.w, sf.h))
+        def _inside_panel(el) -> bool:
+            # Element is "on a panel" if its center sits inside any filled
+            # bbox AND it's not dramatically larger than the panel (which
+            # would suggest the panel is a small decoration over a larger
+            # text, not the other way around).
+            cx, cy = el.x + el.w / 2, el.y + el.h / 2
+            for px, py, pw, ph in panels:
+                if px <= cx <= px + pw and py <= cy <= py + ph:
+                    if el.w <= pw * 1.4 and el.h <= ph * 1.4:
+                        return True
+            return False
+
         for el in slide.elements:
             if el.is_master: continue
-            if el.type not in ("text", "shape"): continue
+            # Only PLAIN TEXT elements count for slide-bg inference. Shapes
+            # always have some form of background (fill, theme color, banner
+            # bg) that's not always visible to AppleScript/IWA — counting
+            # them by text color led to p74 wrongly resolving to #000
+            # because the green title-bar shape's white text outweighed
+            # all the plain dark body text.
+            if el.type != "text": continue
             if not el.text.strip(): continue
             if is_placeholder_text(el.text): continue
+            # Skip text that sits on top of a colored panel — its
+            # background is the panel, not the slide.
+            if _inside_panel(el):
+                continue
             s = el.r + el.g + el.b
             a = max(0.0, el.w) * max(0.0, el.h)
             if s < 20000:    dark_area += a
@@ -1450,6 +1673,30 @@ def compose_slide_html(slide: Slide, resolver: AssetResolver,
                 best_score, best_idx = score, j
         if best_idx is not None and best_score >= 0.5:
             iwa_fill_for_idx[best_idx] = sf
+            iwa_consumed.add(fi)
+            continue
+        # IoU fallback: rotated shapes report DIFFERENT bbox in AppleScript
+        # (rotated bbox = larger, top-left offset) vs IWA (un-rotated geometry).
+        # A 100×100 square at 45° has rotated bbox 141×141 shifted ~20px, so
+        # IoU drops to ~0.47 — below the strict 0.5 cutoff. For these, fall
+        # back to center-distance matching with a tolerance scaled to the
+        # shape size. Only triggers when there's actually a named shape kind
+        # to render (otherwise we'd be matching random small decoration to
+        # random small shapes).
+        if not sf.shape_kind:
+            continue
+        sf_cx, sf_cy = sf.x + sf.w / 2, sf.y + sf.h / 2
+        tol = max(30.0, max(sf.w, sf.h) * 0.30)
+        best2, best_d = None, tol
+        for j, ej in enumerate(slide.elements):
+            if ej.type != "shape" or j in iwa_fill_for_idx:
+                continue
+            cx, cy = ej.x + ej.w / 2, ej.y + ej.h / 2
+            d = ((cx - sf_cx) ** 2 + (cy - sf_cy) ** 2) ** 0.5
+            if d < best_d:
+                best_d, best2 = d, j
+        if best2 is not None:
+            iwa_fill_for_idx[best2] = sf
             iwa_consumed.add(fi)
 
     # Suppress any iwa-fill that covers (essentially) the entire canvas IF
@@ -1547,6 +1794,20 @@ def compose_slide_html(slide: Slide, resolver: AssetResolver,
         if i in skip_idx:
             continue
         if ei.type == "shape" and not ei.text.strip() and not ei.has_fill:
+            # If the IWA archive paired a fill for this shape — especially a
+            # named-path shape (arrows, callouts, ovals) — KEEP it; the
+            # AppleScript "no fill" report is just incomplete, not a signal
+            # to skip. Without this exception the p74 arrows were dropped
+            # because they don't "contain" anything overlapping them.
+            # If IWA paired ANY fill / gradient / stroke / named-shape to
+            # this AppleScript shape, KEEP it. The "overlaps without
+            # containing" filter was originally for invisible authoring
+            # decorations — but those don't get IWA fills. Stripping it
+            # caused p5's 11 small dots (which overlap the two big rings
+            # without containing them) to be silently dropped.
+            sf_pair = iwa_fill_for_idx.get(i)
+            if sf_pair is not None:
+                continue
             if overlaps_without_containing(i):
                 skip_idx.add(i)
 
@@ -1577,7 +1838,8 @@ def compose_slide_html(slide: Slide, resolver: AssetResolver,
             iwa_bbox = None
             iwa_has_mask = False
             rb = resolver.resolve_with_bbox(
-                slide.keynote_no, el.x, el.y, el.w, el.h, el.file_name, kind="image"
+                slide.keynote_no, el.x, el.y, el.w, el.h, el.file_name, kind="image",
+                is_master=el.is_master,
             )
             if rb is None:
                 src = None
@@ -1757,21 +2019,126 @@ def compose_slide_html(slide: Slide, resolver: AssetResolver,
             # default_color/size/font filled in below once we know them.
             text_inner = ""
 
-            if has_fill_color or has_text:
-                # rgba background bakes opacity into the color when translucent.
-                # For opaque elements we still emit rgba (with alpha=1.0); same result.
-                bg_rgba = el.fill_color_rgba if has_fill_color else "transparent"
+            # Look up IWA fill paired with this shape's bbox. Many Keynote
+            # shapes (pills with theme colors, decorative ovals, callout
+            # backdrops) have their fill in a parent ShapeStyle that
+            # AppleScript can't see — has_fill_color is False but the IWA
+            # archive carries the real color/gradient. Use it as the
+            # background AND signal "this shape is filled" for radius.
+            iwa_sf = iwa_fill_for_idx.get(idx)
 
-                # Corner radius heuristic — only for shapes that look like a "card"
-                # or "pill" (opaque-ish, small). Skip for translucent overlays
-                # (those are usually full-bleed masks, not rounded boxes).
+            # Bezier-path SVG render: when IWA gave us an explicit path
+            # (custom Keynote shapes — not named pointPath types), emit
+            # the path verbatim. Catches organic blobs, callouts, hand-
+            # drawn shapes. Only applies when there's no text (text-bearing
+            # bezier shapes still go through the div path so layout works).
+            if (iwa_sf is not None and iwa_sf.bezier_path
+                    and iwa_sf.bezier_path[0]
+                    and not has_text):
+                d_str, nw, nh = iwa_sf.bezier_path
+                if iwa_sf.gradient_css:
+                    fill_css = iwa_sf.gradient_css
+                elif iwa_sf.alpha < 0.001:
+                    fill_css = "none"  # stroke-only
+                else:
+                    fill_css = (f"rgba({iwa_sf.r},{iwa_sf.g},{iwa_sf.b},"
+                                f"{iwa_sf.alpha:.3f})")
+                stroke_attr = ""
+                if iwa_sf.stroke_color and iwa_sf.stroke_width > 0:
+                    # SVG stroke widths are in viewBox units; bezier is in
+                    # natural-size units, so the Keynote px width maps 1:1.
+                    stroke_attr = (f' stroke="{iwa_sf.stroke_color}" '
+                                   f'stroke-width="{iwa_sf.stroke_width:.1f}" '
+                                   f'fill-rule="evenodd"')
+                angle = el.rotation if el.rotation else (iwa_sf.angle or 0)
+                rot_css = (f"transform:rotate({angle:.3f}deg);"
+                           if abs(angle) > 0.01 else "")
+                parts.append(
+                    f'<svg class="el" xmlns="http://www.w3.org/2000/svg" '
+                    f'viewBox="0 0 {nw:.2f} {nh:.2f}" preserveAspectRatio="none" '
+                    f'style="position:absolute;left:{el.x}px;top:{el.y}px;'
+                    f'width:{el.w}px;height:{el.h}px;{rot_css}">'
+                    f'<path d="{d_str}" fill="{fill_css}"{stroke_attr}/></svg>'
+                )
+                continue
+
+            # Named-shape SVG render: if the IWA pathsource identifies this
+            # shape as an arrow / star / callout / etc, draw the actual
+            # geometry. Beats the previous behavior of a colored rect bbox
+            # that made arrows look like squares (p74 Venn-diagram arrows).
+            # Only takes effect when there's no text — text-bearing shapes
+            # still need the div path so the text can flow naturally.
+            if (iwa_sf is not None and iwa_sf.shape_kind
+                    and iwa_sf.shape_kind in _NAMED_SHAPE_PATHS
+                    and not has_text):
+                if iwa_sf.gradient_css:
+                    fill_css = iwa_sf.gradient_css
+                else:
+                    fill_css = (f"rgba({iwa_sf.r},{iwa_sf.g},{iwa_sf.b},"
+                                f"{iwa_sf.alpha:.3f})")
+                # Prefer AppleScript's rotation (authoritative for the
+                # element we paired this fill to); fall back to IWA angle.
+                angle = el.rotation if el.rotation else (iwa_sf.angle or 0)
+                svg = _render_named_shape_svg(
+                    iwa_sf.shape_kind, el.x, el.y, el.w, el.h,
+                    fill_css, angle,
+                )
+                if svg:
+                    parts.append(svg)
+                    continue
+
+            if has_fill_color or has_text or iwa_sf is not None:
+                if has_fill_color:
+                    bg_rgba = el.fill_color_rgba
+                elif iwa_sf is not None:
+                    if iwa_sf.gradient_css:
+                        bg_rgba = iwa_sf.gradient_css
+                    elif iwa_sf.alpha < 0.001:
+                        # Stroke-only (sentinel alpha=0) → transparent center.
+                        bg_rgba = "transparent"
+                    else:
+                        bg_rgba = (f"rgba({iwa_sf.r},{iwa_sf.g},{iwa_sf.b},"
+                                   f"{iwa_sf.alpha:.3f})")
+                else:
+                    bg_rgba = "transparent"
+
+                # Stroke (border) from IWA ShapeStyle. Common for ring
+                # circles (p5's big rings) and outlined boxes — these have
+                # no fill but a thick colored border.
+                border_css = ""
+                if (iwa_sf is not None and iwa_sf.stroke_color
+                        and iwa_sf.stroke_width > 0):
+                    style = iwa_sf.stroke_dash or "solid"
+                    border_css = (f"border:{iwa_sf.stroke_width:.1f}px "
+                                  f"{style} {iwa_sf.stroke_color}")
+
+                # Corner radius heuristic. Applied whenever there's a real
+                # fill (AppleScript OR IWA). Skip for translucent overlays
+                # (full-bleed masks shouldn't get rounded edges).
                 radius_css = ""
-                if has_fill_color and not el.is_translucent:
+                has_any_fill = has_fill_color or iwa_sf is not None
+                # Skip radius for full-bleed translucent OVERLAYS only (large
+                # masking rectangles). Small translucent shapes — p5's blue
+                # ring dots at 68% opacity — still need their corner radius.
+                is_overlay_mask = (el.is_translucent
+                                   and (el.w > 1500 or el.h > 800))
+                if has_any_fill and not is_overlay_mask:
                     ratio = el.w / el.h if el.h else 1
-                    if 1.5 < ratio < 6 and el.h < 200:
-                        radius_css = f"border-radius:{int(el.h/2)}px"
+                    if 0.97 < ratio < 1.03 and el.h > 30:
+                        # Perfectly square (within 3%) → circle. Keynote's
+                        # default oval drawn at no aspect-skew lands here, at
+                        # any size. We don't cap upper size because diagram
+                        # ovals (p74 Mengniu Venn diagram) go up to 530+ px.
+                        radius_css = "border-radius:50%"
+                    elif 0.92 < ratio < 1.08 and 30 < el.h < 360:
+                        # Nearly-square (within 8%) but not perfect → could be
+                        # either a rounded card or a slightly-skewed oval.
+                        # Cap at 360 to avoid converting big cards into circles.
+                        radius_css = "border-radius:50%"
+                    elif 1.5 < ratio < 6 and el.h < 200:
+                        radius_css = f"border-radius:{int(el.h/2)}px"  # pill
                     elif 0.7 < ratio < 1.4 and el.h < 200:
-                        radius_css = "border-radius:24px"
+                        radius_css = "border-radius:24px"  # rounded card
                     else:
                         radius_css = "border-radius:16px"
 
@@ -1780,6 +2147,7 @@ def compose_slide_html(slide: Slide, resolver: AssetResolver,
                     f"width:{el.w}px", f"min-height:{el.h}px",
                     f"background:{bg_rgba}",
                     radius_css if radius_css else None,
+                    border_css if border_css else None,
                 ]
                 if has_text:
                     weight, fstyle = parse_font_weight_style(el.font)
@@ -1799,16 +2167,28 @@ def compose_slide_html(slide: Slide, resolver: AssetResolver,
                     # Fall back to bbox-center heuristic if the lookup misses
                     # (rare — typically when the text shape is purely on the
                     # master/template, which we don't index).
+                    # IWA paragraph style → text-align (no more bbox-centre
+                    # guess). Keynote's default for unstyled text is left.
                     ta = (resolver.text_align_for_element(
                               slide.keynote_no, el.x, el.y, el.w, el.h)
-                          or _text_align(el.x, el.w))
+                          or "left")
+                    # Authored line spacing. iwa_resolver encodes:
+                    #   > 0  → multiplier (default kRelativeLineSpacing)
+                    #   < 0  → -points (kExactLineSpacing → absolute pt)
+                    #   = 0  → not set; use 1.35 default
+                    raw_lh = resolver.text_line_height_for_element(
+                        slide.keynote_no, el.x, el.y, el.w, el.h)
+                    if raw_lh < 0:
+                        lh_css = f"line-height:{-raw_lh:.1f}px"
+                    else:
+                        lh_css = f"line-height:{(raw_lh or 1.35):.2f}"
                     base_style = [
                         f"color:{text_color}",
                         f"font-family:{font_stack}",
                         f"font-size:{fs:.1f}px",
                         f"font-weight:{weight}",
                         f"font-style:{fstyle}",
-                        "line-height:1.35",
+                        lh_css,
                         "padding:8px 16px",
                         f"text-align:{ta}",
                     ]
@@ -1827,8 +2207,14 @@ def compose_slide_html(slide: Slide, resolver: AssetResolver,
                         # Single-run text — flex is fine and gives clean
                         # vertical centering of a single line.
                         align_items_v = "center"
+                        # Map Keynote text-align to flex justify-content. Keynote
+                        # also exports "justify" (full-justify) which has no flex
+                        # equivalent — degrade to flex-start (left). The text-align
+                        # CSS property is set separately so the actual visual
+                        # justify still applies to the text run.
                         justify = {"left":"flex-start", "center":"center",
-                                   "right":"flex-end"}[ta]
+                                   "right":"flex-end",
+                                   "justify":"flex-start"}.get(ta, "flex-start")
                         style_parts += base_style + [
                             "display:flex",
                             f"align-items:{align_items_v}",
@@ -1861,15 +2247,26 @@ def compose_slide_html(slide: Slide, resolver: AssetResolver,
         elif el.type == "text":
             if not el.text.strip():
                 continue
+            # IWA paragraph style → text-align. No bbox-centre guess.
             ta = (resolver.text_align_for_element(
                       slide.keynote_no, el.x, el.y, el.w, el.h)
-                  or _text_align(el.x, el.w))
+                  or "left")
+            # Authored line spacing — encoded by iwa_resolver:
+            #   > 0 = multiplier, < 0 = -px (exact), 0 = unset.
+            raw_lh = resolver.text_line_height_for_element(
+                slide.keynote_no, el.x, el.y, el.w, el.h)
+            if raw_lh < 0:
+                lh_css = f"line-height:{-raw_lh:.1f}px"
+                lh = 1.4  # for fit_font_to_box (multiplier expected)
+            else:
+                lh = raw_lh or 1.4
+                lh_css = f"line-height:{lh:.2f}"
             # Container styling uses the FIRST run's font/size as the default.
             # When el.runs has multiple entries, individual <span>s override.
             font_stack = text_font_stack(el.font)
             text_color = el.text_color_hex
             size_authored = el.font_size or 24
-            size = fit_font_to_box(el.text, el.w, el.h, size_authored, line_height=1.4)
+            size = fit_font_to_box(el.text, el.w, el.h, size_authored, line_height=lh)
             weight, fstyle = parse_font_weight_style(el.font)
             inner = _render_text_runs(el, default_color=text_color,
                                        default_font=el.font, default_size=size)
@@ -1877,7 +2274,7 @@ def compose_slide_html(slide: Slide, resolver: AssetResolver,
                 f'<div class="el"{_role_attr(el)} style="left:{el.x}px;top:{el.y}px;width:{el.w}px;'
                 f'min-height:{el.h}px;color:{text_color};'
                 f'font-family:{font_stack};font-size:{size:.1f}px;'
-                f'font-weight:{weight};font-style:{fstyle};line-height:1.4;'
+                f'font-weight:{weight};font-style:{fstyle};{lh_css};'
                 f'text-align:{ta};{op_css}{rot}">'
                 f'{inner}</div>'
             )
@@ -1903,6 +2300,144 @@ def compose_slide_html(slide: Slide, resolver: AssetResolver,
                         f'width:2px;height:{el.h}px;background:{line_color};{rot}"></div>'
                     )
                 continue
+
+            # TABLE: reconstruct HTML <table> from CELL records emitted by
+            # extract.applescript. Per-cell widths/heights + per-cell font,
+            # color, and background are honored.
+            if el.type == "table" and el.cells:
+                max_row = max(c["row"] for c in el.cells)
+                max_col = max(c["col"] for c in el.cells)
+                grid: dict[tuple[int,int], dict] = {}
+                col_w: dict[int, float] = {}
+                row_h: dict[int, float] = {}
+                for c in el.cells:
+                    grid[(c["row"], c["col"])] = c
+                    col_w[c["col"]] = c["w"]
+                    row_h[c["row"]] = c["h"]
+
+                def _cell_style(c: dict, cw: float, rh: float) -> str:
+                    """Per-cell inline style. Reads font/size/text-color and
+                    optional fill from the CELL record (Keynote AppleScript
+                    surfaces these when present)."""
+                    bits = [
+                        f"width:{cw:.1f}px",
+                        f"height:{rh:.1f}px",
+                        "padding:6px 10px",
+                        # Default light gray border; Keynote AS doesn't
+                        # surface per-cell borders, but a 1px gray is closer
+                        # to typical table chrome than no border.
+                        "border:1px solid rgba(0,0,0,0.22)",
+                        "vertical-align:middle",
+                    ]
+                    if c.get("font"):
+                        bits.append(f"font-family:{text_font_stack(c['font'])}")
+                    if c.get("size"):
+                        bits.append(f"font-size:{float(c['size']):.1f}px")
+                    # Text color (always emit when r,g,b are present — even
+                    # for pure black we want to be explicit since the
+                    # surrounding font/bg might inherit something else).
+                    if any(c.get(k, 0) for k in ("r", "g", "b")) or c.get("r") == 0:
+                        if "r" in c:
+                            bits.append(f"color:{_kn_rgb_to_hex(c['r'], c['g'], c['b'])}")
+                    # Fill: -1 means AppleScript didn't surface it.
+                    if c.get("fill_r", -1) >= 0:
+                        bits.append("background:" + _kn_rgb_to_hex(
+                            c["fill_r"], c["fill_g"], c["fill_b"]))
+                    return ";".join(bits)
+
+                rows_html: list[str] = []
+                for r in range(1, max_row + 1):
+                    cells_html: list[str] = []
+                    rh = row_h.get(r, 0) or 0
+                    for cc in range(1, max_col + 1):
+                        c = grid.get((r, cc))
+                        text = html_lib.escape(c["text"]) if c else ""
+                        cw = col_w.get(cc, 0) or 0
+                        if c:
+                            cells_html.append(
+                                f'<td style="{_cell_style(c, cw, rh)}">{text}</td>'
+                            )
+                        else:
+                            cells_html.append(
+                                f'<td style="width:{cw:.1f}px;height:{rh:.1f}px;'
+                                f'border:1px solid rgba(0,0,0,0.22);"></td>'
+                            )
+                    rows_html.append(f"<tr>{''.join(cells_html)}</tr>")
+                tbl = (
+                    f'<table style="border-collapse:collapse;'
+                    f"font-family:'PingFang SC','Microsoft YaHei',"
+                    f"'Helvetica Neue','Arial',sans-serif;"
+                    f'font-size:{(el.font_size or 16):.1f}px;'
+                    f'color:{el.text_color_hex};">'
+                    f'{"".join(rows_html)}</table>'
+                )
+                parts.append(
+                    f'<div class="el" style="left:{el.x}px;top:{el.y}px;'
+                    f'width:{el.w}px;height:{el.h}px;{rot}">{tbl}</div>'
+                )
+                continue
+
+            # CHART: render as SVG bar chart from extracted series data.
+            # Best-effort — AppleScript's chart introspection is limited,
+            # so points may be partial. Better than a blank.
+            if el.type == "chart" and el.chart and el.chart.get("series"):
+                ch = el.chart
+                series = ch.get("series", [])
+                cats = ch.get("categories", [])
+                points = ch.get("points", [])
+                if cats and points and any(p for p in points):
+                    # SVG bars. Each category = a group; series stacked horizontally.
+                    pad = 30
+                    chart_w = max(100.0, el.w - 2 * pad)
+                    chart_h = max(60.0, el.h - 2 * pad - 24)  # leave 24 for axis labels
+                    n_cats = len(cats)
+                    n_series = len(series)
+                    # Normalize values
+                    all_vals = [v for sp in points for v in sp if isinstance(v, (int, float))]
+                    if not all_vals:
+                        all_vals = [0]
+                    vmax = max(all_vals) or 1.0
+                    palette = ["#3C7FFF", "#33D6C0", "#9F6FF1", "#FF8A4C",
+                               "#22B573", "#E75A7C"]
+                    group_w = chart_w / max(n_cats, 1)
+                    bar_w = group_w / max(n_series, 1) * 0.8
+                    bars: list[str] = []
+                    for si, sp in enumerate(points):
+                        col = palette[si % len(palette)]
+                        for ci, v in enumerate(sp):
+                            if not isinstance(v, (int, float)): continue
+                            bh = (v / vmax) * chart_h if vmax > 0 else 0
+                            bx = pad + ci * group_w + si * bar_w + (group_w - n_series * bar_w) / 2
+                            by = pad + chart_h - bh
+                            bars.append(
+                                f'<rect x="{bx:.1f}" y="{by:.1f}" '
+                                f'width="{bar_w:.1f}" height="{bh:.1f}" '
+                                f'fill="{col}" rx="2"/>'
+                            )
+                    # X-axis labels
+                    labels = []
+                    for ci, cat in enumerate(cats):
+                        lx = pad + ci * group_w + group_w / 2
+                        ly = pad + chart_h + 16
+                        labels.append(
+                            f'<text x="{lx:.1f}" y="{ly:.1f}" font-size="12" '
+                            f'fill="#444" text-anchor="middle" '
+                            f'font-family="PingFang SC,sans-serif">'
+                            f'{html_lib.escape(str(cat))}</text>'
+                        )
+                    # Y-axis baseline
+                    axis = (f'<line x1="{pad}" y1="{pad}" x2="{pad}" '
+                            f'y2="{pad+chart_h}" stroke="#bbb"/>'
+                            f'<line x1="{pad}" y1="{pad+chart_h}" '
+                            f'x2="{pad+chart_w}" y2="{pad+chart_h}" stroke="#bbb"/>')
+                    parts.append(
+                        f'<svg class="el" xmlns="http://www.w3.org/2000/svg" '
+                        f'viewBox="0 0 {el.w:.0f} {el.h:.0f}" '
+                        f'style="position:absolute;left:{el.x}px;top:{el.y}px;'
+                        f'width:{el.w}px;height:{el.h}px;{rot}">'
+                        f'{axis}{"".join(bars)}{"".join(labels)}</svg>'
+                    )
+                    continue
 
             # Other unsupported types (chart / table / other:*): raster fallback
             if raster.available():

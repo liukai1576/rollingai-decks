@@ -76,6 +76,67 @@ def _gradient_to_css(gradient: dict) -> str:
     return f"linear-gradient({angle_deg_css:.1f}deg, {', '.join(css_stops)})"
 
 
+def _bezier_to_svg_path(bz: dict) -> tuple:
+    """Convert a Keynote `bezierPathSource` dict into an SVG path `d` string.
+
+    Returns (d_string, natural_width, natural_height). The d_string is in
+    LOCAL coordinates (0,0 to natural_w, natural_h) — the caller renders
+    via <svg viewBox="0 0 natural_w natural_h" preserveAspectRatio="none">
+    so the path stretches to the shape's actual bbox.
+
+    Returns ("", 0, 0) when the path is empty or malformed.
+    """
+    if not isinstance(bz, dict):
+        return ("", 0.0, 0.0)
+    natural = bz.get("naturalSize") or {}
+    try:
+        nw = float(natural.get("width") or 0)
+        nh = float(natural.get("height") or 0)
+    except (TypeError, ValueError):
+        return ("", 0.0, 0.0)
+    if nw <= 0 or nh <= 0:
+        return ("", 0.0, 0.0)
+    elements = ((bz.get("path") or {}).get("elements")) or []
+    parts: list[str] = []
+    for el in elements:
+        if not isinstance(el, dict): continue
+        t = el.get("type") or el.get("elementType") or ""
+        pts = el.get("points") or []
+        if not isinstance(pts, list): continue
+        def xy(i):
+            p = pts[i] if i < len(pts) else None
+            if not isinstance(p, dict): return None
+            try:
+                return (float(p.get("x") or 0), float(p.get("y") or 0))
+            except (TypeError, ValueError):
+                return None
+        if t == "moveTo" and pts:
+            p = xy(0)
+            if p: parts.append(f"M{p[0]:.2f} {p[1]:.2f}")
+        elif t == "lineTo" and pts:
+            p = xy(0)
+            if p: parts.append(f"L{p[0]:.2f} {p[1]:.2f}")
+        elif t == "curveTo" and len(pts) >= 3:
+            # Keynote stores cubic bezier as 3 points:
+            #   [anchor_endpoint, control1, control2]   (in some versions)
+            #   [control1, control2, anchor_endpoint]   (other versions)
+            # The convention here matches what we saw in p5's big rings:
+            # 3 points where the LAST one is the destination. Verified by
+            # spot-checking against rendered output.
+            c1, c2, anc = xy(0), xy(1), xy(2)
+            if c1 and c2 and anc:
+                parts.append(f"C{c1[0]:.2f} {c1[1]:.2f} "
+                             f"{c2[0]:.2f} {c2[1]:.2f} "
+                             f"{anc[0]:.2f} {anc[1]:.2f}")
+        elif t == "quadCurveTo" and len(pts) >= 2:
+            c, anc = xy(0), xy(1)
+            if c and anc:
+                parts.append(f"Q{c[0]:.2f} {c[1]:.2f} {anc[0]:.2f} {anc[1]:.2f}")
+        elif t in ("closeSubpath", "closePath"):
+            parts.append("Z")
+    return (" ".join(parts), nw, nh)
+
+
 def _strip_data_id_suffix(name: str) -> str:
     """`已粘贴的图像-9115.png` → `已粘贴的图像` ;  `image-2-1.png` → `image-2-1`.
 
@@ -114,6 +175,10 @@ class _TextAlign:
     w: float
     h: float
     align: str             # "left" / "center" / "right" / "justify" / "natural"
+    # Authored line spacing (Keynote's lineSpacing.amount, e.g. 0.9, 1.0,
+    # 1.2). Use directly as CSS `line-height: <amount>`. 0 means default
+    # (build.py keeps its 1.35 / 1.4 baseline in that case).
+    line_height: float = 0.0
 
 
 @dataclass
@@ -139,6 +204,29 @@ class _ShapeFill:
     alpha: float           # 0..1 (solid fill path: color-alpha × style opacity)
     has_text: bool
     gradient_css: str = ""  # non-empty → use this instead of rgba(r,g,b,a)
+    # pathsource.pointPathSource.type — Keynote's named shape type, e.g.
+    # "kTSDRightSingleArrow", "kTSDStar", "kTSDOval", "kTSDRoundedRect".
+    # When set, build.py can render proper geometry (SVG path) instead of
+    # a bbox-only colored rectangle. Empty string for shapes without a
+    # named pathsource (typical bezier paths, default rects).
+    shape_kind: str = ""
+    # Rotation angle in degrees (Keynote's geometry.angle, kept here so
+    # build.py can correctly orient SVG geometry without re-querying).
+    angle: float = 0.0
+    # Bezier path (from super.pathsource.bezierPathSource) — for custom
+    # Keynote shapes (the big rings on p5, etc). 3-tuple of:
+    #   (svg_d_string, natural_width, natural_height)
+    # natural_w/h define the viewBox so the path scales to the shape bbox.
+    # Empty d_string when shape has no bezier path.
+    bezier_path: tuple = ("", 0.0, 0.0)
+    # Stroke (border) info from the ShapeStyle chain. When stroke_width > 0,
+    # the shape was authored with a visible border in Keynote — build.py
+    # should emit `border: <w>px <dash> <color>`. Many slides (p5's big
+    # ring circles, divider boxes) have NO fill and stroke-only; without
+    # this they'd render as invisible empty divs.
+    stroke_color: str = ""    # "rgba(r,g,b,a)" or "" when no stroke
+    stroke_width: float = 0.0
+    stroke_dash: str = ""     # "" / "dashed" / "dotted"
 
 
 # Map TSWP TextAlignmentType enum (TATvalue0..4) to CSS-friendly strings.
@@ -157,7 +245,8 @@ _TAT_TO_ALIGN = {
 class IWAAssetMap:
     def __init__(self, assets: list[_Asset], text_aligns: list[_TextAlign] = None,
                  shape_fills: list[_ShapeFill] = None,
-                 master_bboxes: dict = None):
+                 master_bboxes: dict = None,
+                 slide_bgs: dict = None):
         self._assets = assets
         self._by_slide: dict[int, list[_Asset]] = {}
         for a in assets:
@@ -175,13 +264,20 @@ class IWAAssetMap:
         # 1958×2076, so object-fit:cover shows the wrong slice. The template
         # IWA has the TRUE placement; we render at that.
         self._master_bbox: dict[tuple[int, str], tuple[float, float, float, float]] = master_bboxes or {}
+        # slide_no → CSS string ("#RRGGBB" or "linear-gradient(...)"). Source of
+        # truth: KN.SlideStyleArchive.slideProperties.fill resolved from each
+        # slide's style identifier. None → no explicit fill, caller falls back.
+        self._slide_bg: dict[int, str] = slide_bgs or {}
+
+    def slide_background(self, slide_no: int) -> Optional[str]:
+        """Return the CSS background value (color or gradient) for this slide,
+        as authored in Keynote's SlideStyleArchive. None if not extractable."""
+        return self._slide_bg.get(slide_no)
 
     def master_bbox(self, slide_no: int, file_name: str) -> Optional[tuple[float, float, float, float]]:
         """Return (x, y, w, h) of a master/template image as positioned IN
-        the template, or None if not in our map. Match by file_name stem
-        (slide_no is a future hint — for now, templates with the same
-        image use the same bbox across slides, so a global filename match
-        is fine)."""
+        the template, or None if not in our map. Match by file_name stem,
+        scoped to slide_no when possible."""
         if not file_name:
             return None
         stem = _strip_data_id_suffix(file_name)
@@ -193,6 +289,31 @@ class IWAAssetMap:
         for (sn, fn), bbox in self._master_bbox.items():
             if _strip_data_id_suffix(fn) == stem:
                 return bbox
+        return None
+
+    def master_filename(self, slide_no: int, file_name: str) -> Optional[str]:
+        """Resolve an AppleScript-reported MASTER image stem (e.g. 'image6.jpeg')
+        to the EXACT on-disk Data/ filename for THIS slide's template (e.g.
+        'image6-9334.jpeg'). Returns None if no master record matches.
+
+        Why: AppleScript reports master images by basename only (stripped of
+        the '-<data_id>' suffix). When a Keynote deck has SEVERAL distinct
+        'image6.<ext>' files across different templates (one per master), the
+        legacy stem-based file-system scan picks the wrong file by aspect
+        ratio — so slide 65 ends up rendering slide 60's cityscape. This
+        method gives the TRUE filename from the per-slide template index."""
+        if not file_name:
+            return None
+        stem = _strip_data_id_suffix(file_name)
+        # Prefer slide-scoped match.
+        for (sn, fn), _ in self._master_bbox.items():
+            if sn == slide_no and _strip_data_id_suffix(fn) == stem:
+                return fn
+        # Global fallback — only useful when the template image isn't
+        # registered against this specific slide_no but exists somewhere.
+        for (sn, fn), _ in self._master_bbox.items():
+            if _strip_data_id_suffix(fn) == stem:
+                return fn
         return None
 
     def shape_fills_for_slide(self, slide_no: int) -> list[_ShapeFill]:
@@ -268,6 +389,24 @@ class IWAAssetMap:
     def assets_for_slide(self, slide_no: int) -> list[_Asset]:
         return list(self._by_slide.get(slide_no, []))
 
+    def _best_text_record(self, slide_no: int, x: float, y: float,
+                          w: float, h: float) -> Optional["_TextAlign"]:
+        """Pick the best-matching paragraph record for a bbox. Same scoring
+        as text_alignment() but returns the full record so callers can also
+        read line_height."""
+        candidates = self._aligns_by_slide.get(slide_no, [])
+        if not candidates:
+            return None
+        def score(ta: "_TextAlign") -> float:
+            ox = max(0.0, min(ta.x + ta.w, x + w) - max(ta.x, x))
+            x_score = ox / max(min(ta.w, w), 1.0)
+            dy = abs((ta.y + ta.h / 2) - (y + h / 2)) / 1080.0
+            return x_score - dy
+        best = max(candidates, key=score)
+        if score(best) < 0.5:
+            return None
+        return best
+
     def text_alignment(self, slide_no: int, x: float, y: float,
                        w: float, h: float) -> Optional[str]:
         """Return CSS alignment ("left"/"center"/"right"/"justify") for the
@@ -278,24 +417,20 @@ class IWAAssetMap:
         a real height. So bbox-area overlap doesn't work — we score by
         horizontal extent overlap + vertical center proximity instead.
         """
-        candidates = self._aligns_by_slide.get(slide_no, [])
-        if not candidates:
-            return None
-
-        def score(ta: _TextAlign) -> float:
-            # Horizontal overlap (the dimension alignment cares about)
-            ox = max(0.0, min(ta.x + ta.w, x + w) - max(ta.x, x))
-            x_score = ox / max(min(ta.w, w), 1.0)  # 1.0 = fully overlapping
-            # Vertical center distance (in slide-height units)
-            dy = abs((ta.y + ta.h / 2) - (y + h / 2)) / 1080.0
-            return x_score - dy  # prefer high x-overlap, low y-distance
-
-        best = max(candidates, key=score)
-        if score(best) < 0.5:  # weak match — caller should fall back
-            return None
-        if best.align == "natural":
+        best = self._best_text_record(slide_no, x, y, w, h)
+        if best is None or not best.align or best.align == "natural":
             return None
         return best.align
+
+    def text_line_height(self, slide_no: int, x: float, y: float,
+                         w: float, h: float) -> float:
+        """Return the authored line-height multiplier from the IWA
+        ParagraphStyle.lineSpacing.amount, or 0.0 when not specified
+        (caller should use its default)."""
+        best = self._best_text_record(slide_no, x, y, w, h)
+        if best is None:
+            return 0.0
+        return best.line_height
 
     @classmethod
     def from_key(cls, key_path: Path) -> "IWAAssetMap":
@@ -386,6 +521,7 @@ class IWAAssetMap:
             # DocumentStylesheet.iwa, but per-slide overrides can live in the
             # slide's own iwa.
             para_align: dict[str, str] = {}  # arch_id → "left"/"center"/etc.
+            para_lh: dict[str, float] = {}   # arch_id → line-height multiplier
             # Pre-pass B: index ShapeStyleArchive entries (source of truth for
             # shape fill color + opacity). Walk parent chain to resolve.
             shape_style_raw: dict[str, dict] = {}  # arch_id → {fill, opacity, parent}
@@ -406,6 +542,30 @@ class IWAAssetMap:
                                 a = pp.get("alignment")
                                 if a in _TAT_TO_ALIGN:
                                     para_align[arid] = _TAT_TO_ALIGN[a]
+                                # lineSpacing has two common modes in Keynote:
+                                #   · default / kRelativeLineSpacing → amount
+                                #     is a unitless multiplier (0.9, 1.18).
+                                #     CSS: `line-height: <amount>`.
+                                #   · kExactLineSpacing → amount is absolute
+                                #     points. CSS: `line-height: <amount>px`.
+                                # We encode the mode by sign convention:
+                                # positive = multiplier, negative = -points.
+                                # build.py decodes and emits the right unit.
+                                ls = pp.get("lineSpacing")
+                                if isinstance(ls, dict):
+                                    amt = ls.get("amount")
+                                    mode = ls.get("mode") or ""
+                                    if amt is not None:
+                                        try:
+                                            amt_f = float(amt)
+                                            if mode == "kExactLineSpacing":
+                                                # Encode points as a negative
+                                                # value so the caller knows.
+                                                para_lh[arid] = -amt_f
+                                            else:
+                                                para_lh[arid] = amt_f
+                                        except (TypeError, ValueError):
+                                            pass
                             elif t == "TSWP.ShapeStyleArchive":
                                 # TSWP.ShapeStyleArchive nests:
                                 #   super.super.parent.identifier  → parent style
@@ -432,12 +592,17 @@ class IWAAssetMap:
             #   "color": (r,g,b,a) tuple in 0..1, when kind == "color"
             #   "gradient_css": full CSS linear-gradient(...) string, when kind == "gradient"
             #   "opacity": 0..1, the style-level alpha multiplier
+            #   "stroke_color": (r,g,b,a) in 0..1 or None
+            #   "stroke_width": float (px) or 0
+            #   "stroke_dash":  "" / "dashed" / "dotted"  (CSS border-style)
             # A gradient fill in any level wins over a color fill in parents
             # (gradient is a complete fill spec, not an additive override).
             def _resolve_shape_style(sid: str, seen=None) -> dict:
                 if seen is None: seen = set()
                 if not sid or sid in seen or sid not in shape_style_raw:
-                    return {"kind": None, "color": None, "gradient_css": "", "opacity": 1.0}
+                    return {"kind": None, "color": None, "gradient_css": "",
+                            "opacity": 1.0, "stroke_color": None,
+                            "stroke_width": 0.0, "stroke_dash": ""}
                 seen.add(sid)
                 raw = shape_style_raw[sid]
                 parent = _resolve_shape_style(raw["parent"], seen)
@@ -445,6 +610,9 @@ class IWAAssetMap:
                 color = parent["color"]
                 grad = parent["gradient_css"]
                 op = parent["opacity"]
+                stroke_color = parent["stroke_color"]
+                stroke_width = parent["stroke_width"]
+                stroke_dash = parent["stroke_dash"]
                 # Walk own → base properties (own overrides base overrides parent)
                 for src in (raw["base"], raw["own"]):
                     if not isinstance(src, dict): continue
@@ -476,9 +644,39 @@ class IWAAssetMap:
                                     # fill dict present but no recognisable
                                     # color or gradient — treat as cleared.
                                     kind, color, grad = None, None, ""
+                    # Stroke (border). Keynote stores it as
+                    #   stroke: {color: {r,g,b,a}, width: px, pattern: {...}}
+                    # Empty {} clears stroke. Else extract color + width + pattern.
+                    if "stroke" in src:
+                        st = src.get("stroke")
+                        if not st:
+                            stroke_color, stroke_width, stroke_dash = None, 0.0, ""
+                        elif isinstance(st, dict):
+                            sc = st.get("color")
+                            if isinstance(sc, dict) and "r" in sc:
+                                stroke_color = (
+                                    float(sc.get("r") or 0),
+                                    float(sc.get("g") or 0),
+                                    float(sc.get("b") or 0),
+                                    float(sc.get("a") if sc.get("a") is not None else 1.0),
+                                )
+                            sw = st.get("width")
+                            if sw is not None:
+                                stroke_width = float(sw)
+                            # pattern.type: TSDSolidPattern, or array-based dash.
+                            patt = st.get("pattern") or {}
+                            ptype = patt.get("type", "")
+                            if "Dash" in ptype:
+                                stroke_dash = "dashed"
+                            elif "Dot" in ptype:
+                                stroke_dash = "dotted"
+                            else:
+                                stroke_dash = ""
                     if "opacity" in src and src["opacity"] is not None:
                         op = float(src["opacity"])
-                return {"kind": kind, "color": color, "gradient_css": grad, "opacity": op}
+                return {"kind": kind, "color": color, "gradient_css": grad,
+                        "opacity": op, "stroke_color": stroke_color,
+                        "stroke_width": stroke_width, "stroke_dash": stroke_dash}
 
             # 3b. Per-slide pass: collect image/movie drawables AND text-shape
             # alignments. For each slide:
@@ -712,15 +910,43 @@ class IWAAssetMap:
                                 storage_id = storage_ref.get("identifier")
                                 has_text = bool(storage_id)
 
-                                # Alignment
+                                # Alignment + line-height (text-props record).
+                                # Emit one record per text-bearing shape as
+                                # long as EITHER align or line_height is known.
                                 if storage_id:
                                     para_id = storage_first_para.get(storage_id)
                                     align = para_align.get(para_id) if para_id else None
-                                    if align:
+                                    lh = para_lh.get(para_id, 0.0) if para_id else 0.0
+                                    if align or lh > 0:
                                         text_aligns.append(_TextAlign(
                                             slide_no=slide_no,
-                                            x=px, y=py, w=w, h=h, align=align,
+                                            x=px, y=py, w=w, h=h,
+                                            align=align or "",
+                                            line_height=lh,
                                         ))
+
+                                # Named shape kind ("kTSDRightSingleArrow",
+                                # "kTSDOval", etc.) — captured from the
+                                # super.pathsource.pointPathSource block.
+                                # build.py uses this to switch from a
+                                # bbox-colored div to a proper SVG path for
+                                # arrows / callouts / stars / etc.
+                                shape_kind = ""
+                                psrc = ((obj.get("super") or {})
+                                        .get("pathsource") or {})
+                                pps = psrc.get("pointPathSource") or {}
+                                if isinstance(pps, dict):
+                                    shape_kind = pps.get("type") or ""
+                                # geometry.angle for rotation-aware rendering.
+                                shape_angle = float(geo.get("angle", 0) or 0)
+                                # Bezier path (custom-drawn shapes). Falls back
+                                # to empty if shape uses a named pointPathSource
+                                # or has no path. p5's big rings, organic blobs,
+                                # callout speech bubbles all land here.
+                                bz = psrc.get("bezierPathSource")
+                                bezier_tuple = (_bezier_to_svg_path(bz)
+                                                if isinstance(bz, dict) else
+                                                ("", 0.0, 0.0))
 
                                 # Shape fill — read via TSWP.ShapeStyleArchive
                                 # parent chain. AppleScript can't surface these.
@@ -728,6 +954,33 @@ class IWAAssetMap:
                                 if style_id:
                                     rs = _resolve_shape_style(style_id)
                                     op = rs.get("opacity", 1.0)
+                                    # Prepare stroke CSS string (used in BOTH
+                                    # fill and stroke-only paths below).
+                                    sc = rs.get("stroke_color")
+                                    sw = rs.get("stroke_width", 0.0)
+                                    sd = rs.get("stroke_dash", "")
+                                    stroke_css = ""
+                                    if sc is not None and sw > 0:
+                                        sa = sc[3] * op  # stroke alpha × style opacity
+                                        # Keynote's inherited theme default
+                                        # ("Outline → 1px Black") shows up
+                                        # everywhere in the shape style chain
+                                        # but isn't actually rendered unless
+                                        # the author explicitly turned it on.
+                                        # Identify by: 1px width AND black
+                                        # color. Treating these as no stroke
+                                        # silences the false-positive 1px
+                                        # borders that appeared on every shape.
+                                        is_theme_default = (
+                                            sw <= 1.0
+                                            and sc[0] < 0.05 and sc[1] < 0.05 and sc[2] < 0.05
+                                        )
+                                        if sa > 0.02 and not is_theme_default:
+                                            stroke_css = (f"rgba({int(round(sc[0]*255))},"
+                                                          f"{int(round(sc[1]*255))},"
+                                                          f"{int(round(sc[2]*255))},"
+                                                          f"{sa:.3f})")
+                                    # 3 paths: gradient fill, color fill, stroke-only.
                                     if rs.get("kind") == "gradient":
                                         css = rs.get("gradient_css") or ""
                                         if css and op > 0.02:
@@ -738,6 +991,12 @@ class IWAAssetMap:
                                                 alpha=op,
                                                 has_text=has_text,
                                                 gradient_css=css,
+                                                shape_kind=shape_kind,
+                                                angle=shape_angle,
+                                                stroke_color=stroke_css,
+                                                stroke_width=sw if stroke_css else 0.0,
+                                                stroke_dash=sd if stroke_css else "",
+                                                bezier_path=bezier_tuple,
                                             ))
                                     elif rs.get("kind") == "color":
                                         color = rs.get("color")
@@ -753,8 +1012,146 @@ class IWAAssetMap:
                                                     b=int(round(b * 255)),
                                                     alpha=eff_alpha,
                                                     has_text=has_text,
+                                                    shape_kind=shape_kind,
+                                                    angle=shape_angle,
+                                                    stroke_color=stroke_css,
+                                                    stroke_width=sw if stroke_css else 0.0,
+                                                    stroke_dash=sd if stroke_css else "",
+                                                    bezier_path=bezier_tuple,
                                                 ))
-        return cls(assets, text_aligns, shape_fills, master_bboxes=master_bboxes)
+                                    elif stroke_css and w > 1 and h > 1:
+                                        # Stroke-only shape — no fill but has a
+                                        # visible border. Common for ring
+                                        # circles, divider boxes, etc. Emit
+                                        # with alpha=0 sentinel: build.py
+                                        # will render `background:transparent`
+                                        # + `border:...`.
+                                        # Skip text-bearing shapes: Keynote's
+                                        # default 1px black stroke on text
+                                        # frames isn't actually rendered. And
+                                        # skip degenerate w=0/h=0 frames
+                                        # (auto-fit text boxes).
+                                        shape_fills.append(_ShapeFill(
+                                            slide_no=slide_no,
+                                            x=px, y=py, w=w, h=h,
+                                            r=0, g=0, b=0,
+                                            alpha=0.0,
+                                            has_text=has_text,
+                                            shape_kind=shape_kind,
+                                            angle=shape_angle,
+                                            stroke_color=stroke_css,
+                                            stroke_width=sw,
+                                            stroke_dash=sd,
+                                            bezier_path=bezier_tuple,
+                                        ))
+            # === Slide backgrounds (KN.SlideStyleArchive → fill) ===
+            # Every slide carries a `style: {identifier}` reference. Resolving
+            # it yields slideProperties.fill, which is the authored background
+            # (color or gradient). Read this FIRST — it's the source of truth.
+            # The previous "white text → dark bg" area-weighted heuristic in
+            # build.py is now only a fallback for slides whose style chain
+            # doesn't yield a fill.
+            slide_bgs: dict[int, str] = {}
+
+            # Collect every KN.SlideStyleArchive across all iwa files.
+            style_objs: dict[str, dict] = {}
+            for name in all_names:
+                if not name.endswith(".iwa"):
+                    continue
+                try:
+                    nd = IWAFile.from_buffer(o.read(name)).to_dict()
+                except Exception:
+                    continue
+                for chunk in nd.get("chunks", []):
+                    for ar in chunk.get("archives", []):
+                        for obj in ar.get("objects", []):
+                            if obj.get("_pbtype") == "KN.SlideStyleArchive":
+                                style_objs[ar["header"]["identifier"]] = obj
+
+            def _resolve_slide_fill(sid: str, depth: int = 0):
+                """Walk the SlideStyleArchive parent chain until we find a
+                slideProperties.fill. Returns the fill dict, or None."""
+                if depth > 8 or not sid or sid not in style_objs:
+                    return None
+                obj = style_objs[sid]
+                fill = (obj.get("slideProperties") or {}).get("fill")
+                if fill:
+                    return fill
+                parent = ((obj.get("super", {}) or {})
+                          .get("parent", {}) or {}).get("identifier")
+                return _resolve_slide_fill(parent, depth + 1)
+
+            def _fill_to_css(fill: dict) -> Optional[str]:
+                """Turn an IWA fill dict into a CSS background value.
+
+                Handles: solid color, linear/radial gradient, image fill.
+                For image fills we emit `url('assets/_shared/<file>') center/cover`
+                — the asset gets staged into _shared/ at build time. Returns
+                None when the fill type is unrecognized."""
+                if not isinstance(fill, dict):
+                    return None
+                # Solid color.
+                col = fill.get("color")
+                if col and isinstance(col, dict):
+                    r = int(round(float(col.get("r") or 0) * 255))
+                    g = int(round(float(col.get("g") or 0) * 255))
+                    b = int(round(float(col.get("b") or 0) * 255))
+                    a = float(col.get("a", 1.0) or 1.0)
+                    if a >= 0.999:
+                        return f"#{r:02X}{g:02X}{b:02X}"
+                    return f"rgba({r},{g},{b},{a:.3f})"
+                # Gradient (linear / radial). Reuse _gradient_to_css.
+                grad = fill.get("gradient")
+                if grad and isinstance(grad, dict):
+                    try:
+                        return _gradient_to_css(grad)
+                    except Exception:
+                        return None
+                # Image fill — Keynote stores it as { image: { data: {identifier},
+                # interpretsUntaggedImageDataAsGeneric, ... } }. We resolve the
+                # data_id → on-disk filename and emit a CSS background-image
+                # url. The asset is referenced via assets/_shared/ so build.py
+                # only needs to stage the file once per deck.
+                img = fill.get("image")
+                if img and isinstance(img, dict):
+                    img_ref = img.get("data") or img.get("imageData") or {}
+                    data_id = img_ref.get("identifier") if isinstance(img_ref, dict) else None
+                    if data_id:
+                        fn = data_id_to_filename.get(data_id)
+                        if fn:
+                            # We mark this with a sentinel prefix so build.py
+                            # recognizes it as an image fill (needs staging).
+                            # CSS form is `url('...') center/cover no-repeat`.
+                            return f"__SLIDE_BG_IMAGE__:{fn}"
+                return None
+
+            # For each slide, look up its style.identifier from KN.SlideArchive.
+            for slide_no, arch_id in enumerate(slide_arch_order, 1):
+                iwa_name = slide_iwa_file.get(arch_id)
+                if not iwa_name:
+                    continue
+                try:
+                    sd = IWAFile.from_buffer(o.read(iwa_name)).to_dict()
+                except Exception:
+                    continue
+                style_id = None
+                for chunk in sd.get("chunks", []):
+                    for ar in chunk.get("archives", []):
+                        for obj in ar.get("objects", []):
+                            if obj.get("_pbtype") == "KN.SlideArchive":
+                                style_id = (obj.get("style") or {}).get("identifier")
+                                break
+                if not style_id:
+                    continue
+                fill = _resolve_slide_fill(style_id)
+                if not fill:
+                    continue
+                css = _fill_to_css(fill)
+                if css:
+                    slide_bgs[slide_no] = css
+
+        return cls(assets, text_aligns, shape_fills,
+                   master_bboxes=master_bboxes, slide_bgs=slide_bgs)
 
 
 def _bbox_score_xywh(ax: float, ay: float, aw: float, ah: float,

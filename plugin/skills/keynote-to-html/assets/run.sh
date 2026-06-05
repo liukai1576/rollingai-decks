@@ -79,7 +79,10 @@ sleep 1  # final settle
 # file in step 1 above, but on some Keynote versions that doesn't bring the
 # window forward if the doc was already open. Naming the doc explicitly fixes
 # this.
-KEY_BASENAME="$(basename "$KEY_PATH")"
+# Keynote's `name of document` strips the .key extension, so we strip it
+# here too — otherwise `(first document whose name is gTargetDocName)`
+# never matches and extract.applescript bails with "Document not found".
+KEY_BASENAME="$(basename "$KEY_PATH" .key)"
 echo "==> extracting elements via AppleScript (limit=$EXTRACT_LIMIT, doc='$KEY_BASENAME')"
 osascript "$SCRIPT_DIR/extract.applescript" "$TSV_PATH" "$EXTRACT_LIMIT" "$KEY_BASENAME"
 echo "    wrote $TSV_PATH ($(wc -l <"$TSV_PATH" | tr -d ' ') lines)"
