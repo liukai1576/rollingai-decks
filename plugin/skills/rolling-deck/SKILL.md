@@ -2,7 +2,7 @@
 name: rolling-deck
 display_name: RollingAI 风格 H5（粒子地球封面 · 磨砂玻璃）
 kind: [布局风格]
-version: "1.1"
+version: "1.2"
 input:  用户的 brief / 大纲 / 内容 (+ 可选：客户 logo)
 output: 单文件 index.html（assets/ 同目录），浏览器直接打开放映
 triggers:

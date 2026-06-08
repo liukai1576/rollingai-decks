@@ -81,16 +81,19 @@
 
     .brand-rail {
       position: absolute; left: 76px; right: 76px; top: 34px; z-index: 75;
-      display: flex; align-items: center; gap: 28px;
+      display: flex; align-items: center; gap: 24px;
     }
-    /* Both logos sit flush left, same height; the gap separates them. */
+    /* Both logos sit flush left, same height; the gap separates them.
+       Height tuned to 48px so the marks read as a header lockup, not a
+       banner. RollingAI's wordmark is wide (aspect ~6:1) so 48px tall is
+       still ~285px wide visually. */
     .rolling-logo, .client-logo {
-      height: 74px; width: auto; object-fit: contain; object-position: left center;
+      height: 48px; width: auto; object-fit: contain; object-position: left center;
       opacity: 1; filter: drop-shadow(0 0 1px rgba(255,255,255,.55));
     }
     /* Optional thin vertical divider between the two marks. */
     .brand-rail .brand-sep {
-      width: 1px; height: 44px; background: rgba(255,255,255,.18);
+      width: 1px; height: 32px; background: rgba(255,255,255,.18);
     }
     .deck-label { color: var(--subtle); font-size: 18px; font-weight: 700; letter-spacing: .16em; }
 
