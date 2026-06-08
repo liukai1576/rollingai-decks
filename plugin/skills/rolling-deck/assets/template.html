@@ -81,11 +81,16 @@
 
     .brand-rail {
       position: absolute; left: 76px; right: 76px; top: 34px; z-index: 75;
-      display: flex; align-items: center; justify-content: space-between;
+      display: flex; align-items: center; gap: 28px;
     }
-    .rolling-logo {
-      width: 280px; height: 74px; object-fit: contain; object-position: left center;
-      border-radius: 8px; opacity: 1; filter: drop-shadow(0 0 1px rgba(255,255,255,.55));
+    /* Both logos sit flush left, same height; the gap separates them. */
+    .rolling-logo, .client-logo {
+      height: 74px; width: auto; object-fit: contain; object-position: left center;
+      opacity: 1; filter: drop-shadow(0 0 1px rgba(255,255,255,.55));
+    }
+    /* Optional thin vertical divider between the two marks. */
+    .brand-rail .brand-sep {
+      width: 1px; height: 44px; background: rgba(255,255,255,.18);
     }
     .deck-label { color: var(--subtle); font-size: 18px; font-weight: 700; letter-spacing: .16em; }
 
@@ -648,10 +653,10 @@
     <main class="deck" id="deck">
 
       <div class="brand-rail">
-        <div>
-          <img class="rolling-logo" src="assets/rolling-ai-logo.svg" alt="Rolling AI">
-        </div>
-        <span class="deck-label">10× TRANSFORMATION PROGRAM</span>
+        <img class="rolling-logo" src="assets/rolling-ai-logo.svg" alt="Rolling AI">
+        <!-- Optional: drop in a client co-brand mark here.
+             <span class="brand-sep" aria-hidden="true"></span>
+             <img class="client-logo" src="assets/<client>-logo.svg" alt="..."> -->
       </div>
 
       <!-- ══════════════════════════════════════════════════

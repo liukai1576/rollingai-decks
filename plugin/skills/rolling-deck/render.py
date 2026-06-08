@@ -72,25 +72,27 @@ def _splice(template: str, marker_open: str, marker_close: str, new_inner: str) 
 
 
 def _build_brand_rail(deck_meta: dict) -> str:
-    """Build the .brand-rail block. deck_meta may carry:
+    """Build the .brand-rail block. Both logos sit flush left at equal
+    height with a thin vertical separator between them — the layout the
+    user picked over the original "logo-left, label-right" split.
+
+    deck_meta may carry:
         client_logo: "assets/<file>"   (optional; default = no client logo)
-        client_label: "..."             (optional text fallback when no logo)
+        client_label: "..."             (alt text on the client logo image)
     """
     client_logo = deck_meta.get("client_logo")
     client_label = deck_meta.get("client_label", deck_meta.get("title", ""))
-    right = (
-        f'<img class="client-logo" src="{client_logo}" alt="{client_label}">'
-        if client_logo
-        else f'<span class="deck-label">{client_label}</span>'
-    )
-    return (
-        '      <div class="brand-rail">\n'
-        '        <div>\n'
-        '          <img class="rolling-logo" src="assets/rolling-ai-logo.svg" alt="Rolling AI">\n'
-        '        </div>\n'
-        f'        {right}\n'
-        '      </div>\n'
-    )
+    parts = [
+        '      <div class="brand-rail">\n',
+        '        <img class="rolling-logo" src="assets/rolling-ai-logo.svg" alt="Rolling AI">\n',
+    ]
+    if client_logo:
+        parts.append('        <span class="brand-sep" aria-hidden="true"></span>\n')
+        parts.append(
+            f'        <img class="client-logo" src="{client_logo}" alt="{client_label}">\n'
+        )
+    parts.append('      </div>\n')
+    return "".join(parts)
 
 
 def render(deck_path: Path, output_dir: Path) -> None:
