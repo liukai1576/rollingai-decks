@@ -47,8 +47,9 @@ DB_PATH = REPO / "library" / "db" / "data" / "slides.db"
 THUMBS_DIR = REPO / "library" / "db" / "data" / "thumbs"
 
 DECK_RENDER_DIRS: dict[str, Path] = {
-    "kangshifu": REPO / "imports" / "RollingAI分享" / "render-output-full",
+    "RollingAI分享":              REPO / "imports" / "RollingAI分享" / "render-output-full",
     "AI案例分享和AI转型建议-导入": REPO / "imports" / "AI案例分享" / "render-output-full",
+    "10x-transformation":         REPO / "imports" / "10x-transformation" / "render-output-full",
 }
 
 CHROME = "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome"
@@ -164,11 +165,31 @@ class Chrome:
         ws = websocket.create_connection(tab["webSocketDebuggerUrl"], timeout=30)
         self._send(ws, "Page.enable")
         self._send(ws, "Runtime.enable")
+        # Lock the viewport to a precise 16:9 box. `--window-size` is just a
+        # hint to the OS window; the page's actual innerHeight gets shaved
+        # by ~87px on macOS (title bar etc) so we end up with 960×453 instead
+        # of 960×540 — non-16:9 viewport → deck-frame letterboxes → screenshot
+        # captures the letterbox → resize to 480×270 squashes everything.
+        # Emulation.setDeviceMetricsOverride forces exact pixel dimensions
+        # regardless of host window chrome.
+        self._send(ws, "Emulation.setDeviceMetricsOverride", {
+            "width":  VIEW_W,
+            "height": VIEW_H,
+            "deviceScaleFactor": 1,
+            "mobile": False,
+        })
 
-        # Wait for the deck JS to mark itself ready.
+        # Wait for the deck to be ready. feishu-deck-h5 stamps
+        # `data-js-ready` on its <body>; other packs (rolling-deck etc.)
+        # don't, so fall back to a `document.readyState === 'complete'` +
+        # short paint settle once we've waited a little.
         deadline = time.time() + max_wait
         ready = False
+        ready_via = None
         last_href = None
+        FALLBACK_DELAY = 1.2  # seconds after readyState=complete on packs
+                              # without a data-js-ready stamp
+        complete_since = None
         while time.time() < deadline:
             resp = self._send(ws, "Runtime.evaluate", {
                 "expression": (
@@ -184,7 +205,19 @@ class Chrome:
             last_href = v
             if v.get("ready"):
                 ready = True
+                ready_via = "data-js-ready"
                 break
+            # Fallback: document.readyState complete sustained for
+            # FALLBACK_DELAY seconds.
+            if v.get("state") == "complete":
+                if complete_since is None:
+                    complete_since = time.time()
+                elif time.time() - complete_since >= FALLBACK_DELAY:
+                    ready = True
+                    ready_via = "readyState"
+                    break
+            else:
+                complete_since = None
             time.sleep(0.1)
         if not ready:
             ws.close()
@@ -237,28 +270,51 @@ class DeckTab:
         self.chrome.close_tab(self.target_id)
 
     def screenshot_slide(self, slide_key: str, max_wait: float = 4.0) -> bytes:
-        # Switch to the requested slide. Setting location.hash to '' first
-        # ensures hashchange fires even when we're already on this slide.
-        # We also explicitly kill any in-flight transitions on the target
-        # so the image is fully visible at screenshot time.
+        # Pack-agnostic slide selector. Try (in order):
+        #   1. feishu-deck-h5: location.hash = '#<key>' triggers the deck's
+        #      built-in router → .slide-frame.is-current matches.
+        #   2. rolling-deck: no hash router; flip .slide.active manually so
+        #      the section with matching data-slide-key is visible.
+        # Whichever drives the DOM into a "this slide is visible" state,
+        # we screenshot.
+        sk = json.dumps(slide_key)
         expr = (
             "(() => {"
+            f" const k = {sk};"
+            # feishu-deck-h5 path
             f" location.hash = '';"
-            f" location.hash = {json.dumps('#' + slide_key)};"
-            " return true;"
+            f" location.hash = '#' + k;"
+            # rolling-deck path: toggle .slide.active by data-slide-key
+            " const slides = document.querySelectorAll('.slide[data-slide-key]');"
+            " let hit = false;"
+            " slides.forEach(s => {"
+            "   const on = s.dataset.slideKey === k;"
+            "   if (on) hit = true;"
+            "   s.classList.toggle('active', on);"
+            " });"
+            # rolling-deck has body.on-cover for particle cover; sync it.
+            " if (hit) {"
+            "   const cur = document.querySelector('.slide[data-slide-key=\"' + k.replace(/\"/g,'\\\\\"') + '\"]');"
+            "   document.body.classList.toggle('on-cover', !!cur && cur.classList.contains('cover-hero'));"
+            " }"
+            " return hit;"
             "})()"
         )
         self.chrome._send(self.ws, "Runtime.evaluate", {
             "expression": expr, "returnByValue": True,
         })
 
-        # Poll until is-current matches the requested slide_key.
+        # Poll until the slide with the requested key is the visible one.
+        # Two acceptable "visible" signals (feishu vs rolling): is-current
+        # on the slide-frame, or .slide.active matching the key.
         check = (
             "(() => {"
+            f" const k = {sk};"
             " const f = document.querySelector('.slide-frame.is-current');"
-            " if (!f) return null;"
-            " const s = f.querySelector('.slide');"
-            f" return s && s.dataset.slideKey === {json.dumps(slide_key)};"
+            " const fOk = f && f.querySelector('.slide')?.dataset.slideKey === k;"
+            " if (fOk) return true;"
+            " const a = document.querySelector('.slide.active');"
+            " return !!(a && a.dataset.slideKey === k);"
             "})()"
         )
         deadline = time.time() + max_wait

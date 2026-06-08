@@ -1,0 +1,1910 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>10X Transformation Program · AI 原生孵化方案</title>
+  <style>
+    :root {
+      --bg: #0c0e12;
+      --panel: #15181e;
+      --panel-2: #1a1e25;
+      --line: rgba(255,255,255,.12);
+      --line-soft: rgba(255,255,255,.07);
+      --text: #f3f5f8;
+      --muted: #aab2bf;
+      --subtle: #79828f;
+      /* frosted glass tokens — dark frosted glass (ref: DroneShield UI) */
+      --glass-bg: rgba(13,17,24,.45);
+      --glass-bg-strong: rgba(13,17,24,.62);
+      --glass-border: rgba(255,255,255,.12);
+      --glass-blur: blur(28px) saturate(170%);
+      --glass-hi: inset 0 1px 0 rgba(255,255,255,.10), inset 0 -1px 0 rgba(0,0,0,.28);
+      --yellow: #fbbf24;
+      --yellow-soft: rgba(251,191,36,.13);
+      --blue: #60a5fa;
+      --blue-soft: rgba(59,130,246,.14);
+      --violet: #c4b5fd;
+      --violet-soft: rgba(167,139,250,.15);
+      --green: #34d399;
+      --orange: #fb923c;
+      --fire: #ff5b2e;
+      --fire-soft: rgba(255,91,46,.16);
+      --fire-glow: rgba(255,91,46,.42);
+      --scale: 1;
+    }
+
+    * { box-sizing: border-box; }
+    html, body { margin: 0; width: 100%; height: 100%; overflow: hidden; }
+    body {
+      color: var(--text);
+      background: #07080a;
+      font-family: "PingFang SC", "Microsoft YaHei", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      line-height: 1.55;
+    }
+    button, input { font: inherit; }
+    button { cursor: pointer; }
+
+    .deck-viewport {
+      position: fixed; inset: 0; display: grid; place-items: center; overflow: hidden;
+      background:
+        radial-gradient(circle at 13% 10%, rgba(80,120,140,.12), transparent 30rem),
+        radial-gradient(circle at 90% 16%, rgba(255,120,70,.07), transparent 28rem),
+        #07080a;
+    }
+    .deck {
+      position: absolute; left: 50%; top: 50%; width: 1920px; height: 1080px; overflow: hidden;
+      transform: translate(-50%, -50%) scale(var(--scale)); transform-origin: center center;
+      background: var(--bg);
+    }
+    .slide {
+      position: absolute; inset: 0; display: none; overflow: hidden;
+      /* bottom padding = safe area so content never sits under the nav bar
+         (controls top out ~90px from the bottom; 110 keeps a 20px gap) */
+      padding: 96px 112px 110px;
+      /* abstract colour-wash backdrop so the frosted panels have light to refract.
+         Colour reaches the centre too, so centred / table-heavy slides still get
+         light under the glass instead of reading as a flat grey slab. */
+      background:
+        radial-gradient(52% 46% at 15% 13%, rgba(255,122,54,.26), transparent 60%),
+        radial-gradient(50% 48% at 87% 15%, rgba(34,200,174,.24), transparent 60%),
+        radial-gradient(58% 54% at 84% 92%, rgba(56,132,255,.22), transparent 62%),
+        radial-gradient(50% 46% at 17% 90%, rgba(154,88,255,.20), transparent 60%),
+        radial-gradient(78% 66% at 50% 48%, rgba(70,150,190,.15), transparent 72%),
+        linear-gradient(150deg, #121826 0%, #0d1018 55%, #090a10 100%);
+    }
+    .slide.active { display: block; animation: reveal .28s ease-out; }
+    /* auto-fit wrapper: scaled down by JS when a slide's content would otherwise
+       overflow into the bottom nav safe-area */
+    .slide-fit { transform-origin: top left; }
+    @keyframes reveal { from { opacity: 0; transform: translateY(14px); } to { opacity: 1; transform: translateY(0); } }
+
+    .brand-rail {
+      position: absolute; left: 76px; right: 76px; top: 34px; z-index: 75;
+      display: flex; align-items: center; justify-content: space-between;
+    }
+    .rolling-logo {
+      width: 280px; height: 74px; object-fit: contain; object-position: left center;
+      border-radius: 8px; opacity: 1; filter: drop-shadow(0 0 1px rgba(255,255,255,.55));
+    }
+    .deck-label { color: var(--subtle); font-size: 18px; font-weight: 700; letter-spacing: .16em; }
+
+    .kicker { color: var(--yellow); font-size: 18px; font-weight: 800; letter-spacing: .18em; }
+    h1 { margin: 28px 0 24px; font-size: 104px; line-height: 1.05; letter-spacing: -.07em; }
+    h2 { margin: 15px 0 0; font-size: 62px; line-height: 1.12; letter-spacing: -.055em; }
+    h3 { margin: 0; font-size: 28px; line-height: 1.25; letter-spacing: -.025em; }
+    p { margin: 0; }
+    .lead { color: #c4cfdd; font-size: 28px; line-height: 1.7; }
+    .copy { color: var(--muted); font-size: 23px; line-height: 1.68; }
+    .copy strong, .lead strong { color: var(--text); }
+    .section-head { display: grid; grid-template-columns: .82fr 1.18fr; gap: 70px; align-items: end; margin-bottom: 40px; padding-right: 150px; }
+
+    .hero-grid { display: grid; grid-template-columns: 1.25fr .75fr; gap: 80px; align-items: end; margin-top: 86px; }
+    .hero-side { padding: 26px 0 0; border-top: 1px solid rgba(255,255,255,.24); }
+    .hero-side h3 { font-size: 30px; }
+    .hero-stats { display: grid; grid-template-columns: repeat(4,1fr); gap: 16px; margin-top: 52px; }
+    .stat { min-height: 154px; padding: 24px; border: 1px solid var(--line); border-radius: 18px; background: rgba(255,255,255,.045); }
+    .stat-num { color: var(--yellow); font-size: 56px; font-weight: 850; line-height: 1; letter-spacing: -.05em; }
+    .stat b { display: block; margin-top: 14px; font-size: 21px; }
+    .stat span { display: block; margin-top: 5px; color: var(--subtle); font-size: 17px; }
+
+    .cards-3, .cards-4, .cards-6, .cards-2 { display: grid; gap: 18px; }
+    .cards-3 { grid-template-columns: repeat(3,1fr); }
+    .cards-4 { grid-template-columns: repeat(4,1fr); }
+    .cards-6 { grid-template-columns: repeat(3,1fr); grid-template-rows: repeat(2,1fr); }
+    .cards-2 { grid-template-columns: repeat(2,1fr); }
+    .card { border: 1px solid var(--line); border-radius: 18px; background: rgba(255,255,255,.045); }
+    .card-pad { padding: 24px; }
+    .card-no { color: var(--yellow); font-size: 17px; font-weight: 800; letter-spacing: .14em; }
+    .card p { margin-top: 10px; color: var(--muted); font-size: 20px; line-height: 1.55; }
+    .card ul { margin: 18px 0 0; padding: 15px 0 0; border-top: 1px solid var(--line-soft); list-style: none; }
+    .card li { position: relative; padding: 3px 0 3px 17px; color: #d2dce8; font-size: 18px; }
+    .card li::before { content: "·"; position: absolute; left: 0; color: var(--yellow); font-weight: 900; }
+
+    .route-card { min-height: 500px; padding: 28px 30px; position: relative; overflow: hidden; }
+    .route-card::after { display: none; }
+    .route-card.sprint { --tone: var(--yellow); }
+    .route-card.deep1 { --tone: var(--blue); }
+    .route-card.deep2 { --tone: var(--violet); }
+    .route-top { display: flex; justify-content: space-between; color: var(--subtle); font-size: 17px; font-weight: 800; letter-spacing: .12em; }
+    .route-top strong { color: var(--tone); }
+    .route-card h3 { margin-top: 46px; font-size: 38px; }
+    .route-card p { min-height: 90px; margin-top: 14px; font-size: 20px; }
+    .route-card li { padding-top: 6px; padding-bottom: 6px; font-size: 19px; }
+    .exit { margin-top: 18px; padding: 14px; border-radius: 10px; background: rgba(255,255,255,.04); color: var(--muted); font-size: 17px; }
+    .exit strong { color: var(--text); }
+
+    .scope-card { min-height: 292px; padding: 23px; }
+    .scope-card h3 { margin-top: 12px; font-size: 28px; }
+    .scope-card p { font-size: 18px; }
+    .scope-card ul { margin-top: 12px; padding-top: 11px; }
+    .scope-card li { font-size: 17px; }
+
+    .operating-card { min-height: 270px; padding: 28px; }
+    .operating-card h3 { font-size: 31px; }
+    .operating-card p { margin-top: 12px; font-size: 22px; line-height: 1.62; }
+    .operating-card strong { color: var(--yellow); }
+    .band { margin-top: 20px; padding: 20px 24px; border-left: 4px solid var(--yellow); border-radius: 14px; background: var(--yellow-soft); color: #f2e2ae; font-size: 21px; }
+
+    .stream { min-height: 475px; padding: 26px; }
+    .stream.primary { background: var(--glass-bg); }
+    .stream h3 { margin-top: 10px; font-size: 36px; }
+    .stream p { margin-top: 7px; font-size: 20px; }
+    .stream-item { margin-top: 12px; padding: 12px 15px; border: 1px solid var(--line-soft); border-radius: 11px; background: rgba(255,255,255,.035); }
+    .stream-item b { display: block; font-size: 20px; }
+    .stream-item span { display: block; margin-top: 2px; color: var(--muted); font-size: 17px; }
+
+    .gov { min-height: 310px; padding: 26px; }
+    .gov h3 { margin-top: 15px; font-size: 29px; }
+    .gov p { font-size: 19px; }
+    .principles { display: grid; grid-template-columns: repeat(3,1fr); gap: 18px; margin-top: 18px; }
+    .principle { padding: 20px; border-radius: 14px; background: rgba(255,255,255,.045); }
+    .principle b { display: block; font-size: 21px; }
+    .principle span { display: block; margin-top: 6px; color: var(--muted); font-size: 18px; }
+
+    .cadence-card { min-height: 408px; padding: 26px; position: relative; }
+    .cadence-card:not(:last-child)::after { content: ""; position: absolute; right: -19px; top: 52px; width: 18px; height: 2px; background: var(--yellow); }
+    .cadence-card h3 { margin-top: 18px; font-size: 30px; }
+    .cadence-card p { font-size: 20px; }
+    .cadence-card li { padding-top: 5px; padding-bottom: 5px; font-size: 18px; }
+    .cadence-note { margin-top: 20px; padding: 20px 24px; border-radius: 15px; background: var(--yellow-soft); color: #efe0ab; font-size: 22px; }
+
+    .phase-strip { display: grid; grid-template-columns: repeat(4,1fr); gap: 14px; margin-bottom: 18px; }
+    .phase { padding: 17px; border: 1px solid var(--line); border-radius: 13px; background: rgba(255,255,255,.045); }
+    .phase b { display: block; margin-top: 5px; font-size: 20px; }
+    .phase span { color: var(--yellow); font-size: 15px; font-weight: 800; letter-spacing: .1em; }
+    .phase small { display: block; margin-top: 5px; color: var(--muted); font-size: 15px; }
+    .legend { display: flex; gap: 22px; margin-bottom: 12px; color: var(--muted); font-size: 16px; }
+    .legend i { display: inline-block; width: 12px; height: 12px; margin-right: 7px; border-radius: 3px; }
+    .calendar-wrap { padding: 14px; border: 1px solid var(--line); border-radius: 16px; background: rgba(13,27,45,.9); }
+    table { width: 100%; border-collapse: separate; border-spacing: 5px; table-layout: fixed; }
+    th { padding: 7px; border-radius: 6px; background: rgba(255,255,255,.05); color: var(--muted); font-size: 15px; }
+    td { height: 118px; padding: 10px; vertical-align: top; border-radius: 8px; }
+    .phase-cell { width: 154px; border-left: 4px solid var(--yellow); background: rgba(255,255,255,.055); }
+    .phase-cell b { display: block; font-size: 18px; }
+    .phase-cell span { color: var(--subtle); font-size: 14px; }
+    .week-cell { width: 74px; text-align: center; background: rgba(255,255,255,.055); }
+    .week-cell b { font-size: 20px; }
+    .week-cell span { display: block; color: var(--subtle); font-size: 13px; }
+    .cal-cell { border: 1px solid var(--line-soft); background: rgba(255,255,255,.04); }
+    .cal-cell.both { border-color: rgba(251,191,36,.34); background: var(--yellow-soft); }
+    .cal-cell.us { border-color: rgba(96,165,250,.34); background: var(--blue-soft); }
+    .cal-cell.client { border-color: rgba(196,181,253,.34); background: var(--violet-soft); }
+    .cal-cell b { display: block; font-size: 18px; line-height: 1.25; }
+    .cal-cell small { display: block; margin-top: 4px; color: #c5d0df; font-size: 15px; line-height: 1.36; }
+    .owner { display: inline-block; margin-top: 6px; padding: 2px 7px; border-radius: 99px; background: rgba(255,255,255,.1); color: var(--muted); font-size: 13px; font-weight: 800; }
+
+    /* 3-Track Incubation Calendar */
+    .track-legend { display: flex; gap: 22px; margin-bottom: 12px; color: var(--muted); font-size: 16px; align-items: center; }
+    .track-legend i { display: inline-block; width: 12px; height: 12px; margin-right: 7px; border-radius: 3px; }
+    .track-table { width: 100%; border-collapse: separate; border-spacing: 5px; table-layout: fixed; }
+    .track-table th { padding: 8px 10px; border-radius: 6px; background: rgba(255,255,255,.05); color: var(--muted); font-size: 15px; font-weight: 700; text-align: left; }
+    .tt-track-col { width: 138px; }
+    .tt-label { width: 138px; padding: 14px 12px; border-radius: 8px; vertical-align: middle; text-align: left; }
+    .tt-label .tt-code { display: block; font-size: 12px; font-weight: 900; letter-spacing: .14em; margin-bottom: 5px; opacity: .8; }
+    .tt-label b { display: block; font-size: 18px; line-height: 1.2; }
+    .tt-label small { display: block; margin-top: 4px; font-size: 12px; line-height: 1.3; opacity: .75; }
+    .tt-org { border-left: 4px solid var(--yellow); background: var(--yellow-soft); color: #f2e2ae; }
+    .tt-workflow { border-left: 4px solid var(--blue); background: var(--blue-soft); color: #bfdbfe; }
+    .tt-agent { border-left: 4px solid var(--violet); background: var(--violet-soft); color: #ddd6fe; }
+    .tt-cell { height: 130px; padding: 10px 12px; border-radius: 8px; vertical-align: top; }
+    .tt-org-cell { border: 1px solid rgba(251,191,36,.28); background: rgba(251,191,36,.05); }
+    .tt-workflow-cell { border: 1px solid rgba(96,165,250,.28); background: rgba(59,130,246,.05); }
+    .tt-agent-cell { border: 1px solid rgba(167,139,250,.28); background: rgba(167,139,250,.05); }
+    .tt-cell b { display: block; font-size: 16px; line-height: 1.3; color: var(--text); }
+    .tt-cell small { display: block; margin-top: 4px; color: var(--muted); font-size: 13px; line-height: 1.38; }
+    .tt-deliver { display: inline-block; margin-top: 7px; padding: 2px 8px; border-radius: 99px; font-size: 11.5px; font-weight: 800; letter-spacing: .05em; }
+    .tt-deliver-org { background: rgba(251,191,36,.18); color: var(--yellow); }
+    .tt-deliver-wf { background: rgba(96,165,250,.18); color: var(--blue); }
+    .tt-deliver-ag { background: rgba(167,139,250,.18); color: var(--violet); }
+    .incub-milestones { display: grid; grid-template-columns: repeat(4,1fr); gap: 12px; margin-top: 12px; }
+    .incub-ms { padding: 12px 14px; border: 1px solid var(--line); border-radius: 11px; background: rgba(255,255,255,.04); }
+    .incub-ms span { color: var(--yellow); font-size: 14px; font-weight: 800; letter-spacing: .1em; }
+    .incub-ms b { display: block; margin-top: 3px; font-size: 17px; }
+    .incub-ms small { display: block; margin-top: 2px; color: var(--subtle); font-size: 13px; }
+    .slide[data-slide-key="incub-w1w4"] td { height: 124px; }
+    .slide[data-slide-key="incub-w5w8"] td { height: 124px; }
+    .slide[data-slide-key="sprint-calendar-2"] td { height: 98px; }
+    .slide[data-slide-key="sprint-calendar-2"] .phase-strip { margin-top: 12px !important; }
+
+    /* Workshop slide */
+    .ws-day { min-height: 500px; padding: 26px 28px; }
+    .ws-day.d1 { background: var(--glass-bg); }
+    .ws-day.d2 { background: var(--glass-bg); }
+    .ws-day-label { font-size: 14px; font-weight: 900; letter-spacing: .18em; }
+    .ws-day.d1 .ws-day-label { color: var(--blue); }
+    .ws-day.d2 .ws-day-label { color: var(--fire); }
+    .ws-day h3 { margin-top: 8px; font-size: 32px; }
+    .ws-block { margin-top: 14px; padding: 12px 14px; border: 1px solid var(--line-soft); border-radius: 10px; background: rgba(255,255,255,.035); }
+    .ws-block b { display: block; font-size: 17px; color: var(--text); }
+    .ws-block span { display: block; margin-top: 3px; color: var(--muted); font-size: 15px; line-height: 1.4; }
+    .ws-block .ws-time { font-size: 13px; font-weight: 800; letter-spacing: .08em; color: var(--subtle); margin-bottom: 4px; }
+    .ws-outcome { margin-top: 16px; padding: 14px 16px; border-radius: 10px; }
+    .ws-day.d1 .ws-outcome { background: rgba(96,165,250,.1); border: 1px solid rgba(96,165,250,.3); color: #bfdbfe; }
+    .ws-day.d2 .ws-outcome { background: rgba(255,91,46,.1); border: 1px solid rgba(255,91,46,.3); color: #ffe4d6; }
+    .ws-outcome b { font-size: 16px; }
+    .ws-outcome span { display: block; margin-top: 4px; font-size: 15px; line-height: 1.4; }
+
+    /* Incubation overview track cards */
+    .track-overview { min-height: 560px; padding: 28px; position: relative; overflow: hidden; }
+    .track-overview::after { display: none; }
+    .track-overview.t-org { --track-tone: var(--yellow); }
+    .track-overview.t-workflow { --track-tone: var(--blue); }
+    .track-overview.t-agent { --track-tone: var(--violet); }
+    .track-code { font-size: 13px; font-weight: 900; letter-spacing: .16em; }
+    .t-org .track-code { color: var(--yellow); }
+    .t-workflow .track-code { color: var(--blue); }
+    .t-agent .track-code { color: var(--violet); }
+    .track-overview h3 { margin-top: 14px; font-size: 34px; }
+    .track-overview .track-sub { margin-top: 6px; color: var(--muted); font-size: 17px; }
+    .track-overview ul { margin: 16px 0 0; padding: 0; list-style: none; border-top: 1px solid var(--line-soft); }
+    .track-overview li { position: relative; padding: 7px 0 7px 18px; font-size: 17px; color: #d2dce8; border-bottom: 1px solid var(--line-soft); }
+    .track-overview li::before { content: ""; position: absolute; left: 0; top: 15px; width: 7px; height: 7px; border-radius: 50%; background: var(--track-tone); }
+    .track-deliver { margin-top: 16px; padding: 14px 16px; border-radius: 11px; background: rgba(255,255,255,.05); }
+    .track-deliver b { display: block; font-size: 16px; }
+    .track-deliver span { display: block; margin-top: 4px; color: var(--muted); font-size: 15px; line-height: 1.4; }
+
+    /* Goals grid */
+    .goals-head { display: grid; grid-template-columns: 1fr 1.05fr; gap: 60px; align-items: end; margin-bottom: 32px; padding-right: 150px; }
+    .goals-grid { display: grid; grid-template-columns: 1.05fr 1fr 1fr; grid-template-rows: 1fr 1fr; gap: 18px; }
+    .goal-card {
+      position: relative; padding: 26px 26px 24px;
+      border: 1px solid var(--line); border-radius: 18px;
+      background: linear-gradient(150deg, rgba(255,91,46,.07), rgba(255,255,255,.04));
+      overflow: hidden;
+    }
+    .goal-card::before {
+      content: ""; position: absolute; right: -56px; top: -52px;
+      width: 200px; height: 200px; border-radius: 50%;
+      background: radial-gradient(circle, var(--fire-soft) 0%, transparent 70%);
+    }
+    .goal-card.lead-card {
+      grid-row: span 2;
+      border: 1px solid var(--fire-glow);
+      background: linear-gradient(150deg, rgba(255,91,46,.22), rgba(251,191,36,.08));
+    }
+    .goal-num {
+      display: inline-block; padding: 4px 12px; border-radius: 99px;
+      background: rgba(255,255,255,.07); color: var(--fire);
+      font-size: 15px; font-weight: 900; letter-spacing: .14em;
+    }
+    .goal-headline { margin-top: 22px; font-size: 30px; line-height: 1.18; letter-spacing: -.03em; color: var(--text); }
+    .goal-card.lead-card .goal-headline { font-size: 44px; line-height: 1.08; }
+    .goal-card.lead-card .goal-headline .tenx-mark { padding: 0 12px; }
+    .goal-tag { margin-top: 14px; color: #ffd0bd; font-size: 18px; font-weight: 700; }
+    .goal-card.lead-card .goal-tag { color: #ffe4d6; font-size: 21px; }
+    .goal-note { margin-top: 16px; color: var(--muted); font-size: 18px; line-height: 1.55; }
+    .goals-foot {
+      margin-top: 24px; padding: 18px 24px;
+      border: 1px dashed var(--fire-glow); border-radius: 14px;
+      color: #ffe2d4; font-size: 20px; line-height: 1.55;
+    }
+    .goals-foot strong { color: var(--fire); }
+
+    /* 10X styling */
+    .tenx-chip {
+      display: inline-flex; align-items: center; gap: 8px;
+      padding: 6px 14px; border-radius: 99px;
+      border: 1px solid var(--fire-glow); background: var(--fire-soft);
+      color: #ffd9c8; font-size: 16px; font-weight: 900; letter-spacing: .22em;
+      text-transform: uppercase;
+    }
+    .tenx-chip b { color: var(--fire); font-size: 20px; letter-spacing: 0; }
+    .tenx-mega {
+      position: absolute; right: -12px; top: -42px; z-index: 1; pointer-events: none;
+      color: rgba(255,91,46,.09); font-size: 460px; font-weight: 900; line-height: .85;
+      letter-spacing: -.08em;
+    }
+    .tenx-mark {
+      display: inline-block; padding: 0 8px; border-radius: 10px;
+      background: linear-gradient(135deg, var(--fire), var(--yellow));
+      color: #1a0a04; font-weight: 900; letter-spacing: -.02em;
+      box-shadow: 0 0 26px var(--fire-glow);
+    }
+    h1 .tenx-mark { padding: 0 18px; }
+    .cover-shout {
+      margin-top: 24px; padding: 22px 26px;
+      border: 1px solid var(--fire-glow); border-left: 6px solid var(--fire);
+      border-radius: 16px; background: linear-gradient(115deg, rgba(255,91,46,.12), rgba(255,255,255,.03));
+      color: #ffe4d6; font-size: 22px; line-height: 1.6;
+    }
+    .cover-shout strong { color: #ffb29a; }
+    .cover-wrap { max-width: 1320px; margin-top: 60px; }
+    .cover-wrap h1 { margin: 30px 0 0; }
+    .cover-lead { margin-top: 30px; max-width: 1180px; color: #c4cfdd; font-size: 30px; line-height: 1.66; }
+    .cover-lead strong { color: var(--text); }
+    .cover-note {
+      display: inline-block; margin-top: 26px; padding: 14px 22px;
+      border: 1px solid var(--line); border-left: 4px solid var(--yellow); border-radius: 12px;
+      background: rgba(255,255,255,.035); color: var(--muted); font-size: 21px;
+    }
+    .cover-note strong { color: #f2e2ae; }
+
+    /* Approach grid */
+    .approach-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 18px; }
+    .approach-card { padding: 28px 30px; min-height: 410px; }
+    .approach-card.left { background: var(--glass-bg); }
+    .approach-card.right { background: var(--glass-bg); }
+    .approach-card h3 { font-size: 32px; }
+    .approach-card .ac-sub { margin-top: 8px; color: var(--muted); font-size: 19px; }
+    .approach-list { margin: 16px 0 0; padding: 0; list-style: none; }
+    .approach-list li { position: relative; padding: 10px 0 10px 26px; border-top: 1px solid var(--line-soft); color: #d7e0ec; font-size: 20px; line-height: 1.42; }
+    .approach-list li:first-child { border-top: none; }
+    .approach-list li b { color: var(--text); }
+    .approach-list li::before { content: ""; position: absolute; left: 0; top: 19px; width: 9px; height: 9px; border-radius: 50%; background: var(--blue); }
+    .approach-card.right .approach-list li::before { background: var(--fire); }
+    .approach-list small { display: block; margin-top: 2px; color: var(--subtle); font-size: 16px; }
+    .ref-chips { display: flex; flex-wrap: wrap; gap: 9px; margin-top: 16px; padding-top: 14px; border-top: 1px solid var(--line-soft); }
+    .ref-chips span { padding: 7px 13px; border: 1px solid var(--line); border-radius: 99px; background: rgba(255,255,255,.05); color: #cfe0f3; font-size: 15px; }
+    .synth-band { margin-top: 18px; padding: 22px 28px; border: 1px solid var(--fire-glow); border-left: 6px solid var(--fire); border-radius: 16px; background: linear-gradient(115deg, rgba(255,91,46,.12), rgba(255,255,255,.03)); color: #ffe4d6; font-size: 22px; line-height: 1.55; }
+    .synth-band strong { color: #ffb29a; }
+
+    /* Org structure */
+    .org-stack { display: grid; gap: 13px; margin-top: 4px; }
+    .org-layer { display: grid; grid-template-columns: 290px 1fr; gap: 22px; align-items: center; padding: 20px 26px; border: 1px solid var(--line); border-radius: 16px; background: rgba(255,255,255,.045); }
+    .ol-label { display: flex; flex-direction: column; gap: 7px; }
+    .ol-tag { width: max-content; padding: 5px 12px; border-radius: 99px; font-size: 14px; font-weight: 900; letter-spacing: .1em; }
+    .ol-name { font-size: 25px; font-weight: 800; line-height: 1.2; }
+    .ol-body { color: #d2dce8; font-size: 19px; line-height: 1.5; }
+    .ol-body b { color: var(--text); }
+    .org-layer.l1 { background: var(--glass-bg); }
+    .org-layer.l1 .ol-tag { background: linear-gradient(135deg, var(--fire), var(--yellow)); color: #1a0a04; }
+    .org-layer.l2 .ol-tag { background: var(--yellow-soft); color: var(--yellow); }
+    .org-layer.l3 .ol-tag { background: var(--blue-soft); color: var(--blue); }
+    .org-layer.l4 .ol-tag { background: var(--violet-soft); color: var(--violet); }
+    .org-sub { display: flex; gap: 10px; flex-wrap: wrap; margin-top: 9px; }
+    .org-sub span { padding: 6px 12px; border: 1px solid var(--line-soft); border-radius: 8px; background: rgba(255,255,255,.04); color: #cdd8e6; font-size: 16px; }
+
+    /* Coach band */
+    .coach-band {
+      display: flex; align-items: center; gap: 26px; margin-top: 6px;
+      padding: 24px 30px; border: 1px solid var(--fire-glow); border-left: 6px solid var(--fire);
+      border-radius: 16px; background: linear-gradient(115deg, rgba(255,91,46,.12), rgba(255,255,255,.03));
+    }
+    .coach-pill {
+      flex: none; padding: 11px 20px; border-radius: 99px;
+      background: linear-gradient(135deg, var(--fire), var(--yellow));
+      color: #1a0a04; font-size: 23px; font-weight: 900; letter-spacing: -.01em;
+    }
+    .coach-band p { color: #ffe4d6; font-size: 23px; line-height: 1.5; }
+    .coach-card { min-height: 300px; padding: 30px; }
+    .coach-card h3 { margin-top: 14px; font-size: 34px; }
+    .coach-card p { margin-top: 14px; font-size: 22px; line-height: 1.6; }
+
+    /* CEO */
+    .ceo-grid { display: grid; grid-template-columns: repeat(4,1fr); gap: 18px; }
+    .ceo-card { padding: 28px; min-height: 372px; }
+    .ceo-card .cc-num { font-size: 46px; font-weight: 900; color: var(--fire); line-height: 1; letter-spacing: -.04em; }
+    .ceo-card h3 { margin-top: 18px; font-size: 27px; line-height: 1.25; }
+    .ceo-card p { margin-top: 12px; color: var(--muted); font-size: 19px; line-height: 1.55; }
+    .ceo-core { margin-top: 18px; padding: 22px 28px; border: 1px solid var(--fire-glow); border-left: 6px solid var(--fire); border-radius: 16px; background: linear-gradient(115deg, rgba(255,91,46,.12), rgba(255,255,255,.03)); color: #ffe4d6; font-size: 24px; }
+    .ceo-core strong { color: #ffb29a; }
+
+    /* Nav & controls */
+    .deck-progress { position: absolute; left: 0; right: 0; bottom: 0; z-index: 30; height: 5px; background: rgba(255,255,255,.055); }
+    .deck-progress span { display: block; width: 0; height: 100%; background: linear-gradient(90deg,var(--yellow),var(--blue),var(--violet)); transition: width .25s ease; }
+    .deck-controls {
+      position: absolute; left: 50%; bottom: 28px; z-index: 40; transform: translateX(-50%);
+      display: flex; align-items: center; gap: 10px; padding: 9px;
+      border: 1px solid rgba(255,255,255,.16); border-radius: 99px;
+      background: rgba(2,7,17,.82); backdrop-filter: blur(18px);
+    }
+    .deck-controls button, .confirm-toggle, .confirm-close, .comment-tool, .comment-overview-toggle, .comment-close, .comment-action {
+      display: grid; place-items: center; border: 1px solid rgba(255,255,255,.12);
+      color: var(--text); background: rgba(255,255,255,.07); transition: background .2s ease, border-color .2s ease;
+    }
+    .deck-controls button { width: 50px; height: 44px; border-radius: 99px; font-size: 22px; }
+    .deck-controls button:hover, .deck-controls button.active, .confirm-toggle:hover, .confirm-close:hover { background: rgba(251,191,36,.16); border-color: rgba(251,191,36,.5); }
+    .page-no { min-width: 90px; text-align: center; color: var(--muted); font-size: 17px; font-weight: 800; letter-spacing: .12em; }
+    .vertical-pager { position: absolute; right: 30px; top: 50%; z-index: 40; display: grid; gap: 9px; transform: translateY(-50%); }
+    .vertical-pager button { position: relative; width: 48px; height: 48px; border: 1px solid rgba(255,255,255,.14); border-radius: 50%; color: var(--text); background: rgba(2,7,17,.76); font-size: 21px; }
+
+    /* ── brushed blue-grey metal rim (native, no deps) ──
+       a soft metallic conic gradient (no rainbow — cool blue-grey with two
+       silver highlights) drifting around the edge; the double-mask keeps only
+       a thin 1px ring. Brighter on the controls, whisper-subtle on cards. */
+    @property --lm-angle { syntax: "<angle>"; initial-value: 0deg; inherits: false; }
+    .deck-controls::before, .confirm-toggle::before, .vertical-pager button::before,
+    .card::before, .stat::before, .calendar-wrap::before, .principle::before,
+    .stream-item::before, .org-layer::before, .incub-ms::before, .phase::before,
+    .ws-block::before, .synth-band::before, .cadence-note::before,
+    .ceo-core::before, .coach-band::before, .band::before {
+      content: ""; position: absolute; inset: 0; border-radius: inherit;
+      padding: 1px; pointer-events: none; z-index: 1;
+      background: conic-gradient(from var(--lm-angle),
+        #353e4a, #c4d4ea, #5b6a7d, #9cafc7, #2f3744, #b1c2d9, #353e4a);
+      -webkit-mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
+              mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
+      -webkit-mask-composite: xor; mask-composite: exclude;
+      animation: lmSpin 7s linear infinite;
+    }
+    /* content cards: keep the metal edge very restrained */
+    .card::before, .stat::before, .calendar-wrap::before, .principle::before,
+    .stream-item::before, .org-layer::before, .incub-ms::before, .phase::before,
+    .ws-block::before, .synth-band::before, .cadence-note::before,
+    .ceo-core::before, .coach-band::before, .band::before { opacity: .28; }
+    /* positioning context so the rim can anchor to each card */
+    .card, .stat, .calendar-wrap, .principle, .stream-item, .org-layer,
+    .incub-ms, .phase, .ws-block, .synth-band, .cadence-note, .ceo-core,
+    .coach-band, .band { position: relative; }
+    /* controls: brighter rim + a faint outer bloom */
+    .deck-controls::before, .confirm-toggle::before, .vertical-pager button::before { opacity: .8; }
+    .deck-controls::after, .confirm-toggle::after, .vertical-pager button::after {
+      content: ""; position: absolute; inset: -2px; border-radius: inherit;
+      padding: 2px; pointer-events: none; z-index: 0; opacity: .32; filter: blur(5px);
+      background: conic-gradient(from var(--lm-angle),
+        #353e4a, #c4d4ea, #5b6a7d, #9cafc7, #2f3744, #b1c2d9, #353e4a);
+      -webkit-mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
+              mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
+      -webkit-mask-composite: xor; mask-composite: exclude;
+      animation: lmSpin 7s linear infinite;
+    }
+    @keyframes lmSpin { to { --lm-angle: 360deg; } }
+
+    .confirm-toggle {
+      position: absolute; right: 30px; bottom: 30px; z-index: 55;
+      width: 56px; height: 56px; min-width: 0; padding: 0; border-radius: 50%;
+      color: #d9fbed; font-size: 24px;
+    }
+    .confirm-toggle span { color: var(--green); }
+    .fn-confirm { background: rgba(52,211,153,.16) !important; border-color: rgba(52,211,153,.5) !important; color: #c7f6e4 !important; }
+    .fn-confirm:hover { background: rgba(52,211,153,.26) !important; }
+    .fn-section-title b { color: var(--green); font-weight: 900; }
+    .confirm-panel {
+      position: absolute; right: 30px; bottom: 94px; z-index: 54; display: none;
+      width: 470px; padding: 22px; border: 1px solid rgba(255,255,255,.16); border-radius: 18px;
+      background: rgba(5,12,23,.96); backdrop-filter: blur(20px);
+    }
+    .confirm-panel.open { display: block; animation: pop .18s ease-out; }
+    @keyframes pop { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: translateY(0); } }
+    .confirm-header { display: flex; align-items: center; justify-content: space-between; gap: 14px; }
+    .confirm-header h3 { font-size: 25px; }
+    .confirm-close { width: 34px; height: 34px; border-radius: 50%; font-size: 18px; }
+    .confirm-sub { margin-top: 7px; color: var(--muted); font-size: 16px; }
+    .confirm-list { display: grid; gap: 8px; margin-top: 16px; }
+    .confirm-item { display: grid; grid-template-columns: 22px 1fr; gap: 10px; align-items: start; padding: 10px; border-radius: 10px; background: rgba(255,255,255,.045); color: #d7e0ec; font-size: 16px; line-height: 1.42; }
+    .confirm-item input { width: 18px; height: 18px; margin-top: 2px; accent-color: var(--green); }
+    .confirm-item:has(input:checked) { color: #9adbc2; text-decoration: line-through; opacity: .75; }
+    .confirm-meter { height: 6px; margin-top: 16px; overflow: hidden; border-radius: 99px; background: rgba(255,255,255,.08); }
+    .confirm-meter span { display: block; width: 0; height: 100%; background: var(--green); transition: width .2s ease; }
+
+    /* ── function panel: mode switch + export + confirm ── */
+    .mode-switch { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-top: 4px; padding: 5px; border-radius: 12px; background: rgba(255,255,255,.05); }
+    .mode-btn { padding: 9px 0; border: 1px solid transparent; border-radius: 9px; background: transparent; color: var(--muted); font-size: 15px; font-weight: 800; letter-spacing: .04em; transition: background .18s ease, color .18s ease, border-color .18s ease; }
+    .mode-btn.active { background: rgba(251,191,36,.16); border-color: rgba(251,191,36,.45); color: #ffe6ab; }
+    .edit-tools { margin-top: 14px; display: flex; gap: 10px; }
+    .edit-tools[hidden] { display: none; }
+    .fn-action { flex: 1; padding: 11px 0; border: 1px solid var(--glass-border); border-radius: 10px; background: rgba(255,255,255,.06); color: var(--text); font-size: 15px; font-weight: 800; }
+    .fn-action:hover { background: rgba(96,165,250,.16); border-color: rgba(96,165,250,.5); }
+    .fn-section-title { margin-top: 18px; margin-bottom: 8px; color: var(--subtle); font-size: 14px; font-weight: 800; letter-spacing: .14em; }
+    /* edit mode: highlight editable text */
+    body.edit-mode [data-edit-key] { outline: 1px dashed rgba(96,165,250,0); border-radius: 4px; cursor: text; transition: outline-color .15s ease, background .15s ease; }
+    body.edit-mode [data-edit-key]:hover { outline-color: rgba(96,165,250,.45); background: rgba(96,165,250,.06); }
+    body.edit-mode [data-edit-key]:focus { outline: 1px solid rgba(96,165,250,.85); background: rgba(96,165,250,.10); }
+    body.edit-mode .confirm-item span[contenteditable="true"] { outline: 1px dashed rgba(96,165,250,.35); border-radius: 4px; padding: 1px 4px; }
+    .edit-badge { position: absolute; left: 34px; bottom: 40px; z-index: 56; display: none; align-items: center; gap: 8px; padding: 8px 14px; border-radius: 99px; background: rgba(96,165,250,.16); border: 1px solid rgba(96,165,250,.5); color: #cfe0ff; font-size: 14px; font-weight: 800; letter-spacing: .04em; }
+    body.edit-mode .edit-badge { display: inline-flex; }
+
+    .hint { position: absolute; left: 34px; bottom: 40px; z-index: 35; color: var(--subtle); font-size: 15px; letter-spacing: .06em; }
+
+    /* ════════════════════════════════════════════════
+       FROSTED-GLASS TEXTURE — applied to every surface
+       (gray glassmorphism, ref: dashboard mockups)
+    ════════════════════════════════════════════════ */
+    .card, .stat, .calendar-wrap, .principle, .stream-item,
+    .org-layer, .incub-ms, .phase, .exit, .ref-chips span,
+    .org-sub span, .ws-block, .confirm-item,
+    .synth-band, .cadence-note, .ceo-core, .coach-band, .band {
+      backdrop-filter: var(--glass-blur);
+      -webkit-backdrop-filter: var(--glass-blur);
+    }
+    .card, .stat, .calendar-wrap {
+      background: var(--glass-bg);
+      border-color: var(--glass-border);
+      box-shadow: var(--glass-hi), 0 18px 50px -28px rgba(0,0,0,.7);
+    }
+    .card { transition: transform .25s ease, box-shadow .25s ease, border-color .25s ease; }
+    .calendar-wrap { background: var(--glass-bg); }
+    .stat { background: var(--glass-bg); }
+
+    /* ════════════════════════════════════════════════
+       SLIDE 01 · PARTICLE COVER (mouse-following ink)
+    ════════════════════════════════════════════════ */
+    .cover-hero { padding: 0;
+      background:
+        radial-gradient(110% 85% at 70% 28%, rgba(26,50,80,.85) 0%, transparent 55%),
+        radial-gradient(85% 75% at 20% 80%, rgba(38,28,62,.8) 0%, transparent 60%),
+        radial-gradient(circle at 50% 46%, #0b1422 0%, #070a12 55%, #050507 100%);
+    }
+    .cover-hero .particle-canvas {
+      position: absolute; inset: 0; width: 100%; height: 100%;
+      display: block; z-index: 1; cursor: grab; touch-action: none;
+    }
+    .cover-hero .particle-canvas:active { cursor: grabbing; }
+    .cover-hero-veil {
+      position: absolute; inset: 0; z-index: 2; pointer-events: none;
+      background: radial-gradient(120% 120% at 50% 50%, transparent 40%, rgba(8,9,12,.55) 100%);
+    }
+    .cover-hero-content {
+      position: absolute; left: 96px; bottom: 104px; z-index: 3; pointer-events: none;
+      display: flex; flex-direction: column; align-items: flex-start;
+      gap: 20px; text-align: left;
+    }
+    .cover-hero-logo {
+      width: 360px; height: auto; object-fit: contain;
+      filter: drop-shadow(0 2px 6px rgba(0,0,0,.9)) drop-shadow(0 4px 34px rgba(0,0,0,.7));
+      opacity: 0; animation: heroFade 1.1s .15s ease-out forwards;
+    }
+    .cover-hero-title {
+      margin: 0; font-size: 132px; line-height: 1; letter-spacing: -.06em; font-weight: 850;
+      /* metal-fx (native, no deps): a polished-metal gradient with a bright
+         specular band that sweeps across the glyphs like brushed gold */
+      background: linear-gradient(100deg,
+        #f2a06b 0%, #ffd9c2 28%, #fff4ec 43%, #ffffff 50%,
+        #fff1e3 57%, #ffba8c 72%, #f5854f 100%);
+      background-size: 240% 100%; background-position: 115% 0;
+      -webkit-background-clip: text; background-clip: text; color: transparent;
+      /* gradient text is transparent, so text-shadow can't help — drop-shadow
+         lays a dark halo under the glyphs so the light sweep never washes them out */
+      filter: drop-shadow(0 2px 5px rgba(0,0,0,.92)) drop-shadow(0 6px 40px rgba(0,0,0,.78));
+      opacity: 0;
+      animation: heroFade 1.1s .35s ease-out forwards,
+                 metalSweep 5.5s 1.6s ease-in-out infinite;
+    }
+    @keyframes metalSweep {
+      0%, 100% { background-position: 115% 0; }
+      50%      { background-position: -15% 0; }
+    }
+    .cover-hero-sub {
+      margin: 0; font-size: 30px; letter-spacing: .42em; font-weight: 600;
+      color: rgba(243,245,248,.78); padding-left: .42em;
+      text-shadow: 0 1px 4px rgba(0,0,0,.92), 0 2px 22px rgba(0,0,0,.7);
+      opacity: 0; animation: heroFade 1.1s .6s ease-out forwards;
+    }
+    .cover-hero-hint {
+      position: absolute; left: 98px; bottom: 56px; z-index: 3;
+      color: var(--subtle); font-size: 17px; letter-spacing: .14em; pointer-events: none;
+      opacity: 0; animation: heroFade 1.2s 1.1s ease-out forwards;
+    }
+    @keyframes heroFade { from { opacity: 0; transform: translateY(18px); } to { opacity: 1; transform: translateY(0); } }
+    /* hide global brand-rail while the particle cover is on top */
+    body.on-cover .brand-rail { opacity: 0; pointer-events: none; }
+    .brand-rail { transition: opacity .3s ease; }
+
+    /* ── optional reusable components ── */
+    /* big faded number/word watermark in a card corner (add .has-watermark to the card) */
+    .has-watermark { position: relative; overflow: hidden; }
+    .dir-watermark { position: absolute; right: 12px; top: -6px; font-size: 128px; line-height: 1; font-weight: 900; opacity: .07; pointer-events: none; }
+    .dir-icon { margin-right: 10px; }
+    /* timeline / week grid — pair each .tl-w with .card for the glass look */
+    .tl-section-label { margin: 6px 0 12px; color: var(--subtle); font-size: 16px; font-weight: 800; letter-spacing: .1em; }
+    .tl-weeks { display: grid; grid-template-columns: repeat(4,1fr); gap: 12px; }
+    .tl-w { padding: 16px; border-radius: 13px; }
+    .tl-w b { display: block; font-size: 22px; }
+    .tl-w span { color: var(--subtle); font-size: 13px; font-weight: 800; letter-spacing: .06em; }
+    .tl-w small { display: block; margin-top: 4px; color: var(--muted); font-size: 15px; }
+    .tl-sum { display: block; margin-top: 5px; color: #d2dce8; font-size: 14px; line-height: 1.4; }
+    .tl-date { display: block; margin-top: 4px; color: var(--subtle); font-size: 14px; }
+    .tl-prep, .tl-p1 { border-left: 4px solid var(--yellow); }
+    .tl-ws { border-left: 4px solid var(--fire); }
+    .tl-p2 { border-left: 4px solid var(--blue); }
+    .tl-p3 { border-left: 4px solid var(--violet); }
+    .tl-p4 { border-left: 4px solid var(--green); }
+
+    /* ── print / export-to-PDF: lay every slide out as its own page ── */
+    @media print {
+      @page { size: 1920px 1080px; margin: 0; }
+      * { -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; }
+      html, body { width: 1920px !important; height: auto !important; overflow: visible !important; background: #0a0b0f !important; }
+      .deck-viewport { position: static !important; display: block !important; overflow: visible !important; background: #0a0b0f !important; }
+      .deck { position: static !important; transform: none !important; left: auto !important; top: auto !important; width: 1920px !important; height: auto !important; }
+      .slide { display: block !important; position: relative !important; inset: auto !important; width: 1920px !important; height: 1080px !important; break-after: page; page-break-after: always; overflow: hidden !important; }
+      .slide-fit { transform: none !important; }
+      .deck-controls, .vertical-pager, .confirm-toggle, .confirm-panel, .brand-rail, .edit-badge, .hint { display: none !important; }
+      .cover-hero .particle-canvas { display: none !important; }
+      .cover-hero-content, .cover-hero-title, .cover-hero-sub, .cover-hero-logo,
+      .cover-hero-lockup, .cover-hero-bluemoon { animation: none !important; opacity: 1 !important; }
+      /* backdrop-filter (frosted glass) is dropped by browsers when printing →
+         give panels a solid dark fallback so they don't go transparent in the PDF */
+      .card, .stat, .calendar-wrap, .principle, .stream-item, .org-layer,
+      .incub-ms, .phase, .exit, .ws-block, .confirm-item, .stream,
+      .approach-card, .ws-day, .route-card, .track-overview, .coach-card {
+        backdrop-filter: none !important; -webkit-backdrop-filter: none !important;
+        background-color: rgba(18,24,33,.94) !important;
+      }
+      .synth-band, .cadence-note, .ceo-core, .coach-band, .band {
+        backdrop-filter: none !important; -webkit-backdrop-filter: none !important;
+      }
+      /* animated metal rims don't print cleanly — hide them */
+      .card::before, .stat::before, .calendar-wrap::before, .principle::before,
+      .stream-item::before, .org-layer::before, .incub-ms::before, .phase::before,
+      .ws-block::before, .synth-band::before, .cadence-note::before,
+      .ceo-core::before, .coach-band::before, .band::before { display: none !important; }
+    }
+  </style>
+</head>
+<body>
+  <div class="deck-viewport">
+    <main class="deck" id="deck">
+
+      <div class="brand-rail">
+        <div>
+          <img class="rolling-logo" src="assets/rolling-ai-logo.svg" alt="Rolling AI">
+        </div>
+        <span class="deck-label">10× TRANSFORMATION PROGRAM</span>
+      </div>
+
+      <!-- ══════════════════════════════════════════════════
+           SLIDE 01 · PARTICLE COVER (mouse-following ink)
+      ══════════════════════════════════════════════════ -->
+      <section class="slide active cover-hero" data-slide-key="cover-hero" data-screen-label="01 封面">
+        <canvas class="particle-canvas" id="particleCanvas"></canvas>
+        <div class="cover-hero-veil"></div>
+        <div class="cover-hero-content">
+          <img class="cover-hero-logo" src="assets/rolling-ai-logo.svg" alt="Rolling AI">
+          <h1 class="cover-hero-title">10× Transformation</h1>
+          <p class="cover-hero-sub">AI 原生孵化方案</p>
+        </div>
+      </section>
+
+      <!-- ══════════════════════════════════════════════════
+           SLIDE 02 · COVER (program overview)
+      ══════════════════════════════════════════════════ -->
+      <section class="slide" data-slide-key="cover" data-screen-label="02 方案概览">
+        <div class="tenx-mega">10×</div>
+        <div class="cover-wrap">
+          <span class="tenx-chip"><b>10×</b> TRANSFORMATION · AI 原生孵化方案</span>
+          <h1><span class="tenx-mark">10×</span> 业务，<span class="tenx-mark">10×</span> 组织</h1>
+          <p class="cover-lead">一套面向大企业的六个月 AI 原生孵化方案：<strong>从两天工作坊到创新冲刺，再到端到端场景孵化</strong>，帮助企业在 AI 时代快速找到并孵化出真实可用的 AI 原生应用，让组织与业务率先跑出 10 倍加速度。</p>
+          <p class="cover-note"><strong>10× 是我们共同瞄准的长期方向</strong>，描绘的是一种可能性，而非六个月内必然兑现的承诺。</p>
+        </div>
+        <div class="hero-stats" style="margin-top:54px;">
+          <div class="stat"><div class="stat-num">3</div><b>个阶段</b><span>工作坊 → 冲刺 → 孵化</span></div>
+          <div class="stat"><div class="stat-num">5</div><b>个 10× 方向</b><span>商业 / 流程 / 组织 / 高管 / 个体</span></div>
+          <div class="stat"><div class="stat-num">3</div><b>个并行赛道</b><span>组织 × 流程 × 智能体</span></div>
+          <div class="stat"><div class="stat-num">6</div><b>个月陪跑</b><span>持续迭代 · 真实验证 · 可复制</span></div>
+        </div>
+      </section>
+
+      <!-- ══════════════════════════════════════════════════
+           SLIDE 02 · 五个 10× 北极星
+      ══════════════════════════════════════════════════ -->
+      <section class="slide" data-slide-key="tenx-goals" data-screen-label="02 五个北极星">
+        <div class="goals-head">
+          <div>
+            <span class="tenx-chip"><b>10×</b> NORTH STAR · 长期愿景</span>
+            <h2>五个 <span class="tenx-mark">10×</span><br>长期北极星</h2>
+          </div>
+          <p class="copy">这五个 10× 是我们和团队<strong>共同瞄准的长期方向</strong>，描绘的是"AI 用到位"之后组织可能达到的效率上限。它们是愿景，不是六个月的交付清单——孵化方案要做的，是先把方法、节奏和第一批真实信号建立起来。</p>
+        </div>
+        <div class="goals-grid">
+          <article class="goal-card lead-card">
+            <span class="goal-num">GOAL 01</span>
+            <h3 class="goal-headline">找到 <span class="tenx-mark">10×</span><br>新商业模式</h3>
+            <p class="goal-tag">用 AI 重写"客户—产品—渠道"等式</p>
+            <p class="goal-note">探索只有 AI 才跑得通的新型增长路径，瞄准的是接近 10× 量级的增量想象空间，而不止于 10% 改良。</p>
+          </article>
+          <article class="goal-card">
+            <span class="goal-num">GOAL 02</span>
+            <h3 class="goal-headline">改造出 <span class="tenx-mark">10×</span> 新流程</h3>
+            <p class="goal-tag">让关键流程逐步被重新设计</p>
+            <p class="goal-note">从内容、销售、财务到客户服务，向"同样人力更大产出"的方向，持续逼近 10× 提效。</p>
+          </article>
+          <article class="goal-card">
+            <span class="goal-num">GOAL 03</span>
+            <h3 class="goal-headline"><span class="tenx-mark">10×</span> 效率的小组织</h3>
+            <p class="goal-tag">10 人当 100 人用</p>
+            <p class="goal-note">围绕优先场景重组业务小组，把 AI 嵌入日常节点，形成"少人、强决策、快迭代"的 10× 战斗单元。</p>
+          </article>
+          <article class="goal-card">
+            <span class="goal-num">GOAL 04</span>
+            <h3 class="goal-headline">赋能 <span class="tenx-mark">10×</span> 超级高管</h3>
+            <p class="goal-tag">让管理层先用上 AI 杠杆</p>
+            <p class="goal-note">核心管理层亲手用 AI 处理材料、决策、对外沟通，沉淀属于自己的提示词工作流，成为组织里第一批 10× 高管。</p>
+          </article>
+          <article class="goal-card">
+            <span class="goal-num">GOAL 05</span>
+            <h3 class="goal-headline">挖出 <span class="tenx-mark">10×</span> 超级个体</h3>
+            <p class="goal-tag">把组织里的 10× 选手放出来</p>
+            <p class="goal-note">通过效率先行大赛和场景实战，识别并放大公司内已经能跑出超高产出的员工，让他们成为标杆、教练和方法源头。</p>
+          </article>
+        </div>
+        <div class="goals-foot">五个方向互相咬合：<strong>商业模式定方向、流程定动作、组织定单元、高管定标尺、个体定上限</strong>，共同勾勒出 10× 转型的完整图景。</div>
+      </section>
+
+      <!-- ══════════════════════════════════════════════════
+           SLIDE 03 · 方法论：两端同时发力
+      ══════════════════════════════════════════════════ -->
+      <section class="slide" data-slide-key="methodology" data-screen-label="03 方法论">
+        <div class="section-head">
+          <div><span class="kicker">01 · PATH TO 10×</span><h2>要达成五个 10×<br>从两端同时发力</h2></div>
+          <p class="copy">5 个 10× 不会凭空发生。一端从<strong>企业自身的业务优势与机会</strong>出发，另一端引入<strong>更 AI-native 的团队工作方式</strong>；两者相交，沉淀出一种新的人机协同组织。</p>
+        </div>
+        <div class="approach-grid">
+          <article class="card approach-card left">
+            <h3>① 向内 · 业务优势与机会</h3>
+            <p class="ac-sub">从最强的地方切入，AI 的杠杆才最大。</p>
+            <ul class="approach-list">
+              <li><b>盘点现有优势</b><small>品牌、渠道、用户、数据与供应链里已有的家底</small></li>
+              <li><b>找到高价值机会</b><small>哪些环节一旦提效，对生意影响最大</small></li>
+              <li><b>选定首批抓手</b><small>从真实业务节点切入，先跑通再复制</small></li>
+              <li><b>量化基线与目标</b><small>有了基线才能证明 10× 是否在发生</small></li>
+            </ul>
+          </article>
+          <article class="card approach-card right">
+            <h3>② 向外 · AI-native 工作方式</h3>
+            <p class="ac-sub">把顶尖 AI 原生团队的做法搬进来。</p>
+            <ul class="approach-list">
+              <li><b>Build in public</b><small>过程公开、边做边晒，用透明倒逼速度与质量</small></li>
+              <li><b>共创编程 · 人机结对</b><small>人和 AI 结对一起出活，而不是甩需求等交付</small></li>
+              <li><b>超快速 · 超敏捷迭代</b><small>小步快跑，按天甚至按小时迭代</small></li>
+              <li><b>信息绝对透明</b><small>目标、进展、数据对团队完全开放</small></li>
+            </ul>
+            <div class="ref-chips">
+              <span>3 人 + 数十个 AI agent 当一个团队用</span>
+              <span>1 个 AI 高手 ≈ 5+ 传统产出</span>
+              <span>10 人 / 3 年 / $100M ARR 的新范式</span>
+              <span>T 型通才 · 高自主度 · 结果导向</span>
+            </div>
+          </article>
+        </div>
+        <div class="synth-band">两端相交，正是我们要的东西：<strong>一种新的人机协同组织与工作方式</strong>——懂业务的人带着 AI，一点点把 5 个 10× 跑出来。</div>
+      </section>
+
+      <!-- ══════════════════════════════════════════════════
+           SLIDE 04 · 三阶段旅程总览
+      ══════════════════════════════════════════════════ -->
+      <section class="slide" data-slide-key="program-overview" data-screen-label="04 三阶段总览">
+        <div class="section-head">
+          <div><span class="kicker">02 · PROGRAM STRUCTURE</span><h2>三阶段旅程<br>六个月跃迁路线</h2></div>
+          <p class="copy">不是一次性培训，而是一段有节奏的共同进化。<strong>工作坊统一认知、冲刺找到信号、孵化跑出成果</strong>——每一步都对上一步的真实产出负责，不空转、不做表面工程。</p>
+        </div>
+        <div class="cards-3">
+          <article class="card route-card sprint">
+            <div class="route-top"><span>PHASE 01</span><strong>KICKOFF · 2 DAYS</strong></div>
+            <h3>两天 AI<br>对齐工作坊</h3>
+            <p>统一认知，发现机会，让每个人亲手构建第一个智能体，带着真实感受进入冲刺。</p>
+            <ul>
+              <li>AI 现状与 10× 框架共识</li>
+              <li>业务机会深度扫描</li>
+              <li>动手构建首个 Agent</li>
+              <li>冲刺方向确认与团队组建</li>
+            </ul>
+            <div class="exit"><strong>输出：</strong>5–10 个候选场景 + Sprint 启动计划</div>
+          </article>
+          <article class="card route-card deep1">
+            <div class="route-top"><span>PHASE 02</span><strong>MONTH 01–02 · 8 WEEKS</strong></div>
+            <h3>10X Innovation<br>Sprint 创新冲刺</h3>
+            <p>8 周内识别机会、共创方向、开发 MVP 并推向一线，跑出第一批可验证信号。</p>
+            <ul>
+              <li>共同调研与机会图谱</li>
+              <li>10 场 AI 共创会</li>
+              <li>MVP 原型与一线反馈</li>
+              <li>路演、量化与场景选定</li>
+            </ul>
+            <div class="exit"><strong>输出：</strong>可验证成果 + 两个孵化场景选定</div>
+          </article>
+          <article class="card route-card deep2">
+            <div class="route-top"><span>PHASE 03</span><strong>MONTH 03–06 · 2 × 8 WEEKS</strong></div>
+            <h3>10X Scenario<br>Incubation 场景孵化</h3>
+            <p>端到端孵化每个场景——<strong>组织、流程、智能体三条赛道并行</strong>，MVP 上线，效率真实可量化。</p>
+            <ul>
+              <li>三赛道并行 8 周孵化节奏</li>
+              <li>组织架构重塑 + AI 小分队</li>
+              <li>业务流程再造 + KPI 验证</li>
+              <li>Agent v2 上线 + 技术移交</li>
+            </ul>
+            <div class="exit"><strong>输出：</strong>2 个 AI 原生应用 + 可复制的改造剧本</div>
+          </article>
+        </div>
+        <div class="phase-strip" style="margin-top:18px;">
+          <div class="phase"><span>DAY 2</span><b>首个 Agent</b><small>工作坊现场搭建</small></div>
+          <div class="phase"><span>W8</span><b>首批 MVP 路演</b><small>创新冲刺成果决策</small></div>
+          <div class="phase"><span>M4</span><b>孵化周期一完成</b><small>第一个 AI 原生应用上线</small></div>
+          <div class="phase"><span>M6</span><b>孵化周期二完成</b><small>可复制剧本 + 规模化路径</small></div>
+        </div>
+      </section>
+
+      <!-- ══════════════════════════════════════════════════
+           SLIDE 05 · Phase 1 · 两天工作坊
+      ══════════════════════════════════════════════════ -->
+      <section class="slide" data-slide-key="workshop" data-screen-label="05 两天工作坊">
+        <div class="section-head" style="margin-bottom:24px;">
+          <div><span class="kicker">PHASE 01 · AI ALIGNMENT WORKSHOP</span><h2>两天工作坊<br>统一认知 × 动手实践</h2></div>
+          <p class="copy">两天不是培训，是<strong>真实的共同发现与行动</strong>：第一天把机会看清，第二天把第一个 Agent 做出来。离开工作坊时，每个人对"什么是 10×"都有真实的体感，不只是概念。</p>
+        </div>
+        <div class="cards-2">
+          <article class="card ws-day d1">
+            <div class="ws-day-label">DAY 01 · AI 认知对齐 · 机会探索</div>
+            <h3>看清 · 在哪里可以 10×</h3>
+            <div class="ws-block">
+              <div class="ws-time">09:00 – 11:00</div>
+              <b>AI 现状与 10× 框架</b>
+              <span>AI 能力边界速览 + "什么是真正的 10 倍"框架共识建立</span>
+            </div>
+            <div class="ws-block">
+              <div class="ws-time">11:00 – 12:30</div>
+              <b>五个北极星 · 哪些最贴近你们？</b>
+              <span>对应自身业务讨论五个 10× 方向，圈定优先方向</span>
+            </div>
+            <div class="ws-block">
+              <div class="ws-time">13:30 – 15:30</div>
+              <b>业务深度扫描</b>
+              <span>梳理现有优势、识别核心痛点、标出最有改造价值的环节</span>
+            </div>
+            <div class="ws-block">
+              <div class="ws-time">15:30 – 17:30</div>
+              <b>机会评分与候选收敛</b>
+              <span>用统一标准（价值 × 可行性 × 数据可及性）筛出 5–10 个初步场景</span>
+            </div>
+            <div class="ws-outcome">
+              <b>Day 1 输出</b>
+              <span>优先机会清单 · 团队对 10× 的共同定义 · 候选场景池</span>
+            </div>
+          </article>
+          <article class="card ws-day d2">
+            <div class="ws-day-label">DAY 02 · AI-Native 实践 · 首个智能体</div>
+            <h3>做出 · 第一个 Agent</h3>
+            <div class="ws-block">
+              <div class="ws-time">09:00 – 10:00</div>
+              <b>AI-native 工作方式介绍</b>
+              <span>人机结对、Build in public、超快迭代——范式转变，不是工具替换</span>
+            </div>
+            <div class="ws-block">
+              <div class="ws-time">10:00 – 13:00</div>
+              <b>动手工作坊：构建第一个 Agent</b>
+              <span>选场景 → 设计逻辑 → 快速搭建 → 全员 Demo · 每组展示</span>
+            </div>
+            <div class="ws-block">
+              <div class="ws-time">14:00 – 16:30</div>
+              <b>Sprint 规划</b>
+              <span>选定首批进入冲刺的场景，组建团队，明确 Owner、目标与第一周任务</span>
+            </div>
+            <div class="ws-block">
+              <div class="ws-time">16:30 – 17:30</div>
+              <b>行动承诺仪式</b>
+              <span>公开承诺 · 分工确认 · Sprint 启动时间表定稿</span>
+            </div>
+            <div class="ws-outcome">
+              <b>Day 2 输出</b>
+              <span>每人亲手构建的 Agent 原型 · Sprint 启动计划 · 明确 Owner 的场景负责制</span>
+            </div>
+          </article>
+        </div>
+      </section>
+
+      <!-- ══════════════════════════════════════════════════
+           SLIDE 06 · Phase 2 · Innovation Sprint Overview
+      ══════════════════════════════════════════════════ -->
+      <section class="slide" data-slide-key="sprint-overview" data-screen-label="06 冲刺总览">
+        <div class="section-head">
+          <div><span class="kicker">PHASE 02 · 10X INNOVATION SPRINT</span><h2>首个 8 周<br>四段冲刺</h2></div>
+          <p class="copy">从调研到路演，每两周形成一个阶段结果。<strong>短期内必须出现可展示、可评价、可继续投入的成果</strong>——不允许走了 8 周还停留在 PPT 里。</p>
+        </div>
+        <div class="cards-4">
+          <article class="card route-card sprint">
+            <div class="route-top"><span>PHASE 01</span><strong>W1–W2</strong></div>
+            <h3>调研阶段</h3>
+            <p>启动、共同调研、机会图谱与方向建议。</p>
+            <ul>
+              <li>调研大纲与访谈框架</li>
+              <li>5 天共同调研</li>
+              <li>痛点与机会图谱</li>
+            </ul>
+            <div class="exit"><strong>交付：</strong>调研报告 + 机会图谱</div>
+          </article>
+          <article class="card route-card deep1">
+            <div class="route-top"><span>PHASE 02</span><strong>W3–W4</strong></div>
+            <h3>共创与研发</h3>
+            <p>10 场共创会，形成候选方向与 MVP。</p>
+            <ul>
+              <li>10 场 AI 共创会</li>
+              <li>候选方向收敛</li>
+              <li>MVP 快速研发</li>
+            </ul>
+            <div class="exit"><strong>交付：</strong>可供一线测试的原型</div>
+          </article>
+          <article class="card route-card deep2">
+            <div class="route-top"><span>PHASE 03</span><strong>W5–W6</strong></div>
+            <h3>反馈与调优</h3>
+            <p>推向一线观察使用，完成 v2 调优。</p>
+            <ul>
+              <li>现场观察与访谈</li>
+              <li>用户反馈汇总</li>
+              <li>关键问题迭代</li>
+            </ul>
+            <div class="exit"><strong>交付：</strong>相对稳定的 v2 版本</div>
+          </article>
+          <article class="card route-card sprint">
+            <div class="route-top"><span>PHASE 04</span><strong>W7–W8</strong></div>
+            <h3>迭代与路演</h3>
+            <p>第二轮验证，形成路演材料和决策。</p>
+            <ul>
+              <li>效果量化</li>
+              <li>路演材料准备</li>
+              <li>孵化场景选定</li>
+            </ul>
+            <div class="exit"><strong>交付：</strong>路演 + 孵化场景决策</div>
+          </article>
+        </div>
+      </section>
+
+      <!-- ══════════════════════════════════════════════════
+           SLIDE 07 · Sprint Calendar W1–W4
+      ══════════════════════════════════════════════════ -->
+      <section class="slide" data-slide-key="sprint-cal-1" data-screen-label="07 Sprint W1-W4">
+        <div class="section-head" style="margin-bottom:22px;">
+          <div><span class="kicker">PHASE 02 · SPRINT CALENDAR</span><h2>W1–W4<br>从调研到 MVP</h2></div>
+          <p class="copy">先把问题看清，再集中共创和研发。<strong>第 4 周结束时，要有可进入一线测试的 MVP。</strong></p>
+        </div>
+        <div class="legend"><span><i style="background:var(--yellow)"></i>双方共同</span><span><i style="background:var(--blue)"></i>Rolling AI</span><span><i style="background:var(--violet)"></i>客户团队</span></div>
+        <div class="calendar-wrap">
+          <table><thead><tr><th style="width:154px;">阶段</th><th style="width:74px;">周</th><th>周一</th><th>周二</th><th>周三</th><th>周四</th><th>周五</th></tr></thead>
+          <tbody>
+            <tr>
+              <td class="phase-cell" rowspan="2"><b>调研阶段</b><span>PHASE 01</span></td>
+              <td class="week-cell"><b>W1</b><span>第 1 周</span></td>
+              <td class="cal-cell both"><b>启动会议</b><small>目标、范围与分工</small><span class="owner">双方</span></td>
+              <td class="cal-cell us"><b>调研大纲</b><small>访谈框架与问题库</small><span class="owner">Rolling AI</span></td>
+              <td class="cal-cell client"><b>调研名单</b><small>关键岗位与一线人员</small><span class="owner">客户</span></td>
+              <td class="cal-cell both" colspan="2"><b>共同调研 · 第一段</b><small>资料阅读、实地考察与业务访谈</small><span class="owner">双方</span></td>
+            </tr>
+            <tr>
+              <td class="week-cell"><b>W2</b><span>第 2 周</span></td>
+              <td class="cal-cell both" colspan="3"><b>共同调研 · 第二段</b><small>完成 5 天调研，识别痛点、流程与突破口</small><span class="owner">双方</span></td>
+              <td class="cal-cell us" colspan="2"><b>调研报告与机会图谱</b><small>形成机会池和共创建议</small><span class="owner">Rolling AI</span></td>
+            </tr>
+            <tr>
+              <td class="phase-cell" rowspan="2"><b>共创与研发</b><span>PHASE 02</span></td>
+              <td class="week-cell"><b>W3</b><span>第 3 周</span></td>
+              <td class="cal-cell both"><b>共创 01–02</b><small>真实业务问题</small><span class="owner">双方</span></td>
+              <td class="cal-cell both"><b>共创 03–04</b><small>提出 AI 方向</small><span class="owner">双方</span></td>
+              <td class="cal-cell both"><b>共创 05–06</b><small>评估业务价值</small><span class="owner">双方</span></td>
+              <td class="cal-cell both"><b>共创 07–08</b><small>判断技术可行性</small><span class="owner">双方</span></td>
+              <td class="cal-cell both"><b>共创 09–10</b><small>收敛 MVP 方向</small><span class="owner">双方</span></td>
+            </tr>
+            <tr>
+              <td class="week-cell"><b>W4</b><span>第 4 周</span></td>
+              <td class="cal-cell us" colspan="5"><b>MVP 项目研发</b><small>原型搭建、智能体实现、内容准备和一线测试方案设计</small><span class="owner">Rolling AI</span></td>
+            </tr>
+          </tbody></table>
+        </div>
+      </section>
+
+      <!-- ══════════════════════════════════════════════════
+           SLIDE 08 · Sprint Calendar W5–W8
+      ══════════════════════════════════════════════════ -->
+      <section class="slide" data-slide-key="sprint-calendar-2" data-screen-label="08 Sprint W5-W8">
+        <div class="section-head" style="margin-bottom:22px;">
+          <div><span class="kicker">PHASE 02 · SPRINT CALENDAR</span><h2>W5–W8<br>从一线反馈到决策</h2></div>
+          <p class="copy">把 MVP 推向一线，用真实使用情况推动调优。<strong>第 8 周通过路演决定进入孵化阶段的场景。</strong></p>
+        </div>
+        <div class="legend"><span><i style="background:var(--yellow)"></i>双方共同</span><span><i style="background:var(--blue)"></i>Rolling AI</span></div>
+        <div class="calendar-wrap">
+          <table><thead><tr><th style="width:154px;">阶段</th><th style="width:74px;">周</th><th>周一</th><th>周二</th><th>周三</th><th>周四</th><th>周五</th></tr></thead>
+          <tbody>
+            <tr>
+              <td class="phase-cell" rowspan="2"><b>反馈与调优</b><span>PHASE 03</span></td>
+              <td class="week-cell"><b>W5</b><span>第 5 周</span></td>
+              <td class="cal-cell both" colspan="5"><b>一线反馈 · 第一轮</b><small>将 MVP 推向一线，现场观察、用户访谈、收集反馈并判断真实使用价值</small><span class="owner">双方</span></td>
+            </tr>
+            <tr>
+              <td class="week-cell"><b>W6</b><span>第 6 周</span></td>
+              <td class="cal-cell us" colspan="5"><b>项目调优与研发</b><small>基于一线反馈迭代，修正关键问题，形成稳定可用的 v2 版本</small><span class="owner">Rolling AI</span></td>
+            </tr>
+            <tr>
+              <td class="phase-cell" rowspan="2"><b>迭代与路演</b><span>PHASE 04</span></td>
+              <td class="week-cell"><b>W7</b><span>第 7 周</span></td>
+              <td class="cal-cell both" colspan="5"><b>第二次迭代反馈采集</b><small>v2 推向一线，深度访谈、关键场景验证和效果量化</small><span class="owner">双方</span></td>
+            </tr>
+            <tr>
+              <td class="week-cell"><b>W8</b><span>第 8 周</span></td>
+              <td class="cal-cell us" colspan="3"><b>路演材料准备</b><small>整理成果、案例、数据和下一步建议</small><span class="owner">Rolling AI</span></td>
+              <td class="cal-cell both" colspan="2"><b>项目路演会</b><small>多场路演 · 展示、点评、孵化场景决策</small><span class="owner">双方</span></td>
+            </tr>
+          </tbody></table>
+        </div>
+        <div class="phase-strip" style="margin-top:18px;">
+          <div class="phase"><span>W2</span><b>机会图谱</b><small>调研报告、候选场景和优先级建议</small></div>
+          <div class="phase"><span>W4</span><b>MVP 原型</b><small>可供一线测试的原型或智能体</small></div>
+          <div class="phase"><span>W6</span><b>v2 版本</b><small>基于真实反馈完成关键调优</small></div>
+          <div class="phase"><span>W8</span><b>路演与决策</b><small>量化效果，决定孵化场景</small></div>
+        </div>
+      </section>
+
+      <!-- ══════════════════════════════════════════════════
+           SLIDE 09 · Phase 3 · Incubation Overview
+      ══════════════════════════════════════════════════ -->
+      <section class="slide" data-slide-key="incubation-overview" data-screen-label="09 孵化方案">
+        <div class="section-head">
+          <div><span class="kicker">PHASE 03 · 10X SCENARIO INCUBATION</span><h2>从深潜到孵化<br>端到端 MVP</h2></div>
+          <p class="copy">不只是让一个 AI 工具上线。<strong>三个赛道同时推进</strong>：组织在进化、流程在改造、智能体在迭代——最终交付的是一个真实运作的 AI 原生业务单元，而不是一份报告或一个演示稿。</p>
+        </div>
+        <div class="cards-3">
+          <article class="card track-overview t-org">
+            <div class="track-code">TRACK A · ORG REDESIGN</div>
+            <h3>组织架构调整</h3>
+            <p class="track-sub">形成能持续自我进化的 AI 小分队</p>
+            <ul>
+              <li>AI 就绪度评估与角色重新定义</li>
+              <li>组建 3–7 人 AI 原生小分队</li>
+              <li>新协作机制 + Owner 责任制</li>
+              <li>激励机制与文化基线建立</li>
+              <li>向更多业务单元的复制路径</li>
+            </ul>
+            <div class="track-deliver">
+              <b>8 周交付</b>
+              <span>AI 小分队手册 + 组织规模化路径</span>
+            </div>
+          </article>
+          <article class="card track-overview t-workflow">
+            <div class="track-code">TRACK B · WORKFLOW OPTIMIZATION</div>
+            <h3>业务工作流优化</h3>
+            <p class="track-sub">用真实数据证明效率提升</p>
+            <ul>
+              <li>关键工作流绘制 + 基线指标设定</li>
+              <li>AI 插入点设计 + 目标蓝图</li>
+              <li>新流程试运行 + SOP 沉淀</li>
+              <li>效率对比量化（时间 / 成本 / 质量）</li>
+              <li>向其他场景复制的流程手册</li>
+            </ul>
+            <div class="track-deliver">
+              <b>8 周交付</b>
+              <span>流程改造完整手册 + 效率提升量化报告</span>
+            </div>
+          </article>
+          <article class="card track-overview t-agent">
+            <div class="track-code">TRACK C · AGENT &amp; AI BUILD</div>
+            <h3>智能体与 AI 构建</h3>
+            <p class="track-sub">可交付、可维护的 Agent MVP</p>
+            <ul>
+              <li>技术可行性评估 + 工具栈选型</li>
+              <li>Agent 架构设计 + MVP 范围锁定</li>
+              <li>Agent v1 开发 + 内部测试</li>
+              <li>一线部署 + 迭代 v2</li>
+              <li>生产版上线 + 技术文档移交</li>
+            </ul>
+            <div class="track-deliver">
+              <b>8 周交付</b>
+              <span>Agent v2 生产版 + 技术文档 + 维护手册</span>
+            </div>
+          </article>
+        </div>
+        <div class="synth-band" style="margin-top:18px;">孵化的核心是 MVP：<strong>一个真实运作的 AI 原生应用，配套重新设计的工作流和组织运作方式</strong>——这三件事同时发生，才叫真正的孵化。</div>
+      </section>
+
+      <!-- ══════════════════════════════════════════════════
+           SLIDE 10 · 8-Week Incubation Calendar W1–W4
+      ══════════════════════════════════════════════════ -->
+      <section class="slide" data-slide-key="incub-w1w4" data-screen-label="10 孵化 W1-W4">
+        <div class="section-head" style="margin-bottom:18px;">
+          <div><span class="kicker">PHASE 03 · 8-WEEK INCUBATION</span><h2>W1–W4<br>启动 · 设计 · 建设</h2></div>
+          <p class="copy">前四周：把"现在是什么"看清，把"要去哪里"定好，快速建立起三条赛道的<strong>第一个可工作版本</strong>。</p>
+        </div>
+        <div class="track-legend">
+          <span><i style="background:var(--yellow)"></i>TRACK A · 组织</span>
+          <span><i style="background:var(--blue)"></i>TRACK B · 流程</span>
+          <span><i style="background:var(--violet)"></i>TRACK C · 智能体</span>
+        </div>
+        <div class="calendar-wrap">
+          <table class="track-table">
+            <thead>
+              <tr>
+                <th class="tt-track-col">赛道</th>
+                <th>W1 · 启动摸底</th>
+                <th>W2 · 目标设计</th>
+                <th>W3 · 快速建设</th>
+                <th>W4 · 深入建设</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td class="tt-label tt-org">
+                  <span class="tt-code">TRACK A</span>
+                  <b>组织架构</b>
+                  <small>Org Redesign</small>
+                </td>
+                <td class="tt-cell tt-org-cell">
+                  <b>现状图谱绘制</b>
+                  <small>梳理现有架构 · 评估 AI 就绪度 · 识别关键角色与冗余节点</small>
+                  <span class="tt-deliver tt-deliver-org">→ 就绪度评估报告</span>
+                </td>
+                <td class="tt-cell tt-org-cell">
+                  <b>未来组织模型设计</b>
+                  <small>设计 AI 小分队结构 · 角色重新定义 · 责任制与 Owner 框架</small>
+                  <span class="tt-deliver tt-deliver-org">→ 目标组织蓝图</span>
+                </td>
+                <td class="tt-cell tt-org-cell">
+                  <b>AI 小分队成立</b>
+                  <small>正式组建 · 召开第一次全体对齐会 · 认领目标与 OKR</small>
+                  <span class="tt-deliver tt-deliver-org">→ 小分队章程</span>
+                </td>
+                <td class="tt-cell tt-org-cell">
+                  <b>协作模式磨合</b>
+                  <small>在真实任务中测试新协作方式 · 记录阻力与加速器 · 动态调整</small>
+                  <span class="tt-deliver tt-deliver-org">→ 磨合复盘报告</span>
+                </td>
+              </tr>
+              <tr>
+                <td class="tt-label tt-workflow">
+                  <span class="tt-code">TRACK B</span>
+                  <b>业务工作流</b>
+                  <small>Workflow Optimization</small>
+                </td>
+                <td class="tt-cell tt-workflow-cell">
+                  <b>关键流程梳理</b>
+                  <small>识别 2–3 条高价值工作流 · 绘制"现在"状态 · 设定基线指标</small>
+                  <span class="tt-deliver tt-deliver-wf">→ 基线流程图 + 指标</span>
+                </td>
+                <td class="tt-cell tt-workflow-cell">
+                  <b>AI 插入点设计</b>
+                  <small>逐节点分析 AI 优化机会 · 绘制目标状态工作流 · 设定 KPI</small>
+                  <span class="tt-deliver tt-deliver-wf">→ 目标流程蓝图</span>
+                </td>
+                <td class="tt-cell tt-workflow-cell">
+                  <b>新流程试运行</b>
+                  <small>小范围启用新工作流 · 人工 + AI 协同 · 持续记录摩擦点</small>
+                  <span class="tt-deliver tt-deliver-wf">→ 试运行日志</span>
+                </td>
+                <td class="tt-cell tt-workflow-cell">
+                  <b>流程稳定化</b>
+                  <small>修正关键阻力 · 固化 SOP 初稿 · 为 Agent 上线做好准备</small>
+                  <span class="tt-deliver tt-deliver-wf">→ SOP 初稿</span>
+                </td>
+              </tr>
+              <tr>
+                <td class="tt-label tt-agent">
+                  <span class="tt-code">TRACK C</span>
+                  <b>智能体构建</b>
+                  <small>Agent &amp; AI Build</small>
+                </td>
+                <td class="tt-cell tt-agent-cell">
+                  <b>技术条件摸底</b>
+                  <small>API 权限与数据可用性 · 工具栈选型 · 安全合规边界确认</small>
+                  <span class="tt-deliver tt-deliver-ag">→ 技术可行性报告</span>
+                </td>
+                <td class="tt-cell tt-agent-cell">
+                  <b>Agent 架构设计</b>
+                  <small>锁定 MVP 功能范围 · 设计逻辑流与工具调用 · 数据接入方案</small>
+                  <span class="tt-deliver tt-deliver-ag">→ Agent 设计文档</span>
+                </td>
+                <td class="tt-cell tt-agent-cell">
+                  <b>Agent v1 开发</b>
+                  <small>构建核心能力模块 · 完成主要流程集成 · 内部场景测试</small>
+                  <span class="tt-deliver tt-deliver-ag">→ v1 内测版</span>
+                </td>
+                <td class="tt-cell tt-agent-cell">
+                  <b>v1 验证与调优</b>
+                  <small>团队内部完整场景测试 · 收集使用反馈 · 修正关键问题</small>
+                  <span class="tt-deliver tt-deliver-ag">→ v1 验证报告</span>
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+        <div class="incub-milestones">
+          <div class="incub-ms"><span>W2 里程碑</span><b>三赛道基线完成</b><small>现状图谱 · 基线流程 · 技术方案</small></div>
+          <div class="incub-ms"><span>W4 里程碑</span><b>建设期完成</b><small>小分队成立 · SOP 初稿 · Agent v1</small></div>
+          <div class="incub-ms"><span>W4 对齐会</span><b>PMO 进度复盘</b><small>三赛道对齐 · 调整优先级 · W5–W8 计划</small></div>
+          <div class="incub-ms"><span>进入 W5</span><b>准备一线推送</b><small>新流程 + Agent v1 就绪，准备真实验证</small></div>
+        </div>
+      </section>
+
+      <!-- ══════════════════════════════════════════════════
+           SLIDE 11 · 8-Week Incubation Calendar W5–W8
+      ══════════════════════════════════════════════════ -->
+      <section class="slide" data-slide-key="incub-w5w8" data-screen-label="11 孵化 W5-W8">
+        <div class="section-head" style="margin-bottom:18px;">
+          <div><span class="kicker">PHASE 03 · 8-WEEK INCUBATION</span><h2>W5–W8<br>验证 · 迭代 · 固化</h2></div>
+          <p class="copy">后四周：把三条赛道推向真实一线，<strong>用数据证明效率提升，完成生产版交付</strong>，沉淀可复制的改造剧本。</p>
+        </div>
+        <div class="track-legend">
+          <span><i style="background:var(--yellow)"></i>TRACK A · 组织</span>
+          <span><i style="background:var(--blue)"></i>TRACK B · 流程</span>
+          <span><i style="background:var(--violet)"></i>TRACK C · 智能体</span>
+        </div>
+        <div class="calendar-wrap">
+          <table class="track-table">
+            <thead>
+              <tr>
+                <th class="tt-track-col">赛道</th>
+                <th>W5 · 一线推送</th>
+                <th>W6 · 量化迭代</th>
+                <th>W7 · 消除卡点</th>
+                <th>W8 · 固化交付</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td class="tt-label tt-org">
+                  <span class="tt-code">TRACK A</span>
+                  <b>组织架构</b>
+                  <small>Org Redesign</small>
+                </td>
+                <td class="tt-cell tt-org-cell">
+                  <b>小分队全速运转</b>
+                  <small>独立承担真实业务任务 · 管理层对齐机制运行 · 跨部门阻力识别</small>
+                  <span class="tt-deliver tt-deliver-org">→ 运转观察记录</span>
+                </td>
+                <td class="tt-cell tt-org-cell">
+                  <b>角色持续进化</b>
+                  <small>根据 AI 能力动态调整职责 · 识别哪些工作可以 AI 代劳 · 补充培训</small>
+                  <span class="tt-deliver tt-deliver-org">→ 角色更新记录</span>
+                </td>
+                <td class="tt-cell tt-org-cell">
+                  <b>文化与机制强化</b>
+                  <small>建立 AI 使用激励机制 · 核心管理层对齐 · 识别下一个可复制场景</small>
+                  <span class="tt-deliver tt-deliver-org">→ AI 文化方案</span>
+                </td>
+                <td class="tt-cell tt-org-cell">
+                  <b>AI 小分队手册</b>
+                  <small>完整记录运作模式 · 制定向其他业务单元推广路径 · 组织成果量化</small>
+                  <span class="tt-deliver tt-deliver-org">→ 小分队手册</span>
+                </td>
+              </tr>
+              <tr>
+                <td class="tt-label tt-workflow">
+                  <span class="tt-code">TRACK B</span>
+                  <b>业务工作流</b>
+                  <small>Workflow Optimization</small>
+                </td>
+                <td class="tt-cell tt-workflow-cell">
+                  <b>新流程全面上线</b>
+                  <small>配合 Agent v1 全面运行 · 真实用户在新流程中操作 · 效率数据采集</small>
+                  <span class="tt-deliver tt-deliver-wf">→ 新流程运行记录</span>
+                </td>
+                <td class="tt-cell tt-workflow-cell">
+                  <b>量化提升效果</b>
+                  <small>对比基线：时间 / 成本 / 质量 · 识别未达预期节点 · 制定补强计划</small>
+                  <span class="tt-deliver tt-deliver-wf">→ 效率提升中期报告</span>
+                </td>
+                <td class="tt-cell tt-workflow-cell">
+                  <b>消除最后卡点</b>
+                  <small>针对性解决关键阻力 · 优化人机交接节点 · KPI 达成验证</small>
+                  <span class="tt-deliver tt-deliver-wf">→ 优化验证记录</span>
+                </td>
+                <td class="tt-cell tt-workflow-cell">
+                  <b>流程改造手册</b>
+                  <small>从旧流程到新流程的完整改造记录 · 最终效率量化 · 可复制经验沉淀</small>
+                  <span class="tt-deliver tt-deliver-wf">→ 流程改造手册</span>
+                </td>
+              </tr>
+              <tr>
+                <td class="tt-label tt-agent">
+                  <span class="tt-code">TRACK C</span>
+                  <b>智能体构建</b>
+                  <small>Agent &amp; AI Build</small>
+                </td>
+                <td class="tt-cell tt-agent-cell">
+                  <b>Agent v1 推向一线</b>
+                  <small>正式部署给真实一线用户 · 现场观察使用情况 · 全面收集反馈</small>
+                  <span class="tt-deliver tt-deliver-ag">→ 一线使用反馈报告</span>
+                </td>
+                <td class="tt-cell tt-agent-cell">
+                  <b>Agent v2 迭代开发</b>
+                  <small>反馈优先级排序 · 修复关键问题 · 优化核心体验 · 扩展场景覆盖</small>
+                  <span class="tt-deliver tt-deliver-ag">→ Agent v2 版本</span>
+                </td>
+                <td class="tt-cell tt-agent-cell">
+                  <b>v2 验证与稳定</b>
+                  <small>广泛场景验证 · 边缘情况处理 · 性能与稳定性优化</small>
+                  <span class="tt-deliver tt-deliver-ag">→ v2 验证报告</span>
+                </td>
+                <td class="tt-cell tt-agent-cell">
+                  <b>生产版上线 + 移交</b>
+                  <small>Agent v2 正式上线 · 技术文档与维护手册 · 客户团队运营移交</small>
+                  <span class="tt-deliver tt-deliver-ag">→ 生产版 + 技术文档</span>
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+        <div class="incub-milestones">
+          <div class="incub-ms"><span>W5 里程碑</span><b>全面一线部署</b><small>新流程 + Agent v1 真实运行</small></div>
+          <div class="incub-ms"><span>W6 里程碑</span><b>效率量化中期</b><small>数据对比 · Agent v2 就绪</small></div>
+          <div class="incub-ms"><span>W8 里程碑</span><b>孵化周期收尾</b><small>三赛道成果汇总 · 复盘路演</small></div>
+          <div class="incub-ms"><span>下一步</span><b>启动下一孵化周期</b><small>复用成熟组件 · 复制改造剧本</small></div>
+        </div>
+      </section>
+
+      <!-- ══════════════════════════════════════════════════
+           SLIDE 12 · 四层治理架构
+      ══════════════════════════════════════════════════ -->
+      <section class="slide" data-slide-key="org-structure" data-screen-label="12 组织架构">
+        <div class="section-head">
+          <div><span class="kicker">GOVERNANCE · TEAM STRUCTURE</span><h2>四层组织<br>谁定方向 · 谁拿结果</h2></div>
+          <p class="copy">从决策到执行，一条线压到底：<strong>上面定方向、中间扛业务、下面保推进</strong>。最底层的 PMO 引入多种 AI agent，让项目管理本身也跑出高效率。</p>
+        </div>
+        <div class="org-stack">
+          <div class="org-layer l1">
+            <div class="ol-label">
+              <span class="ol-tag">决策委员会</span>
+              <span class="ol-name">AI 10× 项目<br>决策委员会</span>
+            </div>
+            <div class="ol-body"><b>最高决策层</b>——定方向、给资源、拍板重大事项。由主要负责人、核心业务线 Owner 与关键高管组成，每 2–3 周参与一次阶段复盘。<div class="org-sub"><span>项目 Sponsor</span><span>业务线 Owner</span><span>核心高管</span></div></div>
+          </div>
+          <div class="org-layer l2">
+            <div class="ol-label">
+              <span class="ol-tag">项目管理团队</span>
+              <span class="ol-name">双 PM / PMO 委员会</span>
+            </div>
+            <div class="ol-body"><b>1 名 Rolling AI PM ＋ 1 名企业侧 PM</b>，共同对最终业务方向和交付结果负责，须是偏业务的 Leader；可扩展为多位 Leader 组成的 PMO 委员会。</div>
+          </div>
+          <div class="org-layer l3">
+            <div class="ol-label">
+              <span class="ol-tag">具体项目团队</span>
+              <span class="ol-name">多个执行小组</span>
+            </div>
+            <div class="ol-body">下设多个具体执行小组，<b>每个项目在企业内部都配一名 Owner</b>，对该项目的最终业务结果负责，由其所在团队汇报成果。<div class="org-sub"><span>场景 A · Owner</span><span>场景 B · Owner</span><span>场景 C · Owner</span></div></div>
+          </div>
+          <div class="org-layer l4">
+            <div class="ol-label">
+              <span class="ol-tag">PMO 保障团队</span>
+              <span class="ol-name">推进 · 协调 · AI 管理</span>
+            </div>
+            <div class="ol-body">由企业侧承担更多职责，负责项目推进与执行协调（排期、拉通关系、组织资源）；<b>引入多种 AI agent 来管理整个项目过程</b>，让 PMO 本身也成为 AI 转型的示范。</div>
+          </div>
+        </div>
+      </section>
+
+      <!-- ══════════════════════════════════════════════════
+           SLIDE 13 · 教练，不是代工
+      ══════════════════════════════════════════════════ -->
+      <section class="slide" data-slide-key="roles" data-screen-label="13 教练不代工">
+        <div class="section-head">
+          <div><span class="kicker">ROLES &amp; WAY OF WORKING</span><h2>我们是教练<br>不是代工</h2></div>
+          <p class="copy">Rolling AI 不替团队做"端到端交付"，而是<strong>带着大家一起搭、一起改</strong>：提供方法、节奏和专业支持，业务团队始终是成果的 Owner。真正长出来的能力，要留在你们组织里。</p>
+        </div>
+        <div class="coach-band">
+          <div class="coach-pill">教练，不是代工</div>
+          <p>把 AI 能力"教会"团队，而不是做完就走——让方法、习惯和信心留在你们自己手里。</p>
+        </div>
+        <div class="cards-3" style="margin-top:18px;">
+          <article class="card coach-card">
+            <span class="card-no">企业业务团队</span>
+            <h3>成果的 Owner</h3>
+            <p>认领场景目标、组织材料、参与共创、推动一线测试，并亲自汇报成果。成果是你们的，能力也是你们的。</p>
+          </article>
+          <article class="card coach-card">
+            <span class="card-no">Rolling AI</span>
+            <h3>教练与共建者</h3>
+            <p>提供调研、共创、MVP 搭建与方法辅导，和团队并肩把想法做出来，并给出高标准点评。</p>
+          </article>
+          <article class="card coach-card">
+            <span class="card-no">联合 PMO</span>
+            <h3>节奏与决策</h3>
+            <p>由双方与 HR / 数字化代表组成，每 2–3 周复盘一次：看真实进展，定下一步资源与优先级。</p>
+          </article>
+        </div>
+      </section>
+
+      <!-- ══════════════════════════════════════════════════
+           SLIDE 14 · 会议节奏
+      ══════════════════════════════════════════════════ -->
+      <section class="slide" data-slide-key="cadence" data-screen-label="14 会议节奏">
+        <div class="section-head">
+          <div><span class="kicker">MEETING CADENCE</span><h2>每 2–3 周一次<br>AI 转型复盘会</h2></div>
+          <p class="copy">这不是一般进度同步，而是项目的核心阶段产出件。<strong>每次展示真实成果，评价成效，决定下一轮重点。</strong>管理层看的不是 PPT，是真实跑出来的数据。</p>
+        </div>
+        <div class="cards-4">
+          <article class="card cadence-card">
+            <span class="card-no">WEEK 01</span>
+            <h3>启动工作坊</h3>
+            <p>明确目标、范围、优先场景和参与团队结构。</p>
+            <ul>
+              <li>对齐核心业务问题</li>
+              <li>明确负责人</li>
+              <li>建立协作方式</li>
+            </ul>
+          </article>
+          <article class="card cadence-card">
+            <span class="card-no">WEEK 02–03</span>
+            <h3>机会识别复盘</h3>
+            <p>分享调研发现和机会图谱，决定 MVP 方向。</p>
+            <ul>
+              <li>机会价值评估</li>
+              <li>Owner 投入确认</li>
+              <li>MVP 优先级决策</li>
+            </ul>
+          </article>
+          <article class="card cadence-card">
+            <span class="card-no">WEEK 05–06</span>
+            <h3>一线验证复盘</h3>
+            <p>展示 MVP、反馈和真实使用情况。</p>
+            <ul>
+              <li>反馈分类与优先级</li>
+              <li>效果初步判断</li>
+              <li>迭代方向确认</li>
+            </ul>
+          </article>
+          <article class="card cadence-card">
+            <span class="card-no">WEEK 08</span>
+            <h3>路演与决策</h3>
+            <p>业务团队展示成果，决定孵化场景与下阶段投入。</p>
+            <ul>
+              <li>多场路演</li>
+              <li>下一阶段场景选择</li>
+              <li>责任与资源确认</li>
+            </ul>
+          </article>
+        </div>
+        <div class="cadence-note">每次管理层复盘的核心问题只有一个：<b>过去 2–3 周真实发生了什么变化，下一阶段应该把资源压在哪里。</b></div>
+      </section>
+
+      <!-- ══════════════════════════════════════════════════
+           SLIDE 15 · CEO 赋能
+      ══════════════════════════════════════════════════ -->
+      <section class="slide" data-slide-key="ceo-enablement" data-screen-label="15 CEO 赋能">
+        <div class="section-head">
+          <div><span class="kicker">CEO ENABLEMENT</span><h2>先让 CEO<br>亲身感受 10×</h2></div>
+          <p class="copy">转型从顶上开始。先让创始人与核心管理层自己<strong>感受到 AI 时代的速度</strong>——亲手用上 AI、跑顺自己的核心工作流，再把这种体感传导给整个组织。领导者自己没有体感，任何 AI 转型都会流于表面。</p>
+        </div>
+        <div class="ceo-grid">
+          <article class="card ceo-card">
+            <div class="cc-num">01</div>
+            <h3>感受 10× 效率</h3>
+            <p>第一步，就是让创始人亲手体验到 10 倍速度的工作方式。体感，是推动组织的最强动力。</p>
+          </article>
+          <article class="card ceo-card">
+            <div class="cc-num">02</div>
+            <h3>武装 AI 工作套件</h3>
+            <p>为 CEO 配齐不同的 AI "武器"，覆盖阅读、写作、分析、决策与对外沟通的全链路工作流。</p>
+          </article>
+          <article class="card ceo-card">
+            <div class="cc-num">03</div>
+            <h3>Shadow CEO 工作流</h3>
+            <p>贴身观察核心管理层日常工作，找出最关键的几个决策和沟通工作流，做成可演示的 AI 版本。</p>
+          </article>
+          <article class="card ceo-card">
+            <div class="cc-num">04</div>
+            <h3>持续一对一辅导</h3>
+            <p>后续不断一对一复盘与辅导，把 AI 工作习惯固化、持续加码，让 CEO 成为组织里最强的 10× 选手。</p>
+          </article>
+        </div>
+        <div class="ceo-core">核心目标：<strong>让 CEO 本人，真切感受到 AI 时代的速度，并成为组织 10× 转型最有力的推动者。</strong></div>
+      </section>
+
+      <!-- Controls -->
+      <div class="deck-progress"><span id="progressBar"></span></div>
+      <div class="deck-controls" aria-label="演示控制">
+        <button type="button" id="prevBtn" aria-label="上一页">↑</button>
+        <span class="page-no" id="pageNo">01 / 16</span>
+        <button type="button" id="nextBtn" aria-label="下一页">↓</button>
+        <button type="button" id="fullscreenBtn" aria-label="全屏">⛶</button>
+      </div>
+      <div class="vertical-pager" aria-label="分页">
+        <button type="button" id="upBtn" aria-label="往上翻页">↑</button>
+        <button type="button" id="downBtn" aria-label="往下翻页">↓</button>
+      </div>
+      <button type="button" class="confirm-toggle" id="confirmToggle" aria-label="功能区"><span>⚙</span></button>
+      <aside class="confirm-panel" id="confirmPanel" aria-label="功能区">
+        <div class="confirm-header"><h3>功能区</h3><button type="button" class="confirm-close" id="confirmClose" aria-label="关闭">×</button></div>
+
+        <div class="fn-section-title">模式</div>
+        <div class="mode-switch" id="modeSwitch">
+          <button type="button" class="mode-btn active" data-mode="present">演示模式</button>
+          <button type="button" class="mode-btn" data-mode="edit">编辑模式</button>
+        </div>
+        <p class="confirm-sub" id="modeHint">演示模式下内容锁定，不可修改。</p>
+
+        <div class="edit-tools" id="editTools" hidden>
+          <button type="button" class="fn-action fn-confirm" id="confirmEdit">✓ 完成编辑</button>
+          <button type="button" class="fn-action" id="exportPdf">导出 PDF</button>
+        </div>
+
+        <div class="fn-section-title">会后待确认事项 <b id="confirmCount">0 / 6</b></div>
+        <p class="confirm-sub">逐项勾选，状态自动保存；编辑模式下可改文字。</p>
+        <div class="confirm-list" id="confirmList"></div>
+        <div class="confirm-meter"><span id="confirmMeter"></span></div>
+      </aside>
+      <div class="edit-badge">✎ 编辑模式 · 点击页面文字即可修改</div>
+    </main>
+  </div>
+
+  <script>
+    const deck = document.getElementById("deck");
+    const slides = [...document.querySelectorAll(".slide")];
+    // wrap each content slide so it can be auto-scaled to fit the safe area
+    slides.forEach(sl => {
+      if (sl.classList.contains("cover-hero")) return;
+      const inner = document.createElement("div");
+      inner.className = "slide-fit";
+      while (sl.firstChild) inner.appendChild(sl.firstChild);
+      sl.appendChild(inner);
+    });
+    const fitSlide = sl => {
+      if (!sl) return;
+      const inner = sl.querySelector(".slide-fit");
+      if (!inner) return;
+      inner.style.transform = "none";
+      const cs = getComputedStyle(sl);
+      const avail = sl.clientHeight - parseFloat(cs.paddingTop) - parseFloat(cs.paddingBottom);
+      const h = inner.scrollHeight;
+      const sc = h > avail ? Math.max(0.7, avail / h) : 1;
+      inner.style.transform = sc < 1 ? `scale(${sc})` : "none";
+    };
+    const pageNo = document.getElementById("pageNo");
+    const progressBar = document.getElementById("progressBar");
+    const confirmPanel = document.getElementById("confirmPanel");
+    const confirmList = document.getElementById("confirmList");
+    const confirmCount = document.getElementById("confirmCount");
+    const confirmMeter = document.getElementById("confirmMeter");
+    const editTools = document.getElementById("editTools");
+    const modeHint = document.getElementById("modeHint");
+    const defaultConfirmItems = [
+      "待确认事项示例一（生成时替换为本次议题）",
+      "待确认事项示例二",
+      "待确认事项示例三"
+    ];
+    const itemsKey = "10x-confirm-items";
+    let confirmItems = (() => { try { const v = JSON.parse(localStorage.getItem(itemsKey)); return Array.isArray(v) && v.length ? v : defaultConfirmItems.slice(); } catch { return defaultConfirmItems.slice(); } })();
+    const saveItems = () => localStorage.setItem(itemsKey, JSON.stringify(confirmItems));
+    let mode = "present";
+    const storageKey = "10x-transformation-confirmations";
+    let index = 0;
+
+    // ── editable content (edit mode) — covers every text node incl. cover ──
+    const EDIT_SEL = "h1,h2,h3,h4,h5,h6,p,li,td,th,span,b,strong,small,em,"
+      + ".copy,.kicker,.deck-label,.cover-lead,.cover-note,.ol-body,.ac-sub,.track-sub,"
+      + ".stat-num,.cc-num,.tenx-mega,.goal-note,.goal-tag,.exit";
+    const editKey = "10x-edits-v2";
+    const editStore = (() => { try { return JSON.parse(localStorage.getItem(editKey)) || {}; } catch { return {}; } })();
+    const saveEdits = () => localStorage.setItem(editKey, JSON.stringify(editStore));
+    const editEls = [];
+    slides.forEach(sl => {
+      const sk = sl.dataset.slideKey || "s";
+      let n = 0;
+      sl.querySelectorAll(EDIT_SEL).forEach(el => {
+        // let the outermost text block own the edit; skip nested + empty/icon nodes
+        if (el.parentElement && el.parentElement.closest("[data-edit-key]")) return;
+        if (!el.textContent.trim()) return;
+        const k = sk + ":" + (n++);
+        el.dataset.editKey = k;
+        if (editStore[k] != null) el.innerHTML = editStore[k];
+        el.addEventListener("input", () => { editStore[k] = el.innerHTML; saveEdits(); fitSlide(slides[index]); });
+        editEls.push(el);
+      });
+    });
+    const setMode = m => {
+      mode = m;
+      document.body.classList.toggle("edit-mode", m === "edit");
+      document.querySelectorAll("#modeSwitch .mode-btn").forEach(b => b.classList.toggle("active", b.dataset.mode === m));
+      if (editTools) editTools.hidden = m !== "edit";
+      if (modeHint) modeHint.textContent = m === "edit"
+        ? "编辑模式：点击页面任意文字即可修改，自动保存。"
+        : "演示模式下内容锁定，不可修改。";
+      editEls.forEach(el => { el.contentEditable = m === "edit" ? "true" : "false"; });
+      renderChecks();
+    };
+
+    const pad = v => String(v).padStart(2, "0");
+    const resize = () => {
+      const scale = Math.min(window.innerWidth / 1920, window.innerHeight / 1080);
+      document.documentElement.style.setProperty("--scale", scale.toFixed(4));
+    };
+    const show = next => {
+      index = (next + slides.length) % slides.length;
+      slides.forEach((s, i) => s.classList.toggle("active", i === index));
+      pageNo.textContent = `${pad(index + 1)} / ${pad(slides.length)}`;
+      progressBar.style.width = `${((index + 1) / slides.length) * 100}%`;
+      const onCover = slides[index]?.classList.contains("cover-hero");
+      document.body.classList.toggle("on-cover", onCover);
+      if (window.__particles) window.__particles.setActive(onCover);
+      fitSlide(slides[index]);
+    };
+    const next = () => show(index + 1);
+    const prev = () => show(index - 1);
+
+    const toggleFullscreen = async () => {
+      const button = document.getElementById("fullscreenBtn");
+      const toggleFallback = () => {
+        document.body.classList.toggle("fullscreen-fallback");
+        button.classList.toggle("active", document.body.classList.contains("fullscreen-fallback"));
+      };
+      if (document.body.classList.contains("fullscreen-fallback")) { toggleFallback(); return; }
+      if (document.documentElement.requestFullscreen && document.exitFullscreen) {
+        try {
+          if (!document.fullscreenElement) {
+            await document.documentElement.requestFullscreen();
+            if (!document.fullscreenElement) toggleFallback();
+          } else { await document.exitFullscreen(); }
+        } catch { toggleFallback(); }
+        return;
+      }
+      toggleFallback();
+    };
+
+    const loadChecks = () => { try { return JSON.parse(localStorage.getItem(storageKey)) || []; } catch { return []; } };
+    const saveChecks = v => localStorage.setItem(storageKey, JSON.stringify(v));
+    const renderChecks = () => {
+      const values = loadChecks();
+      confirmList.innerHTML = "";
+      confirmItems.forEach((item, i) => {
+        const label = document.createElement("label");
+        label.className = "confirm-item";
+        const input = document.createElement("input");
+        input.type = "checkbox";
+        input.checked = Boolean(values[i]);
+        input.addEventListener("change", () => {
+          const cur = loadChecks();
+          cur[i] = input.checked;
+          saveChecks(cur);
+          renderChecks();
+        });
+        const span = document.createElement("span");
+        span.textContent = item;
+        if (mode === "edit") {
+          span.contentEditable = "true";
+          span.addEventListener("input", () => { confirmItems[i] = span.textContent; saveItems(); });
+          span.addEventListener("keydown", ev => { if (ev.key === "Enter") { ev.preventDefault(); span.blur(); } });
+        }
+        label.append(input, span);
+        confirmList.append(label);
+      });
+      const done = values.filter(Boolean).length;
+      confirmCount.textContent = `${done} / ${confirmItems.length}`;
+      confirmMeter.style.width = `${(done / confirmItems.length) * 100}%`;
+    };
+
+    document.getElementById("prevBtn").addEventListener("click", prev);
+    document.getElementById("nextBtn").addEventListener("click", next);
+    document.getElementById("upBtn").addEventListener("click", prev);
+    document.getElementById("downBtn").addEventListener("click", next);
+    document.getElementById("fullscreenBtn").addEventListener("click", toggleFullscreen);
+
+    document.addEventListener("keydown", e => {
+      // don't hijack keys while editing text
+      if (mode === "edit" || e.target.isContentEditable || /^(INPUT|TEXTAREA)$/.test(e.target.tagName)) return;
+      if (e.key === "ArrowDown" || e.key === "ArrowRight") next();
+      else if (e.key === "ArrowUp" || e.key === "ArrowLeft") prev();
+      else if (e.key === "f" || e.key === "F") toggleFullscreen();
+    });
+
+    document.getElementById("confirmToggle").addEventListener("click", () => {
+      confirmPanel.classList.toggle("open");
+      if (confirmPanel.classList.contains("open")) renderChecks();
+    });
+    document.getElementById("confirmClose").addEventListener("click", () => confirmPanel.classList.remove("open"));
+
+    // mode switch + export
+    document.querySelectorAll("#modeSwitch .mode-btn").forEach(b =>
+      b.addEventListener("click", () => setMode(b.dataset.mode)));
+    document.getElementById("exportPdf").addEventListener("click", () => {
+      confirmPanel.classList.remove("open");
+      setTimeout(() => window.print(), 80);
+    });
+    document.getElementById("confirmEdit").addEventListener("click", () => {
+      setMode("present");                    // confirm edits → back to the finished presentation
+      confirmPanel.classList.remove("open");
+    });
+
+    /* ════════════════════════════════════════════════
+       Particle globe (cover) — drag to spin, move to magnify
+    ════════════════════════════════════════════════ */
+    (function initGlobe() {
+      const canvas = document.getElementById("particleCanvas");
+      if (!canvas) return;
+      const ctx = canvas.getContext("2d");
+      let W = 0, H = 0, dpr = Math.min(window.devicePixelRatio || 1, 2);
+      let running = false, raf = 0, t = 0;
+      const DEG = 57.29578;
+
+      const CONT = [
+        [58, -100, 20, 33], [40, -98, 15, 22], [63, -150, 11, 20], [24, -103, 10, 9],
+        [9, -80, 7, 9], [-12, -60, 25, 16], [-40, -66, 12, 7], [54, 20, 11, 20],
+        [8, 20, 24, 20], [27, 15, 11, 21], [55, 95, 22, 52], [33, 108, 13, 21],
+        [22, 78, 11, 12], [2, 112, 9, 17], [-25, 134, 11, 17], [72, -42, 9, 15]
+      ];
+      const wrap = d => ((d + 540) % 360) - 180;
+      function isLand(lat, lon) {
+        for (let k = 0; k < CONT.length; k++) {
+          const c = CONT[k];
+          const a = (lat - c[0]) / c[2], b = wrap(lon - c[1]) / c[3];
+          const wob = 0.8 + 0.34 * Math.sin(lat * 0.5 + lon * 0.4) * Math.cos(lon * 0.33 - lat * 0.21);
+          if (a * a + b * b < wob) return true;
+        }
+        return lat < -62;
+      }
+
+      const pts = [];
+      const CAND = 15000, GOLDEN = Math.PI * (3 - Math.sqrt(5));
+      for (let i = 0; i < CAND; i++) {
+        const y = 1 - (i / (CAND - 1)) * 2;
+        const r = Math.sqrt(Math.max(0, 1 - y * y));
+        const th = GOLDEN * i;
+        const x = Math.cos(th) * r, z = Math.sin(th) * r;
+        const lat = Math.asin(y) * DEG, lon = Math.atan2(z, x) * DEG;
+        const land = isLand(lat, lon);
+        if (land ? Math.random() < 0.62 : Math.random() < 0.07) {
+          pts.push({
+            x, y, z, land,
+            mix: Math.min(1, Math.max(0, (lat + 90) / 180 + (Math.random() - 0.5) * 0.18)),
+            sz: land ? (0.7 + Math.random() * 1.9) : (0.45 + Math.random() * 0.85),
+            tw: Math.random() * 6.283
+          });
+        }
+      }
+
+      const stars = [];
+      for (let i = 0; i < 240; i++) {
+        const tone = Math.random();
+        stars.push({
+          fx: Math.random(), fy: Math.random(), r: Math.random() * 1.3 + 0.2, tw: Math.random() * 6.283,
+          c: tone < 0.18 ? [255, 234, 176] : (tone < 0.45 ? [176, 206, 255] : [228, 233, 245])
+        });
+      }
+      const orbits = [
+        { rx: 1.55, ry: 0.5, tilt: -0.34, sp: 0.12, ph: 0.0, col: "130,180,230" },
+        { rx: 2.05, ry: 0.78, tilt: 0.20, sp: -0.07, ph: 2.2, col: "208,182,138" },
+        { rx: 1.18, ry: 1.12, tilt: 0.05, sp: 0.16, ph: 4.0, col: "150,222,200" }
+      ];
+
+      // ── ejected particles: spurt outward from the surface, fading as they fly ──
+      const jets = [];
+      const spawnJet = () => {
+        const a = Math.random() * 6.283, u = 2 * Math.random() - 1, sn = Math.sqrt(1 - u * u);
+        const dx = sn * Math.cos(a), dy = u, dz = sn * Math.sin(a);
+        const sp = 0.006 + Math.random() * 0.012;
+        jets.push({ x: dx, y: dy, z: dz, vx: dx * sp, vy: dy * sp, vz: dz * sp, life: 0, max: 55 + Math.random() * 75, mix: Math.random() });
+      };
+
+      const CY = [34, 211, 238], LM = [163, 230, 53];
+      let rotX = -0.18, rotY = 2.1, velX = 0, velY = 0;
+      const AUTO = 0.0016;
+      let dragging = false, lastX = 0, lastY = 0;
+      const mouse = { x: -1e9, y: -1e9, on: false };
+      let R0 = 300, R = 300, zoom = 1, cx = 0, cy = 0;
+
+      const sizeCanvas = () => {
+        const r = canvas.getBoundingClientRect();
+        W = Math.max(1, r.width); H = Math.max(1, r.height);
+        canvas.width = Math.round(W * dpr); canvas.height = Math.round(H * dpr);
+        ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+        R0 = Math.min(W, H) * 0.33; cx = W * 0.5; cy = H * 0.46;
+      };
+
+      const frame = () => {
+        if (!running) return;
+        t += 0.016;
+        if (!dragging) { rotY += AUTO + velY; rotX += velX; velY *= 0.95; velX *= 0.9; }
+        rotX = Math.max(-1.2, Math.min(1.2, rotX));
+        R = R0 * zoom;
+
+        ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+        ctx.clearRect(0, 0, W, H);
+
+        for (const st of stars) {
+          const a = (0.35 + 0.4 * Math.sin(t * 1.5 + st.tw)) * 0.7;
+          ctx.beginPath();
+          ctx.arc(st.fx * W, st.fy * H, st.r, 0, 6.283);
+          ctx.fillStyle = `rgba(${st.c[0]},${st.c[1]},${st.c[2]},${a})`;
+          ctx.fill();
+        }
+        for (const o of orbits) {
+          const A = R0 * o.rx, B = R0 * o.ry;
+          ctx.save();
+          ctx.translate(cx, cy); ctx.rotate(o.tilt);
+          ctx.beginPath();
+          for (let k = 0; k <= 72; k++) { const a = k / 72 * 6.283, x = Math.cos(a) * A, y = Math.sin(a) * B; k ? ctx.lineTo(x, y) : ctx.moveTo(x, y); }
+          ctx.strokeStyle = `rgba(${o.col},0.085)`; ctx.lineWidth = 1; ctx.stroke();
+          const pa = t * o.sp + o.ph, px = Math.cos(pa) * A, py = Math.sin(pa) * B;
+          const g = ctx.createRadialGradient(px, py, 0, px, py, 7);
+          g.addColorStop(0, `rgba(${o.col},0.95)`); g.addColorStop(1, `rgba(${o.col},0)`);
+          ctx.fillStyle = g; ctx.beginPath(); ctx.arc(px, py, 7, 0, 6.283); ctx.fill();
+          ctx.fillStyle = `rgba(${o.col},1)`; ctx.beginPath(); ctx.arc(px, py, 2, 0, 6.283); ctx.fill();
+          ctx.restore();
+        }
+
+        const cosX = Math.cos(rotX), sinX = Math.sin(rotX), cosY = Math.cos(rotY), sinY = Math.sin(rotY), focal = 2.6;
+        const list = [];
+        for (let i = 0; i < pts.length; i++) {
+          const p = pts[i];
+          const x1 = p.x * cosY - p.z * sinY, z1 = p.x * sinY + p.z * cosY;
+          const y2 = p.y * cosX - z1 * sinX, z2 = p.y * sinX + z1 * cosX;
+          const persp = focal / (focal - z2);
+          list.push({ sx: cx + x1 * R * persp, sy: cy - y2 * R * persp, z2, persp, p });
+        }
+        list.sort((a, b) => a.z2 - b.z2);
+        for (const q of list) {
+          const depth = (q.z2 + 1) / 2;
+          let size = q.p.sz * q.persp * (0.5 + depth * 0.8);
+          let alpha = (q.p.land ? 0.9 : 0.5) * (0.14 + depth * 0.95);
+          if (mouse.on) {
+            const d = Math.hypot(q.sx - mouse.x, q.sy - mouse.y);
+            if (d < 130) { const b = 1 - d / 130; size *= 1 + b * 1.0; alpha = Math.min(1, alpha + b * 0.3); }
+          }
+          size *= 0.82 + 0.18 * Math.sin(t * 2 + q.p.tw);
+          if (size <= 0.25) continue;
+          const m = q.p.mix;
+          const cr = (CY[0] + (LM[0] - CY[0]) * m) | 0, cg = (CY[1] + (LM[1] - CY[1]) * m) | 0, cb = (CY[2] + (LM[2] - CY[2]) * m) | 0;
+          ctx.beginPath();
+          ctx.arc(q.sx, q.sy, size, 0, 6.283);
+          ctx.fillStyle = `rgba(${cr},${cg},${cb},${alpha})`;
+          ctx.fill();
+        }
+
+        // ── ejected particles ──
+        if (jets.length < 150 && Math.random() < 0.7) { spawnJet(); if (Math.random() < 0.5) spawnJet(); }
+        for (let i = jets.length - 1; i >= 0; i--) {
+          const jp = jets[i];
+          jp.x += jp.vx; jp.y += jp.vy; jp.z += jp.vz;
+          jp.vx *= 0.985; jp.vy *= 0.985; jp.vz *= 0.985;
+          jp.life++;
+          const rr = Math.sqrt(jp.x * jp.x + jp.y * jp.y + jp.z * jp.z);
+          if (jp.life > jp.max || rr > 2.0) { jets.splice(i, 1); continue; }
+          const x1 = jp.x * cosY - jp.z * sinY, z1 = jp.x * sinY + jp.z * cosY;
+          const y2 = jp.y * cosX - z1 * sinX, z2 = jp.y * sinX + z1 * cosX;
+          const persp = focal / (focal - z2);
+          if (persp <= 0) continue;
+          const sx = cx + x1 * R * persp, sy = cy - y2 * R * persp;
+          const k = jp.life / jp.max;
+          const alpha = Math.sin(k * Math.PI) * 0.85 * (z2 > 0 ? 1 : 0.45);
+          const size = (1.6 - k * 1.0) * persp;
+          if (size <= 0.2 || alpha <= 0.01) continue;
+          const m = jp.mix;
+          const cr = (CY[0] + (LM[0] - CY[0]) * m) | 0, cg = (CY[1] + (LM[1] - CY[1]) * m) | 0, cb = (CY[2] + (LM[2] - CY[2]) * m) | 0;
+          ctx.beginPath();
+          ctx.arc(sx, sy, size, 0, 6.283);
+          ctx.fillStyle = `rgba(${cr},${cg},${cb},${alpha})`;
+          ctx.fill();
+        }
+
+        raf = requestAnimationFrame(frame);
+      };
+
+      const start = () => { if (running) return; running = true; sizeCanvas(); raf = requestAnimationFrame(frame); };
+      const stop = () => { running = false; cancelAnimationFrame(raf); };
+      const toLocal = e => { const r = canvas.getBoundingClientRect(); return { x: (e.clientX - r.left) * (W / r.width), y: (e.clientY - r.top) * (H / r.height) }; };
+
+      canvas.addEventListener("pointermove", e => {
+        const m = toLocal(e); mouse.x = m.x; mouse.y = m.y; mouse.on = true;
+        if (dragging) {
+          const dx = e.clientX - lastX, dy = e.clientY - lastY;
+          rotY += dx * 0.006; rotX += dy * 0.006;
+          velY = dx * 0.006; velX = dy * 0.006;
+          lastX = e.clientX; lastY = e.clientY;
+        }
+      });
+      canvas.addEventListener("pointerdown", e => {
+        dragging = true; lastX = e.clientX; lastY = e.clientY; velX = velY = 0;
+        if (canvas.setPointerCapture) { try { canvas.setPointerCapture(e.pointerId); } catch (_) {} }
+      });
+      canvas.addEventListener("pointerup", () => { dragging = false; });
+      canvas.addEventListener("pointerleave", () => { mouse.on = false; dragging = false; });
+      canvas.addEventListener("wheel", e => {
+        e.preventDefault();
+        zoom *= Math.exp(-e.deltaY * 0.0012);
+        zoom = Math.max(0.55, Math.min(3.2, zoom));
+      }, { passive: false });
+      window.addEventListener("resize", () => { dpr = Math.min(window.devicePixelRatio || 1, 2); if (running) sizeCanvas(); });
+
+      window.__particles = { setActive(on) { if (on) start(); else stop(); } };
+      start();
+    })();
+
+    window.addEventListener("resize", resize);
+    resize();
+    show(0);
+  </script>
+</body>
+</html>

@@ -1,0 +1,19 @@
+{
+  "$comment":     "Layout pack manifest. See plugin/_player/README.md.",
+  "id":           "rolling-deck",
+  "display_name": "RollingAI 风格 H5（粒子地球 · 磨砂玻璃）",
+  "version":      "1.0",
+
+  "$comment_render_entry": "Splices deck.json slides[].data.html into the template's <main class=\"deck\">. Each slide MUST be layout=raw — rolling-deck doesn't use structured layouts. The authoring flow is still conversational (copy template.html, hand-fill sections) but this lets the dispatcher render a deck.json into the rolling-deck shell when one already exists (e.g. when admin / scripts go via plugin/_player/render.py).",
+  "render_entry": "render.py",
+
+  "shell": {
+    "html_lang":    "zh-CN",
+    "title_suffix": ""
+  },
+
+  "$comment_layouts": "rolling-deck uses raw HTML sections, not structured layouts. Each <section class=\"slide\"> is layout=raw with data.html holding the full section markup. The reference.md component library is the authoring vocabulary (cards-3, hero-stats, goals-grid, etc.) but these are CSS classes not deck.json layouts.",
+  "layouts": [
+    {"name": "raw"}
+  ]
+}
