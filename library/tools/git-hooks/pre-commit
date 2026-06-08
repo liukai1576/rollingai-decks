@@ -1,0 +1,161 @@
+#!/usr/bin/env python3
+"""
+pre-commit hook — auto-bump SKILL.md `version:` for any skill whose
+sibling files were touched in this commit.
+
+How it works:
+  · Get staged files (Added / Modified / Deleted / Renamed).
+  · For each file under `plugin/skills/<skill_id>/...`, mark that
+    skill_id as "touched".
+  · For each touched skill:
+      - If the only file touched in that skill is SKILL.md AND its
+        version: line is in the diff, assume the author already bumped
+        manually — leave it alone.
+      - Otherwise read SKILL.md, parse `version: "X.Y[.Z]"`, increment
+        the LAST numeric component, write it back, and `git add` the
+        file so the bump lands in the same commit.
+
+Edge cases handled:
+  · Versions like "0.3", "0.17", "1.2.3" — last component bumped.
+  · Missing/garbled version line — warn, skip.
+  · Skill with no SKILL.md — warn, skip.
+  · `--no-verify` lets the user bypass when they really want to.
+
+Install:
+  · One-time: `git config core.hooksPath library/tools/git-hooks`
+  · No symlinking; git looks here directly.
+
+To bypass for a single commit (rare):
+  · `git commit --no-verify`
+"""
+from __future__ import annotations
+
+import re
+import subprocess
+import sys
+from pathlib import Path
+
+REPO = Path(subprocess.check_output(
+    ["git", "rev-parse", "--show-toplevel"], text=True
+).strip())
+SKILLS_DIR = REPO / "plugin" / "skills"
+
+VERSION_RE = re.compile(
+    r'^(?P<prefix>version:\s*"?)'
+    r'(?P<ver>\d+(?:\.\d+)*)'
+    r'(?P<suffix>"?)\s*$'
+)
+
+
+def staged_files() -> list[Path]:
+    """Files in the index that will be part of the commit. We use
+    --diff-filter=ACMR to skip purely-deleted files (their parent skill
+    might be gone too)."""
+    out = subprocess.check_output(
+        ["git", "diff", "--cached", "--name-only", "--diff-filter=ACMRT"],
+        text=True,
+    )
+    return [REPO / line.strip() for line in out.splitlines() if line.strip()]
+
+
+def skill_id_of(path: Path) -> str | None:
+    """Return the skill_id when `path` lives under plugin/skills/<id>/...,
+    else None."""
+    try:
+        rel = path.resolve().relative_to(SKILLS_DIR.resolve())
+    except ValueError:
+        return None
+    parts = rel.parts
+    if not parts:
+        return None
+    sid = parts[0]
+    # Skip non-skill entries (registry.py, __pycache__, etc.).
+    if sid.startswith("_") or sid.endswith(".py") or "." in sid:
+        return None
+    return sid
+
+
+def author_already_bumped(skill_id: str) -> bool:
+    """True if the staged diff for this skill's SKILL.md changes the
+    `version:` line — meaning the human already updated it."""
+    md = SKILLS_DIR / skill_id / "SKILL.md"
+    if not md.is_file():
+        return False
+    diff = subprocess.check_output(
+        ["git", "diff", "--cached", "--", str(md)], text=True
+    )
+    for line in diff.splitlines():
+        # Only count "+ version:" lines (additions). A removal alone could
+        # be a delete-then-add we still want to leave alone.
+        if line.startswith("+") and not line.startswith("+++"):
+            if VERSION_RE.match(line[1:].strip()):
+                return True
+    return False
+
+
+def bump_version_str(ver: str) -> str:
+    """Increment the LAST numeric component. "0.3" → "0.4"; "1.2.3" → "1.2.4"."""
+    parts = ver.split(".")
+    parts[-1] = str(int(parts[-1]) + 1)
+    return ".".join(parts)
+
+
+def bump_skill(skill_id: str) -> tuple[str, str] | None:
+    """Modify SKILL.md in place. Returns (old, new) version on success."""
+    md = SKILLS_DIR / skill_id / "SKILL.md"
+    if not md.is_file():
+        print(f"  [pre-commit] {skill_id}: SKILL.md missing, skip", file=sys.stderr)
+        return None
+    lines = md.read_text(encoding="utf-8").splitlines(keepends=True)
+    for i, ln in enumerate(lines):
+        m = VERSION_RE.match(ln.rstrip("\n"))
+        if not m:
+            continue
+        old = m.group("ver")
+        new = bump_version_str(old)
+        lines[i] = f'{m.group("prefix")}{new}{m.group("suffix")}\n'
+        md.write_text("".join(lines), encoding="utf-8")
+        # Re-stage so the bump lands in THIS commit.
+        subprocess.check_call(["git", "add", "--", str(md)])
+        return old, new
+    print(f"  [pre-commit] {skill_id}: no `version:` line found, skip",
+          file=sys.stderr)
+    return None
+
+
+def main() -> int:
+    touched: set[str] = set()
+    for p in staged_files():
+        sid = skill_id_of(p)
+        if sid:
+            touched.add(sid)
+
+    if not touched:
+        return 0
+
+    bumped: list[tuple[str, str, str]] = []
+    for sid in sorted(touched):
+        if author_already_bumped(sid):
+            print(f"  [pre-commit] {sid}: author already bumped, leaving alone",
+                  file=sys.stderr)
+            continue
+        result = bump_version_str_for_skill(sid)
+        if result:
+            old, new = result
+            bumped.append((sid, old, new))
+
+    if bumped:
+        print(f"  [pre-commit] auto-bumped {len(bumped)} skill version(s):",
+              file=sys.stderr)
+        for sid, old, new in bumped:
+            print(f"    · {sid}: {old} → {new}", file=sys.stderr)
+    return 0
+
+
+def bump_version_str_for_skill(sid: str) -> tuple[str, str] | None:
+    """Wrapper for clarity (just calls bump_skill)."""
+    return bump_skill(sid)
+
+
+if __name__ == "__main__":
+    sys.exit(main())
