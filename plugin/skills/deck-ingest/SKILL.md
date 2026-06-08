@@ -1,7 +1,8 @@
 ---
 name: deck-ingest
+display_name: Deck 入库
 kind: [管理分析]
-version: "0.3"
+version: "0.4"
 input:  deck_id (slug) + path to deck.json
 output: rows in slides.db (slides + slides_fts)
 triggers:

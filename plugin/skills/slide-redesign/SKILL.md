@@ -1,7 +1,8 @@
 ---
 name: slide-redesign
+display_name: 幻灯片重设计
 kind: [调整]
-version: "0.5"
+version: "0.6"
 input:  deck.json + redesigns/ directory of slide-NN.html files
 output: deck.json with targeted slides converted to layout=raw using author's HTML
 triggers:

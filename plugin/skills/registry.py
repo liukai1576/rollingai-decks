@@ -171,6 +171,9 @@ def list_skills(strict: bool = True) -> list[dict]:
         record: dict[str, Any] = {
             "id":           skill_id,
             "name":         name,
+            # Optional human-readable Chinese label. Falls back to `name` so
+            # any UI that just reads `display_name` is safe with older skills.
+            "display_name": meta.get("display_name") or meta.get("中文名") or name,
             "kind":         kinds,
             "version":      meta.get("version") or "",
             "description":  description,

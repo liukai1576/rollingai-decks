@@ -643,9 +643,13 @@
               <template x-for="sk in (skillsGrouped[kind] || [])" :key="sk.id">
                 <div class="skill-card" @click="openSkill(sk)">
                   <div class="skill-card-head">
-                    <h4 x-text="sk.name"></h4>
+                    <h4 x-text="sk.display_name || sk.name"></h4>
                     <span class="skill-version" x-text="'v' + (sk.version || '?')"></span>
                   </div>
+                  <div class="skill-card-slug"
+                       style="font-family:monospace;font-size:11px;color:var(--text-faint);
+                              margin-top:-2px;margin-bottom:6px;"
+                       x-text="sk.name"></div>
                   <div class="skill-card-kinds">
                     <template x-for="k in sk.kind" :key="k">
                       <span class="chip" :class="{ 'chip-pack': sk.produces_layout_pack }"
@@ -678,7 +682,10 @@
       <div class="drawer-header">
         <span class="page-no">🛠</span>
         <h3>
-          <span x-text="skillDetail.name"></span>
+          <span x-text="skillDetail.display_name || skillDetail.name"></span>
+          <span style="color:var(--text-faint);font-weight:400;font-size:13px;
+                       margin-left:8px;font-family:monospace;"
+                x-text="skillDetail.name"></span>
           <span style="color:var(--text-faint);font-weight:400;font-size:13px;
                        margin-left:8px;"
                 x-text="'v' + (skillDetail.version || '?')"></span>

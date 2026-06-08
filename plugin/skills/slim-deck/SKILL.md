@@ -1,9 +1,10 @@
 ---
 name: slim-deck
+display_name: Deck 瘦身
 kind: [管理分析]
-version: "0.1"
+version: "0.2"
 input:  a deck project directory (containing render-output-full/, optionally media/, source.pdf, redesigns/, etc.)
-output: same directory, slimmed: deck made self-contained, orphans + cache + external sources removed
+output: "same directory, slimmed: deck made self-contained, orphans + cache + external sources removed"
 triggers:
   - "瘦身这个 deck"
   - "清理孤儿 asset"

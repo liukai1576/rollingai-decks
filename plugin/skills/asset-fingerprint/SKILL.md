@@ -1,7 +1,8 @@
 ---
 name: asset-fingerprint
+display_name: 素材指纹
 kind: [管理分析]
-version: "0.2"
+version: "0.3"
 input:  deck_id + path to original .key bundle
 output: slide_assets table populated with sha256 + dimensions per asset
 triggers:

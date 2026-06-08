@@ -1,7 +1,8 @@
 ---
 name: tag-refine
+display_name: 标签精修
 kind: [管理分析]
-version: "0.2"
+version: "0.3"
 input:  slides.db (existing slides + stories rows)
 output: slides.db with type/subtype/customer/free_tags refined from story context
 triggers:
