@@ -1,7 +1,8 @@
 ---
 name: keynote-to-html
+display_name: Keynote 转 HTML
 kind: [创建]
-version: "0.17"
+version: "0.19"
 input:  Apple .key file (path)
 output: deck output dir (deck.json + index.html + assets/ + history.json)
 triggers:

@@ -444,9 +444,15 @@ def parse_tsv(tsv_path: Path) -> tuple[int, list[Slide], float, float]:
                     continue
                 # Backwards-compat: older extracts had only 6 fields (row,
                 # col, cw, rh, text_b64) — handle both.
-                if len(parts) <= 6:
+                # Two TSV formats coexist:
+                #   legacy short:  6 fields  (CELL, row, col, cw, rh, text_b64)
+                #   current full: 14 fields  (CELL, row, col, cw, rh, font, size,
+                #                              r, g, b, fill_r, fill_g, fill_b,
+                #                              text_b64)
+                # Detect by length and dispatch.
+                if len(parts) == 6:
                     cell_text = (base64.b64decode(parts[5]).decode("utf-8")
-                                 if len(parts) > 5 and parts[5] else "")
+                                 if parts[5] else "")
                     last.cells.append({
                         "row":  int(parts[1]),
                         "col":  int(parts[2]),
@@ -454,9 +460,9 @@ def parse_tsv(tsv_path: Path) -> tuple[int, list[Slide], float, float]:
                         "h":    float(parts[4] or 0),
                         "text": cell_text,
                     })
-                else:
-                    cell_text = (base64.b64decode(parts[14]).decode("utf-8")
-                                 if len(parts) > 14 and parts[14] else "")
+                elif len(parts) >= 14:
+                    cell_text = (base64.b64decode(parts[13]).decode("utf-8")
+                                 if parts[13] else "")
                     last.cells.append({
                         "row":     int(parts[1]),
                         "col":     int(parts[2]),
@@ -1356,10 +1362,25 @@ def _localize_renderer_refs(html_path: Path, renderer_local: Path,
         return
     html = html_path.read_text(encoding="utf-8")
 
-    # Skill name in the path is "feishu-deck-h5"; trailing capture is
-    # everything after that until quote / whitespace / fragment / query.
+    # Match references like `href="..."` or `src="..."` whose value
+    # contains `plugin/skills/feishu-deck-h5/`. Previous regex matched a
+    # pure `../`-stack prefix only — fine when output_dir is inside the
+    # repo (relpath produces clean `../../../plugin/...`), but breaks
+    # when output_dir is outside the repo, e.g. /tmp/build. There the
+    # relpath has to climb to the filesystem root and descend into
+    # `/Users/liukai/dev/RollingAI DeckBuilder/plugin/...`. The literal
+    # space in "RollingAI DeckBuilder" further trips the simpler form of
+    # this regex. We now scope the match between the attribute's quote
+    # characters and allow ANY characters (including spaces) for the
+    # prefix; the substitution drops the prefix and writes a local
+    # `_renderer/...` path.
     pat = re.compile(
-        r'((?:\.\./)+)plugin/skills/feishu-deck-h5/([^\'")\s?#]+)'
+        r'((?:href|src)\s*=\s*)(["\'])'   # 1=attr=  2=open-quote
+        r'([^"\']*?)'                     # 3=prefix junk
+        r'plugin/skills/feishu-deck-h5/'
+        r'([^"\'?#]+)'                    # 4=relative path inside skill
+        r'(\2)',                          # 5=closing-quote (same as opener)
+        re.IGNORECASE,
     )
     renderer_local.mkdir(parents=True, exist_ok=True)
     copied = 0
@@ -1367,7 +1388,11 @@ def _localize_renderer_refs(html_path: Path, renderer_local: Path,
 
     def _sub(m):
         nonlocal copied
-        rest = m.group(2)  # e.g. "assets/feishu-deck.css"
+        # Groups: 1=attr= (href= / src=), 2=open-quote, 3=prefix junk,
+        #         4=rel path inside skill, 5=close-quote.
+        attr  = m.group(1)
+        quote = m.group(2)
+        rest  = m.group(4)
         src = renderer_skill_root / rest
         if not src.is_file():
             # Unknown ref — leave it alone so the broken state is visible
@@ -1380,7 +1405,7 @@ def _localize_renderer_refs(html_path: Path, renderer_local: Path,
                 shutil.copy2(src, dst)
                 copied += 1
             seen.add(rest)
-        return f"_renderer/{rest}"
+        return f"{attr}{quote}_renderer/{rest}{quote}"
 
     new_html = pat.sub(_sub, html)
     if new_html != html:
@@ -1476,14 +1501,90 @@ def _render_named_shape_svg(kind: str, x: float, y: float, w: float, h: float,
     )
 
 
-def _emit_iwa_fill_div(sf, in_place: bool) -> str:
+def _css_gradient_to_svg_defs(css: str, grad_id: str) -> str:
+    """Turn `linear-gradient(<angle>deg, <stop1>, <stop2>, ...)` into an SVG
+    <defs><linearGradient id=...>…</linearGradient></defs> block.
+
+    Each stop is `rgba(r,g,b,a) <pct>%` or `<color> <pct>%`. We split on
+    top-level commas (not commas inside `rgba(...)`).
+
+    Returns the <defs> markup, or "" if parsing fails. Caller falls back to
+    a plain fill in that case.
+    """
+    m = re.match(r"linear-gradient\(\s*([-\d.]+)deg\s*,\s*(.+)\)\s*$", css.strip())
+    if not m:
+        return ""
+    try:
+        angle_deg = float(m.group(1))
+    except ValueError:
+        return ""
+    body = m.group(2)
+    # Split on commas at depth 0 (parens for rgba/rgb track depth).
+    stops_raw: list[str] = []
+    depth, start = 0, 0
+    for i, ch in enumerate(body):
+        if ch == "(": depth += 1
+        elif ch == ")": depth -= 1
+        elif ch == "," and depth == 0:
+            stops_raw.append(body[start:i].strip()); start = i + 1
+    stops_raw.append(body[start:].strip())
+
+    stops: list[tuple[float, str, float]] = []
+    for s in stops_raw:
+        sm = re.match(r"(.+?)\s+([\d.]+)%\s*$", s)
+        if not sm: return ""
+        color = sm.group(1).strip()
+        try:
+            pct = float(sm.group(2))
+        except ValueError:
+            return ""
+        rgb = re.match(r"rgba?\(\s*(\d+)\s*,\s*(\d+)\s*,\s*(\d+)\s*(?:,\s*([\d.]+))?\s*\)", color)
+        if rgb:
+            r, g, b = rgb.group(1), rgb.group(2), rgb.group(3)
+            a = float(rgb.group(4)) if rgb.group(4) else 1.0
+            stops.append((pct, f"rgb({r},{g},{b})", a))
+        else:
+            # Hex or named — pass through; SVG will accept it.
+            stops.append((pct, color, 1.0))
+
+    # CSS gradient angle convention: 0deg = up (gradient flows from bottom
+    # to top). SVG x1/y1/x2/y2 is in objectBoundingBox 0..1, with y=0 at
+    # top. To map: CSS 0deg → SVG (0.5, 1) → (0.5, 0). General:
+    #   rad = (angle - 90) * π / 180   (CSS deg to SVG axis angle)
+    #   delta = 0.5
+    #   x1 = 0.5 - cos(rad) * 0.5; y1 = 0.5 + sin(rad) * 0.5  (start)
+    #   x2 = 0.5 + cos(rad) * 0.5; y2 = 0.5 - sin(rad) * 0.5  (end)
+    import math
+    rad = math.radians(angle_deg - 90.0)
+    x1 = 0.5 - math.cos(rad) * 0.5
+    y1 = 0.5 + math.sin(rad) * 0.5
+    x2 = 0.5 + math.cos(rad) * 0.5
+    y2 = 0.5 - math.sin(rad) * 0.5
+
+    stop_xml = "".join(
+        f'<stop offset="{pct:.2f}%" stop-color="{c}" stop-opacity="{a:.3f}"/>'
+        for pct, c, a in stops
+    )
+    return (
+        f'<defs><linearGradient id="{grad_id}" '
+        f'x1="{x1:.3f}" y1="{y1:.3f}" x2="{x2:.3f}" y2="{y2:.3f}">'
+        f'{stop_xml}</linearGradient></defs>'
+    )
+
+
+def _emit_iwa_fill_div(sf, in_place: bool, under_image: bool = False) -> str:
     """Render an IWA `_ShapeFill` as a positioned `<div>`.
 
-    in_place=True  → emitted at source position (no z-index; document order
-                     is the source of truth — shape comes before video
-                     gets stacked under it).
-    in_place=False → emitted at end (z-index:5; sits above images/videos
-                     but below text at z-index:10).
+    in_place=True   → emitted at source position (no z-index; document order
+                      is the source of truth — shape comes before video
+                      gets stacked under it).
+    in_place=False  → emitted at end (z-index:5; sits above images/videos
+                      but below text at z-index:10).
+    under_image=True overrides to z-index:-1 — used when an IWA fill's
+                      bbox heavily overlaps a content image (dark vignettes,
+                      backdrop tints on photo slides). Without this, p19/20/
+                      22/63's near-opaque gradient overlays hid their
+                      content images entirely.
     """
     if sf.gradient_css:
         bg = f"background:{sf.gradient_css};"
@@ -1491,7 +1592,12 @@ def _emit_iwa_fill_div(sf, in_place: bool) -> str:
     else:
         bg = f"background:rgba({sf.r},{sf.g},{sf.b},{sf.alpha:.3f});"
         op_part = ""
-    z = "" if in_place else "z-index:5;"
+    if under_image:
+        z = "z-index:-1;"
+    elif in_place:
+        z = ""
+    else:
+        z = "z-index:5;"
     return (
         f'<div class="el iwa-fill" style="left:{sf.x:.0f}px;top:{sf.y:.0f}px;'
         f'width:{sf.w:.0f}px;height:{sf.h:.0f}px;'
@@ -1599,7 +1705,11 @@ def compose_slide_html(slide: Slide, resolver: AssetResolver,
         bg = "#000" if white_area > dark_area else "#FFFFFF"
 
     parts.append(f"<style>")
-    parts.append(f".slide[data-slide-key='{key}'] {{ background: {bg}; overflow: hidden; }}")
+    # `isolation: isolate` creates a stacking context on the slide so
+    # children rendered at z-index:-1 (backdrop iwa-fills paired with
+    # content images) stay INSIDE the slide instead of escaping up to
+    # the page root where they'd be hidden by the slide's own background.
+    parts.append(f".slide[data-slide-key='{key}'] {{ background: {bg}; overflow: hidden; isolation: isolate; }}")
     parts.append(f".slide[data-slide-key='{key}'] .el {{ position: absolute; transform-origin: center center; }}")
     parts.append(f".slide[data-slide-key='{key}'] .shape {{ box-sizing: border-box; }}")
     # CRITICAL: feishu-deck-h5's "stagger reveal" rule sets
@@ -1923,6 +2033,19 @@ def compose_slide_html(slide: Slide, resolver: AssetResolver,
                     tbb = resolver.iwa_map.master_bbox(slide.keynote_no, el.file_name)
                     if tbb is not None:
                         x_use, y_use, w_use, h_use = tbb
+            # Slide-level images: when AppleScript reports a DEGENERATE bbox
+            # (0×0 or essentially zero), fall back to IWA's true bbox if we
+            # have one. This is the canonical signal that AppleScript failed
+            # to introspect the geometry — typically because the image is
+            # nested inside a Group archive and AppleScript reports child
+            # geometry as 0×0 (the group's own bbox is correct, but its
+            # children aren't traversed for absolute coords). This fix
+            # restores p77's bedroom JPEG (full-bleed bg inside a group):
+            # AppleScript said 0×0, IWA says (-19,-87,1950×1299).
+            if (not el.is_master) and (el.w <= 1 or el.h <= 1) and iwa_bbox is not None:
+                ix, iy, iw, ih = iwa_bbox
+                if iw > 1 and ih > 1:
+                    x_use, y_use, w_use, h_use = ix, iy, iw, ih
             # Pick object-fit based on natural-vs-render aspect comparison
             # (see _object_fit_for). cover for typical / portrait-cropped
             # images; contain when natural is much wider than container so
@@ -2035,32 +2158,56 @@ def compose_slide_html(slide: Slide, resolver: AssetResolver,
             if (iwa_sf is not None and iwa_sf.bezier_path
                     and iwa_sf.bezier_path[0]
                     and not has_text):
-                d_str, nw, nh = iwa_sf.bezier_path
-                if iwa_sf.gradient_css:
-                    fill_css = iwa_sf.gradient_css
-                elif iwa_sf.alpha < 0.001:
-                    fill_css = "none"  # stroke-only
+                d_str, vb_x, vb_y, vb_w, vb_h = iwa_sf.bezier_path
+                if vb_w <= 0 or vb_h <= 0:
+                    # Degenerate path — skip the SVG branch, let the fallback
+                    # rect path render the bbox.
+                    pass
                 else:
-                    fill_css = (f"rgba({iwa_sf.r},{iwa_sf.g},{iwa_sf.b},"
-                                f"{iwa_sf.alpha:.3f})")
-                stroke_attr = ""
-                if iwa_sf.stroke_color and iwa_sf.stroke_width > 0:
-                    # SVG stroke widths are in viewBox units; bezier is in
-                    # natural-size units, so the Keynote px width maps 1:1.
-                    stroke_attr = (f' stroke="{iwa_sf.stroke_color}" '
-                                   f'stroke-width="{iwa_sf.stroke_width:.1f}" '
-                                   f'fill-rule="evenodd"')
-                angle = el.rotation if el.rotation else (iwa_sf.angle or 0)
-                rot_css = (f"transform:rotate({angle:.3f}deg);"
-                           if abs(angle) > 0.01 else "")
-                parts.append(
-                    f'<svg class="el" xmlns="http://www.w3.org/2000/svg" '
-                    f'viewBox="0 0 {nw:.2f} {nh:.2f}" preserveAspectRatio="none" '
-                    f'style="position:absolute;left:{el.x}px;top:{el.y}px;'
-                    f'width:{el.w}px;height:{el.h}px;{rot_css}">'
-                    f'<path d="{d_str}" fill="{fill_css}"{stroke_attr}/></svg>'
-                )
-                continue
+                    # Build fill — SVG-flavored, not CSS-flavored.
+                    # SVG's `fill` attribute does NOT understand
+                    # `linear-gradient(...)`. For curved shapes that need
+                    # a gradient we emit a real <linearGradient> in <defs>
+                    # and reference it via fill="url(#...)".
+                    svg_defs = ""
+                    if iwa_sf.gradient_css:
+                        grad_id = f"g{abs(hash(iwa_sf.gradient_css)) & 0xffffff:x}_{idx}"
+                        svg_defs = _css_gradient_to_svg_defs(iwa_sf.gradient_css, grad_id)
+                        fill_css = f"url(#{grad_id})" if svg_defs else "rgba(0,0,0,0)"
+                    elif iwa_sf.alpha < 0.001:
+                        fill_css = "none"  # stroke-only
+                    else:
+                        fill_css = (f"rgba({iwa_sf.r},{iwa_sf.g},{iwa_sf.b},"
+                                    f"{iwa_sf.alpha:.3f})")
+                    stroke_attr = ""
+                    if iwa_sf.stroke_color and iwa_sf.stroke_width > 0:
+                        # Stroke is authored in Keynote pixels. The path is
+                        # in normalized units (~100×100). Map by the path's
+                        # viewBox-width vs the shape's display width.
+                        scale = vb_w / max(el.w, 1)
+                        sw = iwa_sf.stroke_width * scale
+                        stroke_attr = (f' stroke="{iwa_sf.stroke_color}" '
+                                       f'stroke-width="{sw:.2f}" '
+                                       f'fill-rule="evenodd"')
+                    angle = el.rotation if el.rotation else (iwa_sf.angle or 0)
+                    rot_css = (f"transform:rotate({angle:.3f}deg);"
+                               if abs(angle) > 0.01 else "")
+                    # NOTE: a previous version put dark-gradient overlays at
+                    # z-index:-1 (under their image) thinking the image was
+                    # being hidden. That was wrong — Keynote authored these
+                    # gradients DELIBERATELY on top, at ~86% alpha, to darken
+                    # the photo so light text reads. With z:-1 the image
+                    # showed bright and the text became invisible. We trust
+                    # IWA's authored alpha and let document order govern Z.
+                    parts.append(
+                        f'<svg class="el" xmlns="http://www.w3.org/2000/svg" '
+                        f'viewBox="{vb_x:.2f} {vb_y:.2f} {vb_w:.2f} {vb_h:.2f}" '
+                        f'preserveAspectRatio="none" '
+                        f'style="position:absolute;left:{el.x}px;top:{el.y}px;'
+                        f'width:{el.w}px;height:{el.h}px;{rot_css}">'
+                        f'{svg_defs}<path d="{d_str}" fill="{fill_css}"{stroke_attr}/></svg>'
+                    )
+                    continue
 
             # Named-shape SVG render: if the IWA pathsource identifies this
             # shape as an arrow / star / callout / etc, draw the actual
@@ -2698,10 +2845,26 @@ def main() -> int:
         print(f"  · pdf-page {i:2d}  ←  {label}"
               + (f"  ⚠ {warns_count}" if warns_count else ""))
 
+    # Title preference order (most → least authoritative):
+    #   1. The .key file's basename (without extension) — matches the deck
+    #      the user actually picked, no matter where they're building to.
+    #   2. output_dir.parent.name — works for the canonical
+    #      imports/<deck-name>/render-output-full/ layout.
+    #   3. output_dir.name — last resort.
+    # Previous behavior used (2) only, which produced silly titles like
+    # "tmp" when building to /tmp/something for a verification pass.
+    if args.key_bundle and args.key_bundle.name:
+        deck_title = args.key_bundle.stem
+    elif args.output_dir.parent.name and args.output_dir.parent.name not in (
+        "tmp", "private", "var"
+    ):
+        deck_title = args.output_dir.parent.name
+    else:
+        deck_title = args.output_dir.name
     deck = {
         "version": "2",                      # see plugin/_spec/deck-json-v2.md
         "deck": {
-            "title": args.output_dir.parent.name,
+            "title": deck_title,
             "language": "zh-only",
             "mode": "rewrite",
             "layout_pack": "feishu-deck-h5",

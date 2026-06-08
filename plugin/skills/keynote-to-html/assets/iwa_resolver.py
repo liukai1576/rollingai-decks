@@ -77,27 +77,55 @@ def _gradient_to_css(gradient: dict) -> str:
 
 
 def _bezier_to_svg_path(bz: dict) -> tuple:
-    """Convert a Keynote `bezierPathSource` dict into an SVG path `d` string.
+    """Convert a Keynote `bezierPathSource` dict into an SVG path `d` string
+    plus the viewBox parameters needed to draw it without clipping.
 
-    Returns (d_string, natural_width, natural_height). The d_string is in
-    LOCAL coordinates (0,0 to natural_w, natural_h) — the caller renders
-    via <svg viewBox="0 0 natural_w natural_h" preserveAspectRatio="none">
-    so the path stretches to the shape's actual bbox.
+    Returns (d_string, vb_x, vb_y, vb_w, vb_h). The d_string is in
+    Keynote's path-local coordinate space (which is NOT the shape's
+    natural size — Keynote stores bezier control points in a normalized
+    ~100-unit coordinate frame, with overshoots beyond [0,100] when the
+    curve's control polygon expands past the rect, as it does for a
+    circle inscribed in a square).
 
-    Returns ("", 0, 0) when the path is empty or malformed.
+    The caller emits <svg viewBox="vb_x vb_y vb_w vb_h"
+    preserveAspectRatio="none"> so the path stretches to the shape's
+    actual rendered bbox without clipping its anchor/control overshoots.
+
+    Returns ("", 0, 0, 0, 0) when the path is empty or malformed.
     """
     if not isinstance(bz, dict):
-        return ("", 0.0, 0.0)
-    natural = bz.get("naturalSize") or {}
-    try:
-        nw = float(natural.get("width") or 0)
-        nh = float(natural.get("height") or 0)
-    except (TypeError, ValueError):
-        return ("", 0.0, 0.0)
-    if nw <= 0 or nh <= 0:
-        return ("", 0.0, 0.0)
+        return ("", 0.0, 0.0, 0.0, 0.0)
     elements = ((bz.get("path") or {}).get("elements")) or []
+    # Rectangle-shortcut: a path made of moveTo + N lineTo + closeSubpath
+    # (no curveTo / quadCurveTo) is just an axis-aligned rectangle, which
+    # we can render as a plain <div> with the shape's CSS fill (gradient
+    # CSS works correctly in `background:`, NOT in SVG <path fill="...">).
+    # Return empty so the build.py shape branch falls back to the div
+    # path. Critical: SVG `fill="linear-gradient(...)"` is INVALID syntax,
+    # so without this fast-path our dark-gradient overlays render as
+    # transparent paths (image looks bright, text contrast lost).
+    has_curve = any(
+        isinstance(el, dict) and el.get("type") in ("curveTo", "quadCurveTo")
+        for el in elements
+    )
+    if not has_curve:
+        return ("", 0.0, 0.0, 0.0, 0.0)
     parts: list[str] = []
+    # Track actual path bounds so we can size the viewBox to fit. Keynote
+    # circles have control polygons that extend ~5% beyond the visual
+    # bounding rect (e.g. y goes from -4.88 to 104.88 for what's nominally
+    # a 0..100 shape) — if we set viewBox to 0,0,100,100 those overshoots
+    # get clipped, turning circles into quarter-arcs (this was p5's dots
+    # and p80's brain/eye/etc).
+    min_x = float("inf");  min_y = float("inf")
+    max_x = float("-inf"); max_y = float("-inf")
+    def _bump(p):
+        nonlocal min_x, min_y, max_x, max_y
+        if p is None: return
+        if p[0] < min_x: min_x = p[0]
+        if p[0] > max_x: max_x = p[0]
+        if p[1] < min_y: min_y = p[1]
+        if p[1] > max_y: max_y = p[1]
     for el in elements:
         if not isinstance(el, dict): continue
         t = el.get("type") or el.get("elementType") or ""
@@ -112,29 +140,29 @@ def _bezier_to_svg_path(bz: dict) -> tuple:
                 return None
         if t == "moveTo" and pts:
             p = xy(0)
-            if p: parts.append(f"M{p[0]:.2f} {p[1]:.2f}")
+            if p:
+                parts.append(f"M{p[0]:.2f} {p[1]:.2f}"); _bump(p)
         elif t == "lineTo" and pts:
             p = xy(0)
-            if p: parts.append(f"L{p[0]:.2f} {p[1]:.2f}")
+            if p:
+                parts.append(f"L{p[0]:.2f} {p[1]:.2f}"); _bump(p)
         elif t == "curveTo" and len(pts) >= 3:
-            # Keynote stores cubic bezier as 3 points:
-            #   [anchor_endpoint, control1, control2]   (in some versions)
-            #   [control1, control2, anchor_endpoint]   (other versions)
-            # The convention here matches what we saw in p5's big rings:
-            # 3 points where the LAST one is the destination. Verified by
-            # spot-checking against rendered output.
             c1, c2, anc = xy(0), xy(1), xy(2)
             if c1 and c2 and anc:
                 parts.append(f"C{c1[0]:.2f} {c1[1]:.2f} "
                              f"{c2[0]:.2f} {c2[1]:.2f} "
                              f"{anc[0]:.2f} {anc[1]:.2f}")
+                _bump(c1); _bump(c2); _bump(anc)
         elif t == "quadCurveTo" and len(pts) >= 2:
             c, anc = xy(0), xy(1)
             if c and anc:
                 parts.append(f"Q{c[0]:.2f} {c[1]:.2f} {anc[0]:.2f} {anc[1]:.2f}")
+                _bump(c); _bump(anc)
         elif t in ("closeSubpath", "closePath"):
             parts.append("Z")
-    return (" ".join(parts), nw, nh)
+    if not parts or min_x == float("inf"):
+        return ("", 0.0, 0.0, 0.0, 0.0)
+    return (" ".join(parts), min_x, min_y, max_x - min_x, max_y - min_y)
 
 
 def _strip_data_id_suffix(name: str) -> str:
@@ -218,7 +246,7 @@ class _ShapeFill:
     #   (svg_d_string, natural_width, natural_height)
     # natural_w/h define the viewBox so the path scales to the shape bbox.
     # Empty d_string when shape has no bezier path.
-    bezier_path: tuple = ("", 0.0, 0.0)
+    bezier_path: tuple = ("", 0.0, 0.0, 0.0, 0.0)
     # Stroke (border) info from the ShapeStyle chain. When stroke_width > 0,
     # the shape was authored with a visible border in Keynote — build.py
     # should emit `border: <w>px <dash> <color>`. Many slides (p5's big
@@ -334,6 +362,28 @@ class IWAAssetMap:
             stem_hits = [a for a in candidates
                          if _strip_data_id_suffix(a.filename) == ap_stem]
             if not stem_hits:
+                # Long-prefix fallback. Keynote sometimes truncates very long
+                # filenames (e.g. DALL-E descriptions with 200+ chars) at
+                # DIFFERENT byte positions between AppleScript and the on-disk
+                # name. p77's "Rearrange_the_5_icons..." is truncated to
+                # `..._over_retention_le.png` by AppleScript but stored as
+                # `..._over_-15325.png` on disk. Stem match fails, but they
+                # share a 200-char common prefix — only one IWA candidate
+                # plausibly matches. Require ≥ 50 chars of shared prefix
+                # AND a unique winner to avoid mis-pairing.
+                prefix_hits = []
+                MIN_PREFIX = 50
+                for a in candidates:
+                    cand_stem = _strip_data_id_suffix(a.filename)
+                    n = 0
+                    for ca, cb in zip(ap_stem, cand_stem):
+                        if ca != cb: break
+                        n += 1
+                    if n >= MIN_PREFIX:
+                        prefix_hits.append((n, a))
+                if len(prefix_hits) == 1:
+                    a = prefix_hits[0][1]
+                    return (a.filename, (a.x, a.y, a.w, a.h), a.has_mask)
                 return None
             candidates = stem_hits
         if len(candidates) == 1:
@@ -727,30 +777,66 @@ class IWAAssetMap:
                     return
                 # In TemplateSlide.iwa multiple slide archives may coexist;
                 # group images by which SlideArchive's ownedDrawables they
-                # belong to.
+                # belong to. ownedDrawables can include GroupArchives that
+                # CONTAIN images — we walk those transitively so an image
+                # nested inside a group on the template is still attributed
+                # to the right slide. Without that walk, p68/p69 lost their
+                # 1920×4000 vertical-scroll bg + 960×1080 side panel because
+                # both images sat inside Group 2693904, not directly under
+                # SlideArchive.ownedDrawables.
                 for chunk in td.get("chunks", []):
-                    # Build local lookup: drawable_arch_id → SlideArchive_id
-                    drawable_to_slide: dict[str, str] = {}
-                    slide_archives: dict[str, dict] = {}
+                    # Collect every archive in this chunk for fast lookup.
+                    arch_by_id: dict[str, dict] = {}
                     for ar in chunk.get("archives", []):
-                        for obj in ar.get("objects", []):
-                            if obj.get("_pbtype") == "KN.SlideArchive":
-                                sarid = ar["header"]["identifier"]
-                                slide_archives[sarid] = obj
-                                for dr in obj.get("ownedDrawables", []):
-                                    drawable_to_slide[dr["identifier"]] = sarid
-                    for ar in chunk.get("archives", []):
-                        for obj in ar.get("objects", []):
-                            t = obj.get("_pbtype", "")
-                            if t in ("TSD.ImageArchive", "TSD.MovieArchive"):
-                                if t == "TSD.ImageArchive":
-                                    ref = obj.get("data") or {}
-                                else:
-                                    ref = obj.get("movieData") or {}
+                        arch_by_id[ar["header"]["identifier"]] = ar
+
+                    # Walk drawable refs (recursively through Group archives)
+                    # starting from each SlideArchive's ownedDrawables, and
+                    # collect the set of archive IDs that ARE images / movies
+                    # owned by that slide.
+                    def _walk_drawables(start_ids: list[str]) -> set[str]:
+                        seen: set[str] = set()
+                        stack = list(start_ids)
+                        while stack:
+                            aid = stack.pop()
+                            if aid in seen: continue
+                            seen.add(aid)
+                            ar = arch_by_id.get(aid)
+                            if not ar: continue
+                            for obj in ar.get("objects", []):
+                                if obj.get("_pbtype") == "TSD.GroupArchive":
+                                    # Group has children under several
+                                    # historical field names. Push all.
+                                    for k in ("childInfos", "children", "drawables"):
+                                        lst = obj.get(k)
+                                        if isinstance(lst, list):
+                                            for it in lst:
+                                                if isinstance(it, dict) and "identifier" in it:
+                                                    stack.append(it["identifier"])
+                        return seen
+
+                    # Single-SlideArchive template files: attribute EVERY
+                    # image archive in the file to that slide, regardless of
+                    # whether it's reachable via ownedDrawables. This is the
+                    # backstop for templates that use a non-standard
+                    # ownership relation (some Keynote-saved templates).
+                    slide_ids = [ar["header"]["identifier"]
+                                 for ar in chunk.get("archives", [])
+                                 for obj in ar.get("objects", [])
+                                 if obj.get("_pbtype") == "KN.SlideArchive"]
+
+                    if len(slide_ids) == 1:
+                        sarid = slide_ids[0]
+                        for ar in chunk.get("archives", []):
+                            for obj in ar.get("objects", []):
+                                if obj.get("_pbtype") not in ("TSD.ImageArchive", "TSD.MovieArchive"):
+                                    continue
+                                t = obj.get("_pbtype")
+                                ref = (obj.get("data") if t == "TSD.ImageArchive"
+                                       else obj.get("movieData")) or {}
                                 data_id = ref.get("identifier")
                                 fname = data_id_to_filename.get(data_id) if data_id else None
-                                if not fname:
-                                    continue
+                                if not fname: continue
                                 geo = obj.get("super", {}).get("geometry", {}) or {}
                                 pos = geo.get("position", {}) or {}
                                 size = geo.get("size", {}) or {}
@@ -760,11 +846,47 @@ class IWAAssetMap:
                                     float(size.get("width", 0) or 0),
                                     float(size.get("height", 0) or 0),
                                 )
-                                # Which template SlideArchive owns this drawable?
-                                arid = ar["header"]["identifier"]
-                                owner = drawable_to_slide.get(arid)
-                                if owner:
-                                    template_images.setdefault(owner, []).append((fname, *bbox))
+                                template_images.setdefault(sarid, []).append((fname, *bbox))
+                        continue
+
+                    # Multi-SlideArchive case: walk each slide's ownership
+                    # transitively (through groups), then attribute images
+                    # by membership.
+                    slide_archives: dict[str, list[str]] = {}
+                    for ar in chunk.get("archives", []):
+                        for obj in ar.get("objects", []):
+                            if obj.get("_pbtype") != "KN.SlideArchive": continue
+                            sarid = ar["header"]["identifier"]
+                            initial = [d["identifier"]
+                                       for d in obj.get("ownedDrawables", [])
+                                       if isinstance(d, dict) and "identifier" in d]
+                            slide_archives[sarid] = list(_walk_drawables(initial))
+
+                    for ar in chunk.get("archives", []):
+                        for obj in ar.get("objects", []):
+                            if obj.get("_pbtype") not in ("TSD.ImageArchive", "TSD.MovieArchive"):
+                                continue
+                            t = obj.get("_pbtype")
+                            ref = (obj.get("data") if t == "TSD.ImageArchive"
+                                   else obj.get("movieData")) or {}
+                            data_id = ref.get("identifier")
+                            fname = data_id_to_filename.get(data_id) if data_id else None
+                            if not fname: continue
+                            geo = obj.get("super", {}).get("geometry", {}) or {}
+                            pos = geo.get("position", {}) or {}
+                            size = geo.get("size", {}) or {}
+                            bbox = (
+                                float(pos.get("x", 0) or 0),
+                                float(pos.get("y", 0) or 0),
+                                float(size.get("width", 0) or 0),
+                                float(size.get("height", 0) or 0),
+                            )
+                            arid = ar["header"]["identifier"]
+                            # Find owning slide via transitive walk membership.
+                            for sarid, members in slide_archives.items():
+                                if arid in members:
+                                    template_images.setdefault(sarid, []).append((fname, *bbox))
+                                    break
 
             for n in all_names:
                 if n.startswith("Index/TemplateSlide") and n.endswith(".iwa"):
@@ -946,7 +1068,7 @@ class IWAAssetMap:
                                 bz = psrc.get("bezierPathSource")
                                 bezier_tuple = (_bezier_to_svg_path(bz)
                                                 if isinstance(bz, dict) else
-                                                ("", 0.0, 0.0))
+                                                ("", 0.0, 0.0, 0.0, 0.0))
 
                                 # Shape fill — read via TSWP.ShapeStyleArchive
                                 # parent chain. AppleScript can't surface these.
