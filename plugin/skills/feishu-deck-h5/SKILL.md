@@ -1,7 +1,8 @@
 ---
 name: feishu-deck-h5
+display_name: 飞书风格幻灯片
 kind: [布局风格, 创建]
-version: "0.20"
+version: "0.22"
 input:  deck.json (with layout_pack=feishu-deck-h5 or none)
 output: index.html with present-mode chrome, scaled to 1920×1080
 triggers:

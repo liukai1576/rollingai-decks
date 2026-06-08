@@ -1,0 +1,26 @@
+<!--
+  boot-check.partial.html — defense-in-depth wiring check for hand-authored
+  decks. Drop this verbatim right after <body> and BEFORE <div class="deck">.
+
+  If feishu-deck.js fails to initialize the .deck within 1 second, a fixed
+  red banner appears across the top of the page identifying the problem.
+  This makes the "forgot to include the player JS" failure mode loud
+  instead of silent (we hit it once — slides rendered but no navigation,
+  no scale-to-fit, no fullscreen, no edit mode).
+
+  Counterpart static check:
+      bash plugin/skills/feishu-deck-h5/assets/verify-deck-shell.sh <dir>
+-->
+<style>
+  #fs-boot-check { position:fixed; left:0; right:0; top:0; z-index:999999;
+    background:#B00020; color:#fff; font:600 14px/1.4 'PingFang SC',-apple-system,sans-serif;
+    padding:14px 22px; display:none; box-shadow:0 4px 16px rgba(0,0,0,0.4); }
+  #fs-boot-check code { background:rgba(255,255,255,0.18); padding:2px 6px;
+    border-radius:4px; font-family:'SFMono-Regular',Menlo,monospace; }
+</style>
+<div id="fs-boot-check">⚠ 播放器未启动 — <code>.deck</code> 没拿到 <code>data-js-ready</code>。
+  多半是 <code>_renderer/assets/feishu-deck.js</code> 没在 <code>&lt;/body&gt;</code> 前引入。
+  跑 <code>bash plugin/skills/feishu-deck-h5/assets/verify-deck-shell.sh &lt;dir&gt;</code> 自检。</div>
+<script>setTimeout(function(){var d=document.querySelector('.deck');
+  if(!d||!d.hasAttribute('data-js-ready')){var b=document.getElementById('fs-boot-check');
+  if(b)b.style.display='block';}},1000);</script>
