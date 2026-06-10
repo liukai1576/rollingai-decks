@@ -68,6 +68,17 @@ if [[ "$empty_count" -gt 0 ]]; then
   warn=1
 fi
 
+# 3.5 lazy videos that never got materialized — <video data-src=…> without
+#     src= will only ever show its poster (the source pack's player JS that
+#     swaps data-src→src is not loaded after a splice).
+lazy_count=$(grep -oE '<video[^>]*data-src=' "$HTML" 2>/dev/null | wc -l | tr -d ' ' || true)
+lazy_count=${lazy_count:-0}
+if [[ "$lazy_count" -gt 0 ]]; then
+  echo "FAIL: $lazy_count <video data-src=…> still lazy — video will never play." >&2
+  echo "      Re-run splice (materialize_lazy_media) or set src= manually." >&2
+  fail=1
+fi
+
 # 4. asset existence — extract every relative src/href/poster pointing under assets/
 python3 - "$DECK" "$HTML" <<'PY'
 import re, sys, os

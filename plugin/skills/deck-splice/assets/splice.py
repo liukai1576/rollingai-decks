@@ -187,6 +187,25 @@ def rewrite_asset_paths(div: Tag, source_deck_id: str, target_dir: Path) -> None
             style.string = new
 
 
+def materialize_lazy_media(div: Tag) -> None:
+    """Activate lazy-loaded videos so they play without the source pack's
+    player JS.
+
+    feishu-deck-h5 ships videos as <video data-src="…" preload="none"
+    class="lazy-video"> and its player swaps data-src → src when the slide
+    becomes current. We splice DOM only (no source JS), so without this
+    step the video keeps showing its poster and never plays."""
+    for v in div.find_all("video"):
+        if v.get("data-src") and not v.get("src"):
+            v["src"] = v["data-src"]
+            del v["data-src"]
+            v["preload"] = "auto"
+            # Muted inline videos are allowed to autoplay by browser policy —
+            # matches how the source player would have behaved.
+            if v.has_attr("muted"):
+                v["autoplay"] = ""
+
+
 def namespace_rename(div: Tag) -> None:
     """Rename .slide → .src-slide on root and inside inline <style>."""
     classes = div.get("class") or []
@@ -293,6 +312,7 @@ def main() -> int:
             continue
 
         rewrite_asset_paths(div, src_deck_id, target_dir)
+        materialize_lazy_media(div)
         namespace_rename(div)
         warn_collisions(div, src_deck_id, src_key)
 
