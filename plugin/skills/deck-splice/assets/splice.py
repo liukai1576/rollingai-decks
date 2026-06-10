@@ -194,16 +194,18 @@ def materialize_lazy_media(div: Tag) -> None:
     feishu-deck-h5 ships videos as <video data-src="…" preload="none"
     class="lazy-video"> and its player swaps data-src → src when the slide
     becomes current. We splice DOM only (no source JS), so without this
-    step the video keeps showing its poster and never plays."""
+    step the video keeps showing its poster and never plays.
+
+    Playback itself (play on slide-enter, pause+reset on slide-leave,
+    unmute after first user interaction) is handled by the video runtime
+    injected via inject_host_js() — we deliberately do NOT set autoplay
+    here, otherwise every video in the deck decodes simultaneously at
+    page load."""
     for v in div.find_all("video"):
         if v.get("data-src") and not v.get("src"):
             v["src"] = v["data-src"]
             del v["data-src"]
-            v["preload"] = "auto"
-            # Muted inline videos are allowed to autoplay by browser policy —
-            # matches how the source player would have behaved.
-            if v.has_attr("muted"):
-                v["autoplay"] = ""
+            v["preload"] = "none"   # runtime's play() triggers the load
 
 
 def namespace_rename(div: Tag) -> None:
@@ -255,6 +257,67 @@ def fill_placeholder(target_html: str, outer_key: str, inlined_markup: str) -> t
     indented = "\n".join("        " + line for line in inlined_markup.splitlines())
     new_html = target_html[:m.start()] + m.group(1) + "\n" + indented + "\n      " + m.group(3) + target_html[m.end():]
     return new_html, True
+
+
+# Video runtime injected into the host deck. Mirrors what feishu-deck-h5's
+# player does for its own videos:
+#   · only the ACTIVE slide's videos play; leaving a slide pauses + rewinds
+#   · all videos start muted (so autoplay is allowed), and after the first
+#     user interaction (click / keydown / touch — i.e. any slide navigation)
+#     they are unmuted. Videos without an audio track simply stay silent;
+#     videos with one become audible. No per-video configuration needed.
+# Works on every <video> in the deck — spliced AND host-authored alike.
+HOST_JS_BLOCK = """
+<script>
+/* === deck-splice video runtime === */
+(function () {
+  let engaged = false;
+  function markEngaged() {
+    if (engaged) return;
+    engaged = true;
+    document.querySelectorAll('.slide.active video').forEach(v => {
+      if (!v.paused) v.muted = false;
+    });
+  }
+  ['keydown', 'click', 'touchstart'].forEach(ev =>
+    document.addEventListener(ev, markEngaged, { passive: true }));
+
+  let lastActive = null;
+  function tick() {
+    const cur = document.querySelector('.slide.active');
+    if (cur !== lastActive) {
+      lastActive = cur;
+      document.querySelectorAll('.slide').forEach(sl => {
+        const isCur = sl === cur;
+        sl.querySelectorAll('video').forEach(v => {
+          if (isCur) {
+            v.muted = !engaged;
+            const p = v.play();
+            if (p && p.catch) p.catch(() => { v.muted = true; v.play().catch(() => {}); });
+          } else if (!v.paused || v.currentTime > 0) {
+            v.pause();
+            try { v.currentTime = 0; } catch (_) {}
+          }
+        });
+      });
+    }
+    requestAnimationFrame(tick);
+  }
+  requestAnimationFrame(tick);
+})();
+/* === /deck-splice video runtime === */
+</script>
+"""
+
+
+def inject_host_js(target_html: str) -> str:
+    """Append the video runtime before </body>, once (sentinel-guarded)."""
+    if "deck-splice video runtime" in target_html:
+        return target_html
+    if "</body>" not in target_html:
+        log("  ! target has no </body>; video runtime not injected")
+        return target_html
+    return target_html.replace("</body>", HOST_JS_BLOCK + "</body>", 1)
 
 
 def inject_host_css(target_html: str) -> str:
@@ -326,6 +389,7 @@ def main() -> int:
         log(f"  ✓ {outer_key:32s}  ←  {src_deck_id}/{src_key}")
 
     target_html = inject_host_css(target_html)
+    target_html = inject_host_js(target_html)
 
     if args.dry_run:
         log(f"\ndry-run: would fill {len(filled)} placeholders")

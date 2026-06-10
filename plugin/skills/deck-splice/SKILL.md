@@ -3,7 +3,7 @@ name: deck-splice
 display_name: Deck Splice — 复用旧 deck 的 slide 到新 deck 里
 author: liukai
 kind: [创建]
-version: "0.3"
+version: "0.4"
 input:  manifest.json（N 个 splice 条目：outer_key + source_deck_id + source_slide_key）+ 目标 deck 目录（已有 N 个空 `is-splice` placeholder section）
 output: 修改后的目标 index.html（splice section 已填好）+ `assets/_borrowed/<src_deck>/...`（视频/图片素材已拷贝并改路径）
 triggers:
@@ -158,9 +158,17 @@ verifier 检查：
 ## 局限
 
 - **只是视觉 splice**：源 deck 的 inline `<script>`（动画、canvas 初始
-  化、video.play() 自动触发）**不会跑**，因为 host pack 不会加载源
-  pack 的 player JS。绝大多数 slide 不依赖这个；如果发现某张 splice
-  后效果不对，多半就是源 slide 依赖了某段 JS。
+  化）**不会跑**，因为 host pack 不会加载源 pack 的 player JS。绝大多
+  数 slide 不依赖这个；如果发现某张 splice 后效果不对，多半就是源
+  slide 依赖了某段 JS。
+- **视频是例外，已完整处理**：splice 时自动物化懒加载视频
+  （`data-src`→`src`，`preload=none`），并给 host deck 注入一段幂等的
+  视频运行时（sentinel: `deck-splice video runtime`）：翻到该页才播放、
+  离开自动暂停归零、用户首次交互（翻页就算）后解除静音——有音轨的
+  视频出声，没音轨的保持无声，无需逐视频配置。该运行时管整个 deck 的
+  所有 `<video>`（host 自带的也一样）。注意：`visibilityState: hidden`
+  的页面（如某些嵌入式预览面板）里 Chrome 会拒播视频，这是浏览器省电
+  策略，不是 bug。
 - **共有类名风险**：源 slide 用了 `.card` / `.grid` 这种常见类，host
   pack 也定义了同名类 → 样式会被 host 覆盖。splice.py 会在 stderr
   打 ⚠ 警告，但不会自动改。需要人工 namespace 或挑选不冲突的源
