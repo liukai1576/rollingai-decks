@@ -135,9 +135,14 @@ def source_path_of(deck_id: str) -> Path:
 
 
 def extract_source_slide(src_html: str, slide_key: str) -> Tag | None:
-    """Find <div class="slide" data-slide-key="<key>"> in the source deck."""
+    """Find the source slide element by data-slide-key.
+
+    feishu-deck-h5 decks use <div class="slide">; rolling-deck decks use
+    <section class="slide">. The element's tag name also decides the
+    splice mode downstream: div → isolated (.src-slide rename), section →
+    native (same-pack copy, classes resolve against the target's own CSS)."""
     soup = BeautifulSoup(src_html, "html.parser")
-    for d in soup.find_all("div"):
+    for d in soup.find_all(("div", "section")):
         if d.get("data-slide-key") == slide_key and "slide" in (d.get("class") or []):
             return d
     return None
@@ -242,10 +247,12 @@ def warn_collisions(div: Tag, source_deck_id: str, source_slide_key: str) -> Non
             f"{', '.join(sorted(seen))} — check host pack doesn't restyle them")
 
 
-def fill_placeholder(target_html: str, outer_key: str, inlined_markup: str) -> tuple[str, bool]:
+def fill_placeholder(target_html: str, outer_key: str, inlined_markup: str,
+                     native: bool = False) -> tuple[str, bool]:
     """Find <section class="slide is-splice" data-slide-key="<outer_key>"…></section>
     in target_html and replace its inner contents with inlined_markup. Returns
-    (new_html, was_filled)."""
+    (new_html, was_filled). native=True marks the section is-splice-native
+    instead (same-pack copy: keep normal slide padding/behaviour)."""
     pat = re.compile(
         r'(<section\b[^>]*class="[^"]*\bis-splice\b[^"]*"[^>]*'
         rf'data-slide-key="{re.escape(outer_key)}"[^>]*>)'
@@ -264,8 +271,16 @@ def fill_placeholder(target_html: str, outer_key: str, inlined_markup: str) -> t
         m = pat.search(target_html)
     if not m:
         return target_html, False
+    open_tag = m.group(1)
+    if native:
+        # Same-pack copy: child classes (.section-head / .cards-3 / …)
+        # resolve against the target's own CSS, so the slide must behave
+        # as a NORMAL slide — swap the is-splice marker (whose CSS zeroes
+        # the padding) for an inert is-splice-native marker.
+        open_tag = re.sub(r'(?<![\w-])is-splice(?![\w-])', 'is-splice-native',
+                          open_tag, count=1)
     indented = "\n".join("        " + line for line in inlined_markup.splitlines())
-    new_html = target_html[:m.start()] + m.group(1) + "\n" + indented + "\n      " + m.group(3) + target_html[m.end():]
+    new_html = target_html[:m.start()] + open_tag + "\n" + indented + "\n      " + m.group(3) + target_html[m.end():]
     return new_html, True
 
 
@@ -322,6 +337,51 @@ HOST_JS_BLOCK = """
 """
 
 
+SLIDE_ANIM_SKILL = REPO_ROOT / "plugin" / "skills" / "slide-anim" / "assets"
+SLIDE_ANIM_FILES = ["gsap-3.13.0.min.js", "gsap-splittext-3.13.0.min.js",
+                    "gsap-textplugin-3.13.0.min.js", "slide-anim.js"]
+SLIDE_ANIM_BLOCK = """
+<!-- slide-anim engine (deck-splice auto-install) -->
+<script src="assets/slide-anim/gsap-3.13.0.min.js"></script>
+<script src="assets/slide-anim/gsap-splittext-3.13.0.min.js"></script>
+<script src="assets/slide-anim/gsap-textplugin-3.13.0.min.js"></script>
+<script src="assets/slide-anim/slide-anim.js"></script>
+<script>
+  if (document.readyState === "loading") {
+    document.addEventListener("DOMContentLoaded", () => RollingSlideAnim.autoHook());
+  } else {
+    RollingSlideAnim.autoHook();
+  }
+</script>
+"""
+
+
+def ensure_slide_anim(target_dir: Path, target_html: str) -> str:
+    """Install the slide-anim engine (GSAP + RollingSlideAnim, a standard
+    deck-level library) into the target deck if it isn't there yet:
+    copy the 4 JS files to <target>/assets/slide-anim/ and inject the
+    bootstrap before </body>. Idempotent — keyed on 'RollingSlideAnim'
+    already appearing in the host HTML."""
+    if "RollingSlideAnim" in target_html:
+        return target_html
+    dst_dir = target_dir / "assets" / "slide-anim"
+    dst_dir.mkdir(parents=True, exist_ok=True)
+    for name in SLIDE_ANIM_FILES:
+        src = SLIDE_ANIM_SKILL / name
+        if not src.is_file():
+            log(f"  ! slide-anim asset missing in skill: {name} — engine not installed")
+            return target_html
+        dst = dst_dir / name
+        if not dst.exists() or dst.stat().st_size != src.stat().st_size:
+            shutil.copy2(src, dst)
+    if "</body>" not in target_html:
+        log("  ! target has no </body>; slide-anim not injected")
+        return target_html
+    log("  + slide-anim engine auto-installed on target deck "
+        "(source slides carry animation hooks)")
+    return target_html.replace("</body>", SLIDE_ANIM_BLOCK + "</body>", 1)
+
+
 def inject_host_js(target_html: str) -> str:
     """Append the video runtime before </body>, once (sentinel-guarded)."""
     if "deck-splice video runtime" in target_html:
@@ -371,6 +431,7 @@ def main() -> int:
     manifest = load_manifest(args.manifest)
     filled = []
     missing_placeholder = []
+    needs_slide_anim = False
     missing_source = []
 
     for entry in manifest["splices"]:
@@ -400,21 +461,31 @@ def main() -> int:
                     del v["data-sound"]
             log(f"  · {outer_key}: sound override → "
                 f"{'有声' if entry['sound'] else '静音'}")
-        namespace_rename(div)
+        # Splice mode by source element type:
+        #   <div class="slide">     (feishu-deck-h5) → ISOLATED: rename to
+        #       .src-slide; appearance is self-contained in inline styles.
+        #   <section class="slide"> (rolling-deck)   → NATIVE: same pack
+        #       vocabulary — copy the section's INNER content into the
+        #       placeholder so .section-head / .cards-3 / … resolve against
+        #       the target's own CSS. No rename, normal slide padding.
+        native = (div.name == "section")
+        if not native:
+            namespace_rename(div)
         warn_collisions(div, src_deck_id, src_key)
         # slide-anim hooks (data-anim / data-count / .bar-fill …) are DOM
-        # attributes that splice copies fine, but the GSAP engine lives at
-        # deck level. If the source slide expects it and the target deck
-        # doesn't ship RollingSlideAnim, those elements render static.
-        if (div.find(attrs={"data-anim": True}) or div.find(attrs={"data-count": True})) \
-                and "RollingSlideAnim" not in target_html:
-            log(f"  ⚠  {outer_key}: source slide has slide-anim hooks "
-                f"(data-anim/data-count) but the target deck has no "
-                f"RollingSlideAnim engine — install the slide-anim skill on "
-                f"the target or these elements stay static")
+        # attributes that splice copies fine, but the GSAP engine is a
+        # standard deck-level library. If the source slide expects it
+        # (explicit hooks, or its deck ships the engine and thus animates
+        # every slide generically), remember to install the engine on the
+        # target after the loop.
+        if (div.find(attrs={"data-anim": True})
+                or div.find(attrs={"data-count": True})
+                or "RollingSlideAnim" in src_html):
+            needs_slide_anim = True
 
-        markup = str(div)
-        target_html, ok = fill_placeholder(target_html, outer_key, markup)
+        markup = div.decode_contents() if native else str(div)
+        target_html, ok = fill_placeholder(target_html, outer_key, markup,
+                                           native=native)
         if not ok:
             log(f"  ! placeholder missing in target: outer_key='{outer_key}'")
             missing_placeholder.append(outer_key)
@@ -423,6 +494,8 @@ def main() -> int:
         log(f"  ✓ {outer_key:32s}  ←  {src_deck_id}/{src_key}")
 
     target_html = inject_host_css(target_html)
+    if needs_slide_anim:
+        target_html = ensure_slide_anim(target_dir, target_html)
     target_html = inject_host_js(target_html)
 
     if args.dry_run:
