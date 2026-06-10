@@ -76,25 +76,25 @@
     .slide.active { display: block; animation: reveal .28s ease-out; }
     /* auto-fit wrapper: scaled down by JS when a slide's content would otherwise
        overflow into the bottom nav safe-area */
-    .slide-fit { transform-origin: top left; }
+    .slide-fit { transform-origin: top left; height: 100%; }
     @keyframes reveal { from { opacity: 0; transform: translateY(14px); } to { opacity: 1; transform: translateY(0); } }
 
-    /* === Vertical fill ===
-       Before: .slide-fit was just a static block, so content flowed top-down
-       and short slides (one section-head + one grid of 3 cards) left a tall
-       empty band at the bottom (~30% of the slide was dead space).
-       Now: .slide-fit is a flex column. Headers and footer bands stay at
-       their natural height. The main content block (any cards/hero-stats/
-       goals-grid/approach-grid/tl-weeks/calendar-wrap/org-stack) gets
-       `flex: 1` so it claims the remaining vertical room, and uses
-       `align-content: center` so its rows visually center within that room.
+    /* === Vertical fill (rolling-deck v1.4+) ===
+       Without this, content flowed top-down and short slides (one section-
+       head + one grid of 3 cards) left a tall empty band at the bottom.
+       Now .slide-fit is a flex column: headers and footer bands stay at
+       their natural height, the main content block (grid/table/list)
+       claims remaining vertical room with its rows centered.
        Authors don't have to do anything per-slide. */
-    .slide-fit { height: 100%; display: flex; flex-direction: column; }
+    .slide-fit { display: flex; flex-direction: column; }
     .slide-fit > .section-head,
     .slide-fit > .goals-head,
     .slide-fit > .cover-wrap,
     .slide-fit > .tl-section-label,
-    .slide-fit > .legend { flex: 0 0 auto; }
+    .slide-fit > .legend,
+    .slide-fit > .divider-row,
+    .slide-fit > .quote-mark,
+    .slide-fit > .quote-by { flex: 0 0 auto; }
     .slide-fit > .band,
     .slide-fit > .synth-band,
     .slide-fit > .cadence-note,
@@ -112,27 +112,31 @@
     .slide-fit > .goals-grid,
     .slide-fit > .approach-grid,
     .slide-fit > .tl-weeks,
-    .slide-fit > .org-stack {
+    .slide-fit > .org-stack,
+    .slide-fit > .agenda-list,
+    .slide-fit > .media-grid,
+    .slide-fit > .timeline-nodes,
+    .slide-fit > .team-grid,
+    .slide-fit > .logo-wall,
+    .slide-fit > .compare-grid,
+    .slide-fit > .chart-kpis {
       flex: 1 1 auto;
       min-height: 0;
-      /* Center the grid's rows (one row gets centered within the container
-         when there's free space). Use `auto` rows so items sit at content
-         height instead of stretching to fill the inflated container. */
       align-content: center;
       grid-auto-rows: max-content;
       align-items: start;
     }
-    /* goals-grid has TWO explicit rows (`1fr 1fr`) — keep its existing
-       row scheme so the 5-card "1 lead + 4 supporting" layout still works. */
     .slide-fit > .goals-grid { grid-auto-rows: auto; }
-    .slide-fit > .calendar-wrap {
+    .slide-fit > .calendar-wrap,
+    .slide-fit > .media-frame,
+    .slide-fit > .quote-text,
+    .slide-fit > .video-frame {
       flex: 1 1 auto;
       min-height: 0;
       display: flex;
       flex-direction: column;
       justify-content: center;
     }
-    /* Plain lists (ol/ul) as the main content block — center them vertically. */
     .slide-fit > ol,
     .slide-fit > ul {
       flex: 1 1 auto;
@@ -144,19 +148,11 @@
 
     .brand-rail {
       position: absolute; left: 76px; right: 76px; top: 34px; z-index: 75;
-      display: flex; align-items: center; gap: 24px;
+      display: flex; align-items: center; justify-content: space-between;
     }
-    /* Both logos sit flush left, same height; the gap separates them.
-       Height tuned to 48px so the marks read as a header lockup, not a
-       banner. RollingAI's wordmark is wide (aspect ~6:1) so 48px tall is
-       still ~285px wide visually. */
-    .rolling-logo, .client-logo {
-      height: 48px; width: auto; object-fit: contain; object-position: left center;
-      opacity: 1; filter: drop-shadow(0 0 1px rgba(255,255,255,.55));
-    }
-    /* Optional thin vertical divider between the two marks. */
-    .brand-rail .brand-sep {
-      width: 1px; height: 32px; background: rgba(255,255,255,.18);
+    .rolling-logo {
+      width: 280px; height: 74px; object-fit: contain; object-position: left center;
+      border-radius: 8px; opacity: 1; filter: drop-shadow(0 0 1px rgba(255,255,255,.55));
     }
     .deck-label { color: var(--subtle); font-size: 18px; font-weight: 700; letter-spacing: .16em; }
 
@@ -661,26 +657,175 @@
     /* hide global brand-rail while the particle cover is on top */
     body.on-cover .brand-rail { opacity: 0; pointer-events: none; }
     .brand-rail { transition: opacity .3s ease; }
+    /* ════════════════════════════════════════════════
+       TEMPLATE LIBRARY · 通用模板页样式（章节页 / 目录 /
+       图片 / 视频 / 图表 / 引言 / 对比 / 时间轴 / 团队 /
+       Logo 墙 / 结尾页）
+    ════════════════════════════════════════════════ */
+    /* 章节过渡页 */
+    .divider-body { position: relative; height: 100%; display: flex; flex-direction: column; justify-content: center; }
+    .divider-num { position: absolute; right: -30px; bottom: -120px; color: rgba(255,255,255,.05); font-size: 560px; font-weight: 900; line-height: .8; letter-spacing: -.06em; pointer-events: none; }
+    .divider-title { margin: 26px 0 0; font-size: 110px; line-height: 1.06; letter-spacing: -.06em; }
+    .divider-sub { margin-top: 30px; max-width: 1100px; color: var(--muted); font-size: 26px; line-height: 1.7; }
+    .divider-line { width: 140px; height: 5px; margin-top: 44px; border-radius: 99px; background: linear-gradient(90deg, var(--yellow), var(--fire)); }
 
-    /* ── optional reusable components ── */
-    /* big faded number/word watermark in a card corner (add .has-watermark to the card) */
-    .has-watermark { position: relative; overflow: hidden; }
-    .dir-watermark { position: absolute; right: 12px; top: -6px; font-size: 128px; line-height: 1; font-weight: 900; opacity: .07; pointer-events: none; }
-    .dir-icon { margin-right: 10px; }
-    /* timeline / week grid — pair each .tl-w with .card for the glass look */
-    .tl-section-label { margin: 6px 0 12px; color: var(--subtle); font-size: 16px; font-weight: 800; letter-spacing: .1em; }
-    .tl-weeks { display: grid; grid-template-columns: repeat(4,1fr); gap: 12px; }
-    .tl-w { padding: 16px; border-radius: 13px; }
-    .tl-w b { display: block; font-size: 22px; }
-    .tl-w span { color: var(--subtle); font-size: 13px; font-weight: 800; letter-spacing: .06em; }
-    .tl-w small { display: block; margin-top: 4px; color: var(--muted); font-size: 15px; }
-    .tl-sum { display: block; margin-top: 5px; color: #d2dce8; font-size: 14px; line-height: 1.4; }
-    .tl-date { display: block; margin-top: 4px; color: var(--subtle); font-size: 14px; }
-    .tl-prep, .tl-p1 { border-left: 4px solid var(--yellow); }
-    .tl-ws { border-left: 4px solid var(--fire); }
-    .tl-p2 { border-left: 4px solid var(--blue); }
-    .tl-p3 { border-left: 4px solid var(--violet); }
-    .tl-p4 { border-left: 4px solid var(--green); }
+    /* 目录页 */
+    .agenda-list { display: grid; grid-template-columns: 1fr 1fr; gap: 18px 24px; margin-top: 8px; }
+    .agenda-item { display: flex; gap: 24px; align-items: flex-start; padding: 26px 28px; }
+    .agenda-no { color: var(--yellow); font-size: 36px; font-weight: 900; letter-spacing: -.03em; line-height: 1; }
+    .agenda-item b { display: block; font-size: 26px; line-height: 1.25; }
+    .agenda-item p { margin-top: 6px !important; color: var(--muted); font-size: 18px !important; }
+
+    /* 媒体容器（图片 / 视频 / iframe 通用外框） */
+    .media-frame { position: relative; overflow: hidden; border: 1px solid var(--glass-border); border-radius: 20px; background: #0a0d13; box-shadow: var(--glass-hi), 0 24px 60px -30px rgba(0,0,0,.8); }
+    .media-frame img, .media-frame video, .media-frame iframe { display: block; width: 100%; height: 100%; object-fit: cover; border: 0; }
+    .media-caption { position: absolute; left: 0; right: 0; bottom: 0; z-index: 2; padding: 44px 26px 18px; background: linear-gradient(transparent, rgba(5,7,10,.88)); color: #dfe6ef; font-size: 18px; }
+    .media-caption b { color: var(--text); }
+
+    /* 全屏大图页 */
+    .full-image { padding: 0; }
+    .full-image .media-bg { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; }
+    .full-image .media-veil { position: absolute; inset: 0; background: linear-gradient(180deg, rgba(7,8,10,.18), rgba(7,8,10,.82) 80%); }
+    .full-image .media-overlay { position: absolute; left: 112px; right: 112px; bottom: 130px; z-index: 2; max-width: 1200px; }
+    .full-image .media-overlay h2 { font-size: 84px; }
+    .full-image .media-overlay .lead { margin-top: 22px; }
+
+    /* 图文分栏页 */
+    .media-split { display: grid; grid-template-columns: 1.05fr .95fr; gap: 64px; align-items: center; height: 100%; }
+    .media-split .media-frame { height: 740px; }
+    .media-points { margin: 26px 0 0; padding: 0; list-style: none; }
+    .media-points li { position: relative; padding: 16px 0 16px 30px; border-top: 1px solid var(--line-soft); color: #d7e0ec; font-size: 22px; line-height: 1.5; }
+    .media-points li:first-child { border-top: none; }
+    .media-points li::before { content: ""; position: absolute; left: 0; top: 27px; width: 10px; height: 10px; border-radius: 50%; background: var(--yellow); }
+    .media-points li b { color: var(--text); }
+
+    /* 多图网格页 */
+    .media-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 18px; }
+    .media-grid .media-frame { height: 580px; }
+
+    /* 视频页 */
+    .video-stage { display: grid; grid-template-columns: 1.35fr .65fr; gap: 40px; align-items: stretch; }
+    .video-stage .media-frame { height: 660px; }
+    .video-side { display: flex; flex-direction: column; gap: 14px; }
+    .video-note { padding: 22px 24px; }
+    .video-note b { display: block; font-size: 21px; }
+    .video-note p { margin-top: 8px !important; color: var(--muted); font-size: 17px !important; line-height: 1.55 !important; }
+
+    /* 数据图表页 */
+    .chart-grid { display: grid; grid-template-columns: 1.12fr .88fr; gap: 18px; }
+    .chart-card { padding: 28px 30px; }
+    .chart-card h3 { font-size: 28px; }
+    .chart-card .chart-sub { margin-top: 6px !important; color: var(--subtle); font-size: 16px !important; }
+    .bar-chart { display: flex; align-items: flex-end; gap: 36px; height: 400px; margin-top: 30px; padding: 0 8px; }
+    .bar-col { flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: flex-end; gap: 12px; height: 100%; }
+    .bar-fill { flex: none; width: 100%; max-width: 104px; height: var(--h, 50%); border-radius: 12px 12px 4px 4px; background: linear-gradient(180deg, var(--yellow), rgba(251,191,36,.18)); transform-origin: bottom; }
+    .bar-col.alt .bar-fill { background: linear-gradient(180deg, var(--blue), rgba(96,165,250,.16)); }
+    .bar-col.hot .bar-fill { background: linear-gradient(180deg, var(--fire), rgba(255,91,46,.18)); }
+    .bar-val { font-size: 24px; font-weight: 850; color: var(--text); }
+    .bar-name { color: var(--muted); font-size: 16px; }
+    .donut-wrap { position: relative; display: flex; align-items: center; gap: 38px; margin-top: 26px; }
+    .donut-box { position: relative; width: 300px; height: 300px; flex: none; }
+    .donut { width: 100%; height: 100%; transform: rotate(-90deg); }
+    .donut-bg { fill: none; stroke: rgba(255,255,255,.08); stroke-width: 26; }
+    .donut-arc { fill: none; stroke: var(--fire); stroke-width: 26; stroke-linecap: round; }
+    .donut-center { position: absolute; inset: 0; display: grid; place-content: center; text-align: center; }
+    .donut-center b { font-size: 56px; font-weight: 900; letter-spacing: -.04em; color: var(--text); }
+    .donut-center span { margin-top: 2px; color: var(--subtle); font-size: 16px; }
+    .donut-legend { display: grid; gap: 14px; }
+    .donut-legend div { display: flex; align-items: center; gap: 12px; color: var(--muted); font-size: 19px; }
+    .donut-legend i { width: 14px; height: 14px; border-radius: 4px; }
+    .chart-kpis { display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; margin-top: 18px; }
+
+    /* 引言 / 金句页 */
+    .quote-body { position: relative; height: 100%; display: flex; flex-direction: column; justify-content: center; max-width: 1560px; }
+    .quote-mark { color: var(--fire); font-size: 220px; font-weight: 900; line-height: .55; opacity: .92; font-family: Georgia, serif; }
+    .quote-text { margin: 44px 0 0; font-size: 66px; font-weight: 800; line-height: 1.34; letter-spacing: -.03em; }
+    .quote-text em { color: var(--yellow); font-style: normal; }
+    .quote-by { display: flex; align-items: center; gap: 18px; margin-top: 52px; color: var(--muted); font-size: 24px; }
+    .quote-by b { color: var(--text); }
+    .quote-by::before { content: ""; width: 64px; height: 3px; border-radius: 99px; background: var(--yellow); }
+
+    /* 对比页 */
+    .compare-grid { position: relative; display: grid; grid-template-columns: 1fr 1fr; gap: 90px; }
+    .compare-col { padding: 34px 38px; min-height: 560px; }
+    .compare-col h3 { font-size: 34px; }
+    .compare-col .cmp-sub { margin-top: 8px !important; color: var(--subtle); font-size: 18px !important; }
+    .compare-col.good { border-color: rgba(52,211,153,.42); background: linear-gradient(160deg, rgba(52,211,153,.10), rgba(255,255,255,.035)); }
+    .cmp-list { margin: 22px 0 0; padding: 0; list-style: none; }
+    .cmp-list li { position: relative; padding: 13px 0 13px 38px; border-top: 1px solid var(--line-soft); color: #d7e0ec; font-size: 21px; line-height: 1.45; }
+    .cmp-list li:first-child { border-top: none; }
+    .cmp-list li::before { position: absolute; left: 0; top: 12px; font-weight: 900; font-size: 20px; }
+    .compare-col.bad .cmp-list li::before { content: "✕"; color: var(--subtle); }
+    .compare-col.good .cmp-list li::before { content: "✓"; color: var(--green); }
+    .vs-badge { position: absolute; left: 50%; top: 46%; z-index: 3; transform: translate(-50%, -50%); display: grid; place-items: center; width: 96px; height: 96px; border-radius: 50%; background: linear-gradient(135deg, var(--fire), var(--yellow)); color: #1a0a04; font-size: 31px; font-weight: 900; box-shadow: 0 0 44px var(--fire-glow); }
+
+    /* 时间轴页 */
+    .timeline { position: relative; margin-top: 110px; }
+    .timeline-line { position: absolute; left: 30px; right: 30px; top: 18px; height: 4px; border-radius: 99px; background: linear-gradient(90deg, var(--yellow), var(--blue), var(--violet)); transform-origin: left center; }
+    .timeline-nodes { position: relative; display: grid; grid-template-columns: repeat(5, 1fr); gap: 22px; }
+    .timeline-node { position: relative; padding-top: 66px; }
+    .timeline-node::before { content: ""; position: absolute; left: 24px; top: 4px; width: 24px; height: 24px; border-radius: 50%; background: var(--bg); border: 5px solid var(--yellow); box-shadow: 0 0 22px rgba(251,191,36,.45); }
+    .timeline-node:nth-child(2)::before { border-color: var(--orange); box-shadow: 0 0 22px rgba(251,146,60,.45); }
+    .timeline-node:nth-child(3)::before { border-color: var(--blue); box-shadow: 0 0 22px rgba(96,165,250,.45); }
+    .timeline-node:nth-child(4)::before { border-color: var(--violet); box-shadow: 0 0 22px rgba(196,181,253,.45); }
+    .timeline-node:nth-child(5)::before { border-color: var(--green); box-shadow: 0 0 22px rgba(52,211,153,.45); }
+    .tl-card { min-height: 330px; padding: 24px; }
+    .tl-date { color: var(--yellow); font-size: 15px; font-weight: 900; letter-spacing: .14em; }
+    .tl-card b { display: block; margin-top: 12px; font-size: 24px; line-height: 1.3; }
+    .tl-card p { margin-top: 10px !important; color: var(--muted); font-size: 17px !important; line-height: 1.55 !important; }
+
+    /* 团队页 */
+    .team-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 18px; }
+    .team-card { padding: 32px 30px; min-height: 480px; }
+    .avatar { display: grid; place-items: center; width: 124px; height: 124px; overflow: hidden; border-radius: 50%; background: linear-gradient(135deg, var(--yellow), var(--fire)); color: #1a0a04; font-size: 46px; font-weight: 900; }
+    .avatar img { width: 100%; height: 100%; object-fit: cover; }
+    .team-name { margin-top: 24px; font-size: 30px; font-weight: 850; letter-spacing: -.02em; }
+    .team-role { margin-top: 6px; color: var(--yellow); font-size: 16px; font-weight: 800; letter-spacing: .1em; }
+    .team-bio { margin-top: 16px !important; color: var(--muted); font-size: 18px !important; line-height: 1.6 !important; }
+
+    /* Logo 墙页 */
+    .logo-wall { display: grid; grid-template-columns: repeat(4, 1fr); gap: 18px; }
+    .logo-tile { display: grid; place-items: center; height: 180px; }
+    .logo-tile img { max-width: 62%; max-height: 56%; object-fit: contain; }
+    .logo-tile span { color: var(--subtle); font-size: 26px; font-weight: 800; letter-spacing: .04em; }
+
+    /* 结尾页 */
+    .end-body { height: 100%; display: flex; flex-direction: column; align-items: center; justify-content: center; text-align: center; }
+    .end-title {
+      margin: 30px 0 0; font-size: 160px; font-weight: 850; line-height: 1; letter-spacing: -.05em;
+      background: linear-gradient(100deg, #f2a06b 0%, #ffd9c2 28%, #fff4ec 43%, #ffffff 50%, #fff1e3 57%, #ffba8c 72%, #f5854f 100%);
+      background-size: 240% 100%; background-position: 115% 0;
+      -webkit-background-clip: text; background-clip: text; color: transparent;
+      filter: drop-shadow(0 2px 5px rgba(0,0,0,.9)) drop-shadow(0 6px 40px rgba(0,0,0,.75));
+      animation: metalSweep 5.5s 1s ease-in-out infinite;
+    }
+    .end-sub { margin-top: 30px; color: var(--muted); font-size: 28px; letter-spacing: .2em; }
+    .end-contact { display: flex; flex-wrap: wrap; justify-content: center; gap: 14px; margin-top: 58px; }
+    .end-contact span { padding: 13px 26px; border: 1px solid var(--line); border-radius: 99px; background: rgba(255,255,255,.05); color: #cfd9e6; font-size: 19px; }
+    .end-logo { width: 320px; opacity: .95; }
+
+    /* 图标（Lucide）：.ico-chip 彩色图标方块 / .ico-inline 行内随文字 */
+    .ico-chip { flex: none; display: grid; place-items: center; width: 56px; height: 56px; border-radius: 14px; border: 1px solid rgba(251,191,36,.32); background: rgba(251,191,36,.12); color: var(--yellow); }
+    .ico-chip svg { width: 28px; height: 28px; }
+    .ico-chip.blue { border-color: rgba(96,165,250,.32); background: var(--blue-soft); color: var(--blue); }
+    .ico-chip.violet { border-color: rgba(167,139,250,.32); background: var(--violet-soft); color: var(--violet); }
+    .ico-chip.green { border-color: rgba(52,211,153,.32); background: rgba(52,211,153,.12); color: var(--green); }
+    .ico-chip.fire { border-color: var(--fire-glow); background: var(--fire-soft); color: var(--fire); }
+    .ico-inline svg { width: 1em; height: 1em; vertical-align: -.12em; margin-right: .3em; }
+    svg.lucide { stroke-width: 2; }
+
+    /* 新模板页玻璃质感（与 .card 同款） */
+    .agenda-item, .compare-col, .tl-card, .team-card, .logo-tile,
+    .chart-card, .video-note {
+      backdrop-filter: var(--glass-blur); -webkit-backdrop-filter: var(--glass-blur);
+    }
+
+    /* static 模式（?static=1）：截图 / 嵌入用——所有 CSS 入场动画直达终态 */
+    body.static-mode .slide.active { animation: none; }
+    body.static-mode .cover-hero-logo, body.static-mode .cover-hero-title,
+    body.static-mode .cover-hero-sub, body.static-mode .cover-hero-hint { animation: none !important; opacity: 1 !important; }
+    body.static-mode .deck-controls, body.static-mode .vertical-pager,
+    body.static-mode .confirm-toggle, body.static-mode .hint { display: none !important; }
 
     /* ── print / export-to-PDF: lay every slide out as its own page ── */
     @media print {
@@ -693,24 +838,7 @@
       .slide-fit { transform: none !important; }
       .deck-controls, .vertical-pager, .confirm-toggle, .confirm-panel, .brand-rail, .edit-badge, .hint { display: none !important; }
       .cover-hero .particle-canvas { display: none !important; }
-      .cover-hero-content, .cover-hero-title, .cover-hero-sub, .cover-hero-logo,
-      .cover-hero-lockup, .cover-hero-bluemoon { animation: none !important; opacity: 1 !important; }
-      /* backdrop-filter (frosted glass) is dropped by browsers when printing →
-         give panels a solid dark fallback so they don't go transparent in the PDF */
-      .card, .stat, .calendar-wrap, .principle, .stream-item, .org-layer,
-      .incub-ms, .phase, .exit, .ws-block, .confirm-item, .stream,
-      .approach-card, .ws-day, .route-card, .track-overview, .coach-card {
-        backdrop-filter: none !important; -webkit-backdrop-filter: none !important;
-        background-color: rgba(18,24,33,.94) !important;
-      }
-      .synth-band, .cadence-note, .ceo-core, .coach-band, .band {
-        backdrop-filter: none !important; -webkit-backdrop-filter: none !important;
-      }
-      /* animated metal rims don't print cleanly — hide them */
-      .card::before, .stat::before, .calendar-wrap::before, .principle::before,
-      .stream-item::before, .org-layer::before, .incub-ms::before, .phase::before,
-      .ws-block::before, .synth-band::before, .cadence-note::before,
-      .ceo-core::before, .coach-band::before, .band::before { display: none !important; }
+      .cover-hero-content, .cover-hero-title, .cover-hero-sub, .cover-hero-logo { animation: none !important; opacity: 1 !important; }
     }
   </style>
 </head>
@@ -719,10 +847,10 @@
     <main class="deck" id="deck">
 
       <div class="brand-rail">
-        <img class="rolling-logo" src="assets/rolling-ai-logo.svg" alt="Rolling AI">
-        <!-- Optional: drop in a client co-brand mark here.
-             <span class="brand-sep" aria-hidden="true"></span>
-             <img class="client-logo" src="assets/<client>-logo.svg" alt="..."> -->
+        <div>
+          <img class="rolling-logo" src="assets/rolling-ai-logo.svg" alt="Rolling AI">
+        </div>
+        <span class="deck-label">10× TRANSFORMATION PROGRAM</span>
       </div>
 
       <!-- ══════════════════════════════════════════════════
@@ -1555,6 +1683,323 @@
         <div class="ceo-core">核心目标：<strong>让 CEO 本人，真切感受到 AI 时代的速度，并成为组织 10× 转型最有力的推动者。</strong></div>
       </section>
 
+      <!-- ══════════════════════════════════════════════════
+           ▼▼▼ TEMPLATE LIBRARY · 以下为通用模板页 ▼▼▼
+           每页都是一种常用版式，复制 <section> 即可复用；
+           不需要的页面直接删除整个 <section> 即可。
+      ══════════════════════════════════════════════════ -->
+
+      <!-- ══════════════════════════════════════════════════
+           T01 · 章节过渡页（SECTION DIVIDER）
+           用法：每个大章节前放一页，改编号 / 标题 / 副标题
+      ══════════════════════════════════════════════════ -->
+      <section class="slide" data-slide-key="tpl-divider" data-screen-label="16 模板·章节页">
+        <div class="divider-num">01</div>
+        <div class="divider-body">
+          <span class="kicker">SECTION 01 · CHAPTER NAME</span>
+          <h2 class="divider-title">章节大标题<br>第二行可强调<span class="tenx-mark">关键词</span></h2>
+          <div class="divider-line"></div>
+          <p class="divider-sub">章节引导语：用一两句话说明这一章要回答什么问题、为什么重要。建议控制在 60 字以内，让观众快速进入语境。</p>
+        </div>
+      </section>
+
+      <!-- ══════════════════════════════════════════════════
+           T02 · 目录页（AGENDA / TOC）
+           用法：改每项标题与说明；条目可增删（自动两列排布）
+      ══════════════════════════════════════════════════ -->
+      <section class="slide" data-slide-key="tpl-agenda" data-screen-label="17 模板·目录页">
+        <div class="section-head">
+          <div><span class="kicker">AGENDA</span><h2>今天我们讲什么</h2></div>
+          <p class="copy">目录页帮助观众建立全局地图。<strong>每项一句话说明听完能带走什么</strong>，而不是简单罗列章节名。</p>
+        </div>
+        <div class="agenda-list">
+          <div class="card agenda-item"><span class="ico-chip"><i data-lucide="compass"></i></span><div><b>01 · 背景与问题</b><p>我们为什么现在要谈这件事</p></div></div>
+          <div class="card agenda-item"><span class="ico-chip blue"><i data-lucide="lightbulb"></i></span><div><b>02 · 核心方案</b><p>整体思路与关键设计</p></div></div>
+          <div class="card agenda-item"><span class="ico-chip violet"><i data-lucide="route"></i></span><div><b>03 · 实施路径</b><p>分几步走、每步交付什么</p></div></div>
+          <div class="card agenda-item"><span class="ico-chip green"><i data-lucide="users"></i></span><div><b>04 · 资源与分工</b><p>需要谁、投入多少、怎么协作</p></div></div>
+          <div class="card agenda-item"><span class="ico-chip fire"><i data-lucide="shield-alert"></i></span><div><b>05 · 风险与对策</b><p>最可能出问题的地方和预案</p></div></div>
+          <div class="card agenda-item"><span class="ico-chip"><i data-lucide="rocket"></i></span><div><b>06 · 下一步行动</b><p>会后立即要做的三件事</p></div></div>
+        </div>
+      </section>
+
+      <!-- ══════════════════════════════════════════════════
+           T03 · 全屏大图页（FULL-BLEED IMAGE）
+           用法：替换 .media-bg 的 src 为你的图片；文字叠在左下角
+      ══════════════════════════════════════════════════ -->
+      <section class="slide full-image" data-slide-key="tpl-full-image" data-screen-label="18 模板·全屏大图">
+        <img class="media-bg" src="assets/placeholders/photo-a.svg" alt="全屏背景图">
+        <div class="media-veil"></div>
+        <div class="media-overlay">
+          <span class="kicker">FULL-BLEED IMAGE</span>
+          <h2>全屏大图页<br>适合震撼开场或情绪转折</h2>
+          <p class="lead">一句话点题。图片建议 1920×1080 以上，主体偏右上，给左下角文字留出空间。</p>
+        </div>
+      </section>
+
+      <!-- ══════════════════════════════════════════════════
+           T04 · 图文分栏页（IMAGE + TEXT SPLIT）
+           用法：替换左侧图片；右侧标题 + 要点列表
+      ══════════════════════════════════════════════════ -->
+      <section class="slide" data-slide-key="tpl-media-split" data-screen-label="19 模板·图文分栏">
+        <div class="media-split">
+          <figure class="media-frame" style="margin:0;">
+            <img src="assets/placeholders/photo-b.svg" alt="配图">
+            <figcaption class="media-caption"><b>图注：</b>一句话说明这张图在讲什么、数据来源或拍摄场景。</figcaption>
+          </figure>
+          <div>
+            <span class="kicker">IMAGE + TEXT</span>
+            <h2 style="font-size:54px;">图文分栏页<br>左图右文经典版式</h2>
+            <ul class="media-points">
+              <li><b>要点一：</b>每条要点一句话，先结论后解释。</li>
+              <li><b>要点二：</b>建议 3–4 条，超过就拆成两页。</li>
+              <li><b>要点三：</b>图与文互相印证，不要图文无关。</li>
+            </ul>
+          </div>
+        </div>
+      </section>
+
+      <!-- ══════════════════════════════════════════════════
+           T05 · 多图网格页（IMAGE GALLERY）
+           用法：替换三张图与图注；可改为 2 列（grid-template-columns）
+      ══════════════════════════════════════════════════ -->
+      <section class="slide" data-slide-key="tpl-media-grid" data-screen-label="20 模板·多图网格">
+        <div class="section-head" style="margin-bottom:28px;">
+          <div><span class="kicker">GALLERY</span><h2>多图网格页<br>案例 / 截图 / 现场照片</h2></div>
+          <p class="copy">适合放产品截图、活动现场、客户案例。<strong>每张图配一句图注</strong>，告诉观众应该看哪里。</p>
+        </div>
+        <div class="media-grid">
+          <figure class="media-frame" style="margin:0;">
+            <img src="assets/placeholders/photo-a.svg" alt="图 1">
+            <figcaption class="media-caption"><b>案例一：</b>一句话图注。</figcaption>
+          </figure>
+          <figure class="media-frame" style="margin:0;">
+            <img src="assets/placeholders/photo-b.svg" alt="图 2">
+            <figcaption class="media-caption"><b>案例二：</b>一句话图注。</figcaption>
+          </figure>
+          <figure class="media-frame" style="margin:0;">
+            <img src="assets/placeholders/photo-c.svg" alt="图 3">
+            <figcaption class="media-caption"><b>案例三：</b>一句话图注。</figcaption>
+          </figure>
+        </div>
+      </section>
+
+      <!-- ══════════════════════════════════════════════════
+           T06 · 视频页（VIDEO）
+           用法（三选一）：
+           ① 本地视频：把 mp4 放进 assets/，改 <source src>
+           ② B 站：换成 <iframe src="//player.bilibili.com/player.html?bvid=BV号&autoplay=0" allowfullscreen></iframe>
+           ③ YouTube：换成 <iframe src="https://www.youtube.com/embed/视频ID" allowfullscreen></iframe>
+           切换页面时视频会自动暂停。
+      ══════════════════════════════════════════════════ -->
+      <section class="slide" data-slide-key="tpl-video" data-screen-label="21 模板·视频页">
+        <div class="section-head" style="margin-bottom:26px;">
+          <div><span class="kicker">VIDEO</span><h2>视频演示页</h2></div>
+          <p class="copy">Demo 演示、客户证言、宣传片都放这里。<strong>讲之前先说"接下来 60 秒你会看到什么"</strong>，看完再总结一句。</p>
+        </div>
+        <div class="video-stage">
+          <div class="media-frame">
+            <video controls preload="none" poster="assets/placeholders/video-poster.svg">
+              <source src="assets/your-video.mp4" type="video/mp4">
+            </video>
+          </div>
+          <div class="video-side">
+            <div class="card video-note"><b class="ico-inline"><i data-lucide="circle-play"></i>看点 01</b><p>提示观众第一个值得注意的瞬间，比如 0:15 的自动化操作。</p></div>
+            <div class="card video-note"><b class="ico-inline"><i data-lucide="eye"></i>看点 02</b><p>第二个关键画面，让观众带着问题看视频。</p></div>
+            <div class="card video-note"><b class="ico-inline"><i data-lucide="flag"></i>看点 03</b><p>结尾的结果对比，为视频后的讨论做铺垫。</p></div>
+          </div>
+        </div>
+      </section>
+
+      <!-- ══════════════════════════════════════════════════
+           T07 · 数据图表页（DATA / CHARTS）
+           用法：柱状图改 --h（高度百分比）与数值；
+           环形图改 data-pct；KPI 改 data-count（支持 10× / 98% / 3.5 等）
+      ══════════════════════════════════════════════════ -->
+      <section class="slide" data-slide-key="tpl-chart" data-screen-label="22 模板·数据图表">
+        <div class="section-head" style="margin-bottom:26px;">
+          <div><span class="kicker">DATA</span><h2>数据图表页<br>让数字自己说话</h2></div>
+          <p class="copy">纯 CSS/SVG 图表，<strong>翻到本页时柱子生长、环形图描边、数字滚动</strong>，全部由 GSAP 驱动，无需图表库。</p>
+        </div>
+        <div class="chart-grid">
+          <article class="card chart-card">
+            <h3 class="ico-inline"><i data-lucide="trending-up"></i>人均产出对比</h3>
+            <p class="chart-sub">单位：相对倍数（示例数据，替换为你的真实数据）</p>
+            <div class="bar-chart">
+              <div class="bar-col"><span class="bar-val" data-count="1.0×">1.0×</span><div class="bar-fill" style="--h:7.8%"></div><span class="bar-name">传统方式</span></div>
+              <div class="bar-col"><span class="bar-val" data-count="2.4×">2.4×</span><div class="bar-fill" style="--h:18.7%"></div><span class="bar-name">+ AI 工具</span></div>
+              <div class="bar-col alt"><span class="bar-val" data-count="5.2×">5.2×</span><div class="bar-fill" style="--h:40.6%"></div><span class="bar-name">+ 新工作流</span></div>
+              <div class="bar-col hot"><span class="bar-val" data-count="10×">10×</span><div class="bar-fill" style="--h:78%"></div><span class="bar-name">AI 原生团队</span></div>
+            </div>
+          </article>
+          <article class="card chart-card">
+            <h3 class="ico-inline"><i data-lucide="target"></i>目标达成率</h3>
+            <p class="chart-sub">环形进度：改 data-pct 即可（0–100）</p>
+            <div class="donut-wrap">
+              <div class="donut-box">
+                <svg class="donut" viewBox="0 0 300 300">
+                  <circle class="donut-bg" cx="150" cy="150" r="120"></circle>
+                  <circle class="donut-arc" cx="150" cy="150" r="120" stroke-dasharray="754" stroke-dashoffset="211" data-pct="72"></circle>
+                </svg>
+                <div class="donut-center"><b data-count="72%">72%</b><span>季度目标</span></div>
+              </div>
+              <div class="donut-legend">
+                <div><i style="background:var(--fire)"></i>已完成 72%</div>
+                <div><i style="background:rgba(255,255,255,.14)"></i>进行中 28%</div>
+              </div>
+            </div>
+            <div class="chart-kpis">
+              <div class="stat" style="min-height:auto;padding:18px;"><div class="stat-num" style="font-size:40px;" data-count="36">36</div><b style="font-size:17px;">上线场景</b></div>
+              <div class="stat" style="min-height:auto;padding:18px;"><div class="stat-num" style="font-size:40px;" data-count="-58%">-58%</div><b style="font-size:17px;">单件成本</b></div>
+              <div class="stat" style="min-height:auto;padding:18px;"><div class="stat-num" style="font-size:40px;" data-count="4.8">4.8</div><b style="font-size:17px;">满意度</b></div>
+            </div>
+          </article>
+        </div>
+      </section>
+
+      <!-- ══════════════════════════════════════════════════
+           T08 · 引言 / 金句页（QUOTE）
+           用法：改引文（<em> 包住要强调的词）与署名
+      ══════════════════════════════════════════════════ -->
+      <section class="slide" data-slide-key="tpl-quote" data-screen-label="23 模板·金句页">
+        <div class="quote-body">
+          <div class="quote-mark">“</div>
+          <p class="quote-text">这里放一句能让全场安静三秒的话，<br>把最重要的词<em>高亮出来</em>，<br>一页只讲这一件事。</p>
+          <p class="quote-by"><b>署名 · 头衔</b>　出处或场合，2026</p>
+        </div>
+      </section>
+
+      <!-- ══════════════════════════════════════════════════
+           T09 · 对比页（BEFORE / AFTER · VS）
+           用法：左列旧做法（✕），右列新做法（✓），条目一一对应
+      ══════════════════════════════════════════════════ -->
+      <section class="slide" data-slide-key="tpl-compare" data-screen-label="24 模板·对比页">
+        <div class="section-head">
+          <div><span class="kicker">BEFORE / AFTER</span><h2>对比页<br>差异一眼看穿</h2></div>
+          <p class="copy">左右条目<strong>逐条对应</strong>：同一行讲同一件事的新旧做法，观众不用来回扫视。</p>
+        </div>
+        <div class="compare-grid">
+          <article class="card compare-col bad">
+            <h3 class="ico-inline"><i data-lucide="hourglass"></i>传统做法</h3>
+            <p class="cmp-sub">BEFORE · 现状</p>
+            <ul class="cmp-list">
+              <li>需求层层转译，信息每过一手衰减一次</li>
+              <li>交付以周为单位，反馈循环极慢</li>
+              <li>知识沉淀在个人脑子里，人走经验丢</li>
+              <li>重复劳动占比高，创造性工作被挤压</li>
+            </ul>
+          </article>
+          <div class="vs-badge">VS</div>
+          <article class="card compare-col good">
+            <h3 class="ico-inline"><i data-lucide="zap"></i>AI 原生做法</h3>
+            <p class="cmp-sub">AFTER · 目标状态</p>
+            <ul class="cmp-list">
+              <li>业务 Owner 直接与 AI 结对，零转译损耗</li>
+              <li>按天甚至按小时迭代，当日反馈当日改</li>
+              <li>方法沉淀为提示词与工作流，组织资产化</li>
+              <li>重复劳动交给 Agent，人专注判断与创意</li>
+            </ul>
+          </article>
+        </div>
+      </section>
+
+      <!-- ══════════════════════════════════════════════════
+           T10 · 时间轴页（TIMELINE / ROADMAP）
+           用法：改日期与节点内容；节点数可增减（改 grid 列数）
+      ══════════════════════════════════════════════════ -->
+      <section class="slide" data-slide-key="tpl-timeline" data-screen-label="25 模板·时间轴">
+        <div class="section-head">
+          <div><span class="kicker">ROADMAP</span><h2>时间轴页<br>里程碑一条线讲完</h2></div>
+          <p class="copy">适合项目计划、发展历程、发布节奏。<strong>每个节点只放一个里程碑</strong>，细节留给备注。</p>
+        </div>
+        <div class="timeline">
+          <div class="timeline-line"></div>
+          <div class="timeline-nodes">
+            <div class="timeline-node"><div class="card tl-card"><span class="tl-date ico-inline"><i data-lucide="rocket"></i>2026 Q1</span><b>项目启动</b><p>完成对齐工作坊，确定首批场景与团队分工。</p></div></div>
+            <div class="timeline-node"><div class="card tl-card"><span class="tl-date ico-inline"><i data-lucide="package"></i>2026 Q2</span><b>首批 MVP</b><p>三个场景的 MVP 上线，进入一线真实验证。</p></div></div>
+            <div class="timeline-node"><div class="card tl-card"><span class="tl-date ico-inline"><i data-lucide="copy"></i>2026 Q3</span><b>规模复制</b><p>改造剧本固化，向 5 个业务单元复制推广。</p></div></div>
+            <div class="timeline-node"><div class="card tl-card"><span class="tl-date ico-inline"><i data-lucide="expand"></i>2026 Q4</span><b>全面铺开</b><p>核心流程全部接入，效率指标进入考核体系。</p></div></div>
+            <div class="timeline-node"><div class="card tl-card"><span class="tl-date ico-inline"><i data-lucide="sparkles"></i>2027</span><b>AI 原生组织</b><p>新业务默认 AI 原生设计，组织进入自进化。</p></div></div>
+          </div>
+        </div>
+      </section>
+
+      <!-- ══════════════════════════════════════════════════
+           T11 · 团队页（TEAM）
+           用法：有照片时把 .avatar 里的文字换成 <img src="...">
+      ══════════════════════════════════════════════════ -->
+      <section class="slide" data-slide-key="tpl-team" data-screen-label="26 模板·团队页">
+        <div class="section-head">
+          <div><span class="kicker">TEAM</span><h2>核心团队<br>谁在交付这件事</h2></div>
+          <p class="copy">介绍角色而不是简历：<strong>这个人在项目里负责什么、凭什么能做好</strong>，一人两行讲完。</p>
+        </div>
+        <div class="team-grid">
+          <article class="card team-card">
+            <div class="avatar">甘</div>
+            <div class="team-name">姓名一</div>
+            <div class="team-role ico-inline"><i data-lucide="briefcase"></i>项目负责人 · PM</div>
+            <p class="team-bio">一句话背景（曾任 / 做过什么），一句话说明在本项目中扛什么结果。</p>
+          </article>
+          <article class="card team-card">
+            <div class="avatar" style="background:linear-gradient(135deg,var(--blue),var(--violet));color:#0a1020;">王</div>
+            <div class="team-name">姓名二</div>
+            <div class="team-role ico-inline"><i data-lucide="cpu"></i>技术负责人 · AI ENGINEER</div>
+            <p class="team-bio">一句话背景（曾任 / 做过什么），一句话说明在本项目中扛什么结果。</p>
+          </article>
+          <article class="card team-card">
+            <div class="avatar" style="background:linear-gradient(135deg,var(--green),var(--blue));color:#06140e;">李</div>
+            <div class="team-name">姓名三</div>
+            <div class="team-role ico-inline"><i data-lucide="award"></i>业务专家 · DOMAIN</div>
+            <p class="team-bio">一句话背景（曾任 / 做过什么），一句话说明在本项目中扛什么结果。</p>
+          </article>
+          <article class="card team-card">
+            <div class="avatar" style="background:linear-gradient(135deg,var(--violet),var(--fire));color:#160a14;">赵</div>
+            <div class="team-name">姓名四</div>
+            <div class="team-role ico-inline"><i data-lucide="graduation-cap"></i>交付教练 · COACH</div>
+            <p class="team-bio">一句话背景（曾任 / 做过什么），一句话说明在本项目中扛什么结果。</p>
+          </article>
+        </div>
+      </section>
+
+      <!-- ══════════════════════════════════════════════════
+           T12 · LOGO 墙（PARTNERS / CLIENTS）
+           用法：替换 <img> 或文字；建议用透明底 PNG / SVG
+      ══════════════════════════════════════════════════ -->
+      <section class="slide" data-slide-key="tpl-logos" data-screen-label="27 模板·Logo墙">
+        <div class="section-head">
+          <div><span class="kicker">TRUSTED BY</span><h2>合作伙伴 / 客户</h2></div>
+          <p class="copy">Logo 墙是信任背书。<strong>统一灰度或统一尺度</strong>，避免大小颜色打架；没授权的 Logo 不要放。</p>
+        </div>
+        <div class="logo-wall">
+          <div class="card logo-tile"><img src="assets/rolling-ai-logo.svg" alt="Rolling AI"></div>
+          <div class="card logo-tile"><span>LOGO 02</span></div>
+          <div class="card logo-tile"><span>LOGO 03</span></div>
+          <div class="card logo-tile"><span>LOGO 04</span></div>
+          <div class="card logo-tile"><span>LOGO 05</span></div>
+          <div class="card logo-tile"><span>LOGO 06</span></div>
+          <div class="card logo-tile"><span>LOGO 07</span></div>
+          <div class="card logo-tile"><span>LOGO 08</span></div>
+        </div>
+      </section>
+
+      <!-- ══════════════════════════════════════════════════
+           T13 · 结尾页（THANK YOU / CTA）
+           用法：改标题、联系方式；可把 end-title 换成行动号召
+      ══════════════════════════════════════════════════ -->
+      <section class="slide" data-slide-key="tpl-end" data-screen-label="28 模板·结尾页">
+        <div class="end-body">
+          <img class="end-logo" src="assets/rolling-ai-logo.svg" alt="Rolling AI">
+          <h2 class="end-title">谢谢 · Thank You</h2>
+          <p class="end-sub">一句收尾的话 · 或下一步行动号召</p>
+          <div class="end-contact">
+            <span class="ico-inline"><i data-lucide="mail"></i>hello@example.com</span>
+            <span class="ico-inline"><i data-lucide="globe"></i>www.example.com</span>
+            <span class="ico-inline"><i data-lucide="smartphone"></i>微信 / 电话</span>
+          </div>
+        </div>
+      </section>
+
+      <!-- ▲▲▲ TEMPLATE LIBRARY 结束 ▲▲▲ -->
+
       <!-- Controls -->
       <div class="deck-progress"><span id="progressBar"></span></div>
       <div class="deck-controls" aria-label="演示控制">
@@ -1592,6 +2037,14 @@
     </main>
   </div>
 
+  <!-- GSAP 3.13 · 本地离线版（含 SplitText / TextPlugin，全插件免费） -->
+  <script src="assets/vendor/gsap.min.js"></script>
+  <script src="assets/vendor/SplitText.min.js"></script>
+  <script src="assets/vendor/TextPlugin.min.js"></script>
+  <!-- Lucide 图标库 · 本地离线版（1500+ 图标，用法：<i data-lucide="图标名"></i>，
+       图标名查 https://lucide.dev/icons ） -->
+  <script src="assets/vendor/lucide.min.js"></script>
+
   <script>
     const deck = document.getElementById("deck");
     const slides = [...document.querySelectorAll(".slide")];
@@ -1623,9 +2076,12 @@
     const editTools = document.getElementById("editTools");
     const modeHint = document.getElementById("modeHint");
     const defaultConfirmItems = [
-      "待确认事项示例一（生成时替换为本次议题）",
-      "待确认事项示例二",
-      "待确认事项示例三"
+      "工作坊时间与参与人员确认",
+      "五个 10× 方向的优先级共识",
+      "创新冲刺的首批场景方向",
+      "孵化阶段的企业侧 PM 人选",
+      "三赛道孵化的资源与时间承诺",
+      "CEO 赋能启动时间"
     ];
     const itemsKey = "10x-confirm-items";
     let confirmItems = (() => { try { const v = JSON.parse(localStorage.getItem(itemsKey)); return Array.isArray(v) && v.length ? v : defaultConfirmItems.slice(); } catch { return defaultConfirmItems.slice(); } })();
@@ -1658,6 +2114,12 @@
     });
     const setMode = m => {
       mode = m;
+      // 进入编辑模式前先让动画跳到终态，避免编辑到一半被 SplitText 拆开的标题
+      if (m === "edit" && typeof slideTl !== "undefined" && slideTl) {
+        try { slideTl.progress(1); } catch {}
+        activeSplits.forEach(s => { try { s.revert(); } catch {} });
+        activeSplits = [];
+      }
       document.body.classList.toggle("edit-mode", m === "edit");
       document.querySelectorAll("#modeSwitch .mode-btn").forEach(b => b.classList.toggle("active", b.dataset.mode === m));
       if (editTools) editTools.hidden = m !== "edit";
@@ -1667,6 +2129,114 @@
       editEls.forEach(el => { el.contentEditable = m === "edit" ? "true" : "false"; });
       renderChecks();
     };
+
+    /* ════════════════════════════════════════════════
+       GSAP 动效引擎 · 翻页时自动编排入场动画
+       自动识别：标题逐字浮现 / 卡片错落上升 / 数字滚动 /
+       柱状图生长 / 环形图描边 / 大图 Ken Burns / 时间轴划线
+       手动标注：任意元素加 data-anim="rise|fade|left|right|scale|blur"
+       （可配 data-anim-delay="0.4"）；容器加 data-stagger 让子元素错落入场
+    ════════════════════════════════════════════════ */
+    const REDUCED_MOTION = matchMedia("(prefers-reduced-motion: reduce)").matches;
+    const hasGsap = typeof gsap !== "undefined";
+    if (hasGsap && typeof SplitText !== "undefined") gsap.registerPlugin(SplitText);
+    let slideTl = null, activeSplits = [];
+    const ANIM_PRESETS = {
+      rise:  { y: 46, opacity: 0 },
+      fade:  { opacity: 0 },
+      left:  { x: -70, opacity: 0 },
+      right: { x: 70, opacity: 0 },
+      scale: { scale: .86, opacity: 0 },
+      blur:  { opacity: 0, filter: "blur(14px)" }
+    };
+    const GROUP_SEL = [".cards-2", ".cards-3", ".cards-4", ".cards-6", ".hero-stats", ".ceo-grid",
+      ".goals-grid", ".agenda-list", ".media-grid", ".timeline-nodes", ".team-grid", ".logo-wall",
+      ".chart-kpis", ".org-stack", ".phase-strip", ".incub-milestones", ".video-side", "[data-stagger]"].join(",");
+    const BAND_SEL = ".synth-band, .cadence-note, .ceo-core, .coach-band, .goals-foot, .cover-note, .band, .end-contact";
+    // 数字滚动：保留前后缀（10× / 98% / -58% / 4.8 都支持）
+    const countUp = (el, tl, at) => {
+      const raw = (el.dataset.countOriginal ??= el.textContent.trim());
+      const m = raw.match(/-?\d[\d,]*\.?\d*/);
+      if (!m) return;
+      const target = parseFloat(m[0].replace(/,/g, ""));
+      const prefix = raw.slice(0, m.index), suffix = raw.slice(m.index + m[0].length);
+      const dec = (m[0].split(".")[1] || "").length;
+      const obj = { v: 0 };
+      tl.to(obj, {
+        v: target, duration: 1.1, ease: "power2.out",
+        onUpdate: () => { el.textContent = prefix + obj.v.toFixed(dec) + suffix; },
+        onComplete: () => { el.textContent = raw; }
+      }, at);
+    };
+    const animateSlide = sl => {
+      if (document.body.classList.contains("static-mode")) return;
+      if (!hasGsap || REDUCED_MOTION || !sl || sl.classList.contains("cover-hero") || mode === "edit") return;
+      // 上一页动画若没播完，先跳到终态再销毁——否则中途打断会把元素冻结在半透明状态
+      if (slideTl) { try { slideTl.progress(1); } catch {} slideTl.kill(); }
+      activeSplits.forEach(s => { try { s.revert(); } catch {} });
+      activeSplits = [];
+      const tl = slideTl = gsap.timeline({ defaults: { ease: "power3.out", duration: .8 } });
+      // 1 · 主标题逐字浮现（动画结束后 revert，保持 DOM 干净、不影响编辑模式）
+      const head = sl.querySelector(".section-head h2, .goals-head h2, .divider-title, .quote-text, h1");
+      if (head && typeof SplitText !== "undefined") {
+        try {
+          const split = new SplitText(head, { type: "chars" });
+          activeSplits.push(split);
+          tl.from(split.chars, { y: 36, opacity: 0, duration: .55, stagger: .016, onComplete: () => { try { split.revert(); } catch {} } }, 0);
+        } catch { tl.from(head, ANIM_PRESETS.rise, 0); }
+      } else if (head) { tl.from(head, ANIM_PRESETS.rise, 0); }
+      // 2 · kicker 与引导文案
+      sl.querySelectorAll(".kicker").forEach(el => {
+        if (el.closest(".media-overlay")) return;
+        tl.from(el, { ...ANIM_PRESETS.left, duration: .6 }, 0);
+      });
+      sl.querySelectorAll(".section-head .copy, .goals-head .copy, .divider-sub, .quote-by, .quote-mark, .divider-line, .cover-lead").forEach(el =>
+        tl.from(el, { opacity: 0, y: 24, duration: .7 }, .25));
+      const mega = sl.querySelector(".tenx-mega, .divider-num");
+      if (mega) tl.from(mega, { opacity: 0, x: 90, duration: 1.1, ease: "power2.out" }, .1);
+      // 3 · 卡片组错落上升
+      sl.querySelectorAll(GROUP_SEL).forEach(group => {
+        const kids = [...group.children];
+        if (kids.length) tl.from(kids, { y: 54, opacity: 0, duration: .75, stagger: .09 }, .3);
+      });
+      // 4 · 媒体容器与全屏大图
+      sl.querySelectorAll(".media-frame").forEach((el, i) => {
+        if (el.closest(".media-grid")) return; // 网格里的交给错落动画
+        tl.from(el, { opacity: 0, scale: .94, duration: .9, ease: "power2.out" }, .25 + i * .12);
+      });
+      const bg = sl.querySelector(".media-bg");
+      if (bg) {
+        tl.from(bg, { scale: 1.12, opacity: .4, duration: 1.4, ease: "power2.out" }, 0);
+        tl.to(bg, { scale: 1.06, duration: 14, ease: "none" }, 1.4); // Ken Burns 缓推
+        sl.querySelectorAll(".media-overlay > *").forEach((el, i) => tl.from(el, { y: 40, opacity: 0, duration: .8 }, .4 + i * .14));
+      }
+      // 5 · 数字滚动
+      sl.querySelectorAll(".stat-num, [data-count]").forEach(el => countUp(el, tl, .45));
+      // 6 · 图表：柱状图生长 / 环形图描边 / 时间轴划线
+      const bars = sl.querySelectorAll(".bar-fill");
+      if (bars.length) tl.from(bars, { scaleY: 0, duration: 1, ease: "power3.inOut", stagger: .12 }, .35);
+      sl.querySelectorAll(".donut-arc").forEach(arc => {
+        const c = parseFloat(arc.getAttribute("stroke-dasharray")) || 754;
+        const pct = parseFloat(arc.dataset.pct || 70);
+        tl.fromTo(arc, { strokeDashoffset: c }, { strokeDashoffset: c * (1 - pct / 100), duration: 1.3, ease: "power2.inOut" }, .45);
+      });
+      const tline = sl.querySelector(".timeline-line");
+      if (tline) tl.from(tline, { scaleX: 0, duration: 1, ease: "power2.inOut" }, .3);
+      // 7 · 收尾横幅
+      sl.querySelectorAll(BAND_SEL).forEach(el => tl.from(el, { y: 30, opacity: 0, duration: .7 }, .65));
+      // 8 · 手动标注的 data-anim
+      sl.querySelectorAll("[data-anim]").forEach(el => {
+        const p = ANIM_PRESETS[el.dataset.anim] || ANIM_PRESETS.rise;
+        tl.from(el, { ...p, duration: .8 }, parseFloat(el.dataset.animDelay || .2));
+      });
+    };
+    // 打印 / 导出 PDF 前：动画全部跳到终态
+    window.addEventListener("beforeprint", () => {
+      if (!hasGsap) return;
+      if (slideTl) { try { slideTl.progress(1); } catch {} }
+      activeSplits.forEach(s => { try { s.revert(); } catch {} });
+      activeSplits = [];
+    });
 
     const pad = v => String(v).padStart(2, "0");
     const resize = () => {
@@ -1682,6 +2252,9 @@
       document.body.classList.toggle("on-cover", onCover);
       if (window.__particles) window.__particles.setActive(onCover);
       fitSlide(slides[index]);
+      // 离开页面时暂停所有视频，进入页面时编排 GSAP 入场动画
+      deck.querySelectorAll("video").forEach(v => { if (!v.paused) v.pause(); });
+      animateSlide(slides[index]);
     };
     const next = () => show(index + 1);
     const prev = () => show(index - 1);
@@ -1973,9 +2546,17 @@
       start();
     })();
 
+    // Lucide 图标渲染：把所有 <i data-lucide="名字"> 替换成内联 SVG
+    // （在编辑内容恢复之后执行，保证存档里的图标也能渲染）
+    if (window.lucide) { try { lucide.createIcons(); } catch (e) { console.warn("lucide:", e); } }
+
     window.addEventListener("resize", resize);
     resize();
-    show(0);
+    // URL 直达：template.html?slide=5 直接打开第 5 页；&static=1 关闭入场动画（截图/嵌入用）
+    const urlParams = new URLSearchParams(location.search);
+    if (urlParams.get("static") === "1") document.body.classList.add("static-mode");
+    const startAt = parseInt(urlParams.get("slide"), 10);
+    show(Number.isFinite(startAt) && startAt >= 1 && startAt <= slides.length ? startAt - 1 : 0);
   </script>
 </body>
 </html>

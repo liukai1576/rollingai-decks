@@ -48,7 +48,11 @@ import sys
 from pathlib import Path
 
 PACK_DIR = Path(__file__).resolve().parent
-TEMPLATE = PACK_DIR / "assets" / "template.html"
+# v1.5: template.html lives at the skill root (was assets/template.html in
+# v1.4 and earlier). The new layout matches ganyifan's directory-form
+# template — script tags inside the template reference `assets/vendor/...`,
+# `assets/thumbs/...` etc., so the template must sit ABOVE its assets dir.
+TEMPLATE = PACK_DIR / "template.html"
 ASSETS_SRC = PACK_DIR / "assets"
 
 
@@ -116,8 +120,10 @@ def render(deck_path: Path, output_dir: Path) -> None:
     out_assets = output_dir / "assets"
     out_assets.mkdir(exist_ok=True)
     for src in ASSETS_SRC.iterdir():
+        # template.html no longer lives under assets/ (v1.5+); kept as a
+        # defensive skip in case anyone reverts the structure.
         if src.name == "template.html":
-            continue  # not an asset, it's the template
+            continue
         dst = out_assets / src.name
         if not dst.exists():
             shutil.copy2(src, dst)

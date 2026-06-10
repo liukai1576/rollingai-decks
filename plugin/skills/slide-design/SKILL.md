@@ -3,7 +3,7 @@ name: slide-design
 display_name: 幻灯片设计
 author: liukai
 kind: [创建, 构思]
-version: "0.7"
+version: "0.8"
 input:  existing deck.json (optional) + author intent
 output: deck.json with new slides appended (or fresh deck.json)
 triggers:
@@ -75,7 +75,7 @@ Once picked, the **per-pack authoring rules** below apply.
 ## 🛑 RULE — Template is NOT a storyline
 
 This is the single most common mistake when authoring with a layout pack
-that ships an example deck (e.g. `rolling-deck/assets/template.html` =
+that ships an example deck (e.g. `rolling-deck/template.html` =
 "10× Transformation" example with 16 specific slides). Internalize this
 before you write a single section:
 

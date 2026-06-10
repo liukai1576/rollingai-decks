@@ -21,6 +21,13 @@
       "runtimeExecutable": "python3",
       "runtimeArgs": ["-m", "http.server", "8766", "--directory", "imports/李锦记菜谱AI项目/render-output-full"],
       "port": 8766
+    },
+    {
+      "name": "rd-template",
+      "autoPort": false,
+      "runtimeExecutable": "python3",
+      "runtimeArgs": ["-m", "http.server", "8768", "--directory", "plugin/skills/rolling-deck"],
+      "port": 8768
     }
   ]
 }

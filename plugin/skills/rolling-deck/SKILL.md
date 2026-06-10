@@ -1,9 +1,9 @@
 ---
 name: rolling-deck
 display_name: RollingAI 风格 H5（粒子地球封面 · 磨砂玻璃）
-author: liukai
+author: ganyifan
 kind: [布局风格]
-version: "1.4"
+version: "1.5"
 input:  用户的 brief / 大纲 / 内容 (+ 可选：客户 logo)
 output: 单文件 index.html（assets/ 同目录），浏览器直接打开放映
 triggers:
@@ -12,7 +12,7 @@ triggers:
   - "做一个网页版 PPT / HTML 演示"
   - "rolling-deck"
 invocation: |
-  # Conversational. Claude 复制 plugin/skills/rolling-deck/assets/template.html
+  # Conversational. Claude 复制 plugin/skills/rolling-deck/template.html
   # 到目标位置，按 reference.md 的组件库替换内容、改 brand-rail logo / 封面文字。
   # 不动 <style> 和 <script> —— 那是模板全部价值。
 produces_layout_pack: true
@@ -38,6 +38,54 @@ produces_layout_pack: true
 偏好"暗色磨砂玻璃 + 粒子地球封面"质感时。如果用户明确要 `.pptx`（真正
 的 PowerPoint），用 `pptx` skill；如果用户已有 `deck.json` 想换风格，
 等 rolling-deck 加上 `render-deck.py` 适配器之后再用。
+
+## 📦 v1.5 — 29 页版式 + Lucide 图标 + URL 直达
+
+ganyifan 在 v1.5 把模板扩成 **29 页**，新增 **13 个通用版式**（除去原
+"10× Transformation" 案例的 16 页内容外）：
+
+| # | type | slide-key | 用途 |
+|---|---|---|---|
+| 17 | 章节过渡 | `tpl-divider` | 大编号水印 + 章节标题 |
+| 18 | 目录 | `tpl-agenda` | 两列图标条目 |
+| 19 | 全屏大图 | `tpl-full-image` | 整页背景图 + 左下文字 + Ken Burns |
+| 20 | 图文分栏 | `tpl-media-split` | 左图右文 + 要点列表 |
+| 21 | 多图网格 | `tpl-media-grid` | 三图 + 渐变图注 |
+| 22 | 视频 | `tpl-video` | 本地 mp4 / B 站 / YouTube iframe，翻页自动暂停 |
+| 23 | 数据图表 | `tpl-chart` | 柱状图生长 + 环形图描边 + KPI 数字滚动（纯 CSS/SVG） |
+| 24 | 金句 | `tpl-quote` | 大引号 + 逐字浮现 |
+| 25 | 对比 | `tpl-compare` | BEFORE/AFTER 双列 + VS 徽章 |
+| 26 | 时间轴 | `tpl-timeline` | 横向划线 + 5 节点 |
+| 27 | 团队 | `tpl-team` | 头像 / 姓名 / 角色 / 简介 × 4 |
+| 28 | Logo 墙 | `tpl-logos` | 4×2 合作伙伴 |
+| 29 | 结尾 | `tpl-end` | 金属扫光 Thank You + 联系方式 |
+
+打开 `assets/index.html` 一页浏览 29 页缩略图，点击直达。
+
+### 新 URL 直达参数
+
+- `template.html?slide=22` —— 直接打开第 22 页（视频页）
+- `template.html?slide=22&static=1` —— **静态模式**（关闭入场动画，适合截图 / 嵌入 iframe）
+
+### Lucide 图标库
+
+`assets/vendor/lucide.min.js` 已本地化，1500+ 图标统一描边网格，离线可用：
+
+```html
+<i data-lucide="rocket"></i>                              <!-- 任意位置 -->
+<span class="ico-chip"><i data-lucide="compass"></i></span>      <!-- 彩色方块 -->
+<span class="ico-chip blue|violet|green|fire">…</span>           <!-- 换主题色 -->
+<b class="ico-inline"><i data-lucide="mail"></i>文字</b>          <!-- 行内 -->
+```
+
+图标名查 https://lucide.dev/icons 。新增图标无需 JS 改动；动态插入后调一次 `lucide.createIcons()`。
+
+### 与 `slide-anim` 的关系
+
+rolling-deck **内置** ganyifan 的 GSAP 入场动画引擎（`assets/vendor/gsap.min.js` + `SplitText.min.js` + `TextPlugin.min.js` + 内联编排脚本）。
+**不要**再另外装 `slide-anim` skill —— 会双注册、重复动画。
+
+`slide-anim` skill 是这套引擎的**独立提取版**，用途是把它装到**非 rolling-deck**的 deck（feishu-deck-h5、纯手写 H5、Keynote 导入产物等）上。如果用户已经选 rolling-deck，动画白拿。
 
 ## 🛑 头号原则：template 不是故事线，是**风格 + 组件库 + 标准页**
 
@@ -228,7 +276,7 @@ bash plugin/skills/feishu-deck-h5/assets/verify-deck-shell.sh <deck-dir>
 
 ## 工作流程
 
-1. **复制模板**：把 `plugin/skills/rolling-deck/assets/template.html`
+1. **复制模板**：把 `plugin/skills/rolling-deck/template.html`
    拷到目标位置（一般是 `imports/<deck-id>/render-output-full/index.html`）
    并改名；把 `assets/` 里需要的 logo 一起带上（或换成用户的 logo）。
 2. 按上面"四件事"替换内容。

@@ -1,0 +1,201 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>HTML Deck Template · 模板总览</title>
+<style>
+  :root {
+    --bg: #07080a;
+    --line: rgba(255,255,255,.12);
+    --line-soft: rgba(255,255,255,.07);
+    --text: #f3f5f8;
+    --muted: #aab2bf;
+    --subtle: #79828f;
+    --yellow: #fbbf24;
+    --blue: #60a5fa;
+    --violet: #c4b5fd;
+    --fire: #ff5b2e;
+    --fire-glow: rgba(255,91,46,.42);
+    --glass-bg: rgba(13,17,24,.45);
+    --glass-border: rgba(255,255,255,.12);
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; color: var(--text);
+    font-family: "PingFang SC", "Microsoft YaHei", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    background:
+      radial-gradient(60% 40% at 12% 0%, rgba(255,122,54,.10), transparent 60%),
+      radial-gradient(55% 38% at 88% 4%, rgba(34,200,174,.09), transparent 60%),
+      radial-gradient(70% 50% at 50% 110%, rgba(56,132,255,.08), transparent 65%),
+      var(--bg);
+    min-height: 100vh;
+  }
+  .wrap { max-width: 1480px; margin: 0 auto; padding: 64px 48px 90px; }
+
+  /* ── header ── */
+  .hero { display: flex; flex-wrap: wrap; align-items: flex-end; justify-content: space-between; gap: 28px; }
+  .hero img.logo { width: 220px; display: block; margin-bottom: 18px; }
+  .kicker { color: var(--yellow); font-size: 15px; font-weight: 800; letter-spacing: .2em; }
+  h1 { margin: 12px 0 0; font-size: 56px; line-height: 1.08; letter-spacing: -.04em; }
+  h1 em {
+    font-style: normal;
+    background: linear-gradient(100deg, #f2a06b, #fff4ec 45%, #ffba8c 80%);
+    -webkit-background-clip: text; background-clip: text; color: transparent;
+  }
+  .sub { margin: 16px 0 0; max-width: 760px; color: var(--muted); font-size: 18px; line-height: 1.7; }
+  .chips { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 22px; }
+  .chips span {
+    padding: 8px 16px; border: 1px solid var(--line); border-radius: 99px;
+    background: rgba(255,255,255,.05); color: #cfd9e6; font-size: 14px; font-weight: 600;
+  }
+  .chips span b { color: var(--yellow); }
+  .cta {
+    display: inline-flex; align-items: center; gap: 12px;
+    padding: 18px 34px; border-radius: 99px; text-decoration: none;
+    background: linear-gradient(135deg, var(--fire), var(--yellow));
+    color: #1a0a04; font-size: 19px; font-weight: 900; letter-spacing: .02em;
+    box-shadow: 0 0 44px var(--fire-glow);
+    transition: transform .2s ease, box-shadow .2s ease;
+  }
+  .cta:hover { transform: translateY(-2px); box-shadow: 0 6px 60px var(--fire-glow); }
+
+  /* ── sections ── */
+  .section-title { display: flex; align-items: baseline; gap: 16px; margin: 70px 0 8px; }
+  .section-title h2 { margin: 0; font-size: 30px; letter-spacing: -.02em; }
+  .section-title small { color: var(--subtle); font-size: 15px; }
+  .section-note { margin: 0 0 24px; color: var(--muted); font-size: 15px; }
+
+  .grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 18px; }
+  @media (max-width: 1200px) { .grid { grid-template-columns: repeat(3, 1fr); } }
+  @media (max-width: 860px)  { .grid { grid-template-columns: repeat(2, 1fr); } }
+
+  .tile {
+    position: relative; display: block; overflow: hidden; text-decoration: none;
+    border: 1px solid var(--glass-border); border-radius: 16px; background: var(--glass-bg);
+    box-shadow: inset 0 1px 0 rgba(255,255,255,.08), 0 18px 50px -28px rgba(0,0,0,.7);
+    transition: transform .22s ease, border-color .22s ease, box-shadow .22s ease;
+  }
+  .tile:hover { transform: translateY(-5px); border-color: rgba(251,191,36,.55); box-shadow: 0 22px 60px -24px rgba(0,0,0,.85), 0 0 0 1px rgba(251,191,36,.25); }
+  .tile img { display: block; width: 100%; aspect-ratio: 16/9; object-fit: cover; background: #0a0d13; }
+  .tile-meta { display: flex; align-items: center; gap: 10px; padding: 13px 16px; border-top: 1px solid var(--line-soft); }
+  .tile-no { color: var(--subtle); font-size: 13px; font-weight: 800; letter-spacing: .08em; }
+  .tile-name { color: var(--text); font-size: 15.5px; font-weight: 700; }
+  .tile-tag {
+    margin-left: auto; padding: 3px 10px; border-radius: 99px;
+    font-size: 11.5px; font-weight: 800; letter-spacing: .06em;
+  }
+  .tag-tpl { background: rgba(251,191,36,.14); color: var(--yellow); border: 1px solid rgba(251,191,36,.3); }
+  .tag-demo { background: rgba(96,165,250,.12); color: var(--blue); border: 1px solid rgba(96,165,250,.28); }
+  .tile-hover {
+    position: absolute; inset: 0; display: grid; place-items: center;
+    background: rgba(5,7,10,.45); opacity: 0; transition: opacity .2s ease;
+  }
+  .tile:hover .tile-hover { opacity: 1; }
+  .tile-hover span {
+    padding: 10px 22px; border-radius: 99px; border: 1px solid rgba(255,255,255,.4);
+    background: rgba(5,7,10,.6); backdrop-filter: blur(8px);
+    color: #fff; font-size: 14px; font-weight: 800; letter-spacing: .06em;
+  }
+
+  /* ── footer tips ── */
+  .tips { margin-top: 76px; padding: 28px 32px; border: 1px solid var(--line); border-radius: 18px; background: var(--glass-bg); }
+  .tips h3 { margin: 0 0 14px; font-size: 19px; }
+  .tips ul { margin: 0; padding-left: 20px; color: var(--muted); font-size: 15px; line-height: 2; }
+  .tips code { padding: 2px 8px; border-radius: 6px; background: rgba(255,255,255,.08); color: #ffe6ab; font-size: 13.5px; }
+  .foot { margin-top: 36px; color: var(--subtle); font-size: 13px; text-align: center; letter-spacing: .08em; }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <header class="hero">
+    <div>
+      <img class="logo" src="assets/rolling-ai-logo.svg" alt="Rolling AI">
+      <span class="kicker">HTML DECK TEMPLATE · SHOWCASE</span>
+      <h1><em>29 种版式</em>，一套模板全搞定</h1>
+      <p class="sub">深色玻璃拟态 · 1920×1080 翻页式 HTML 演示模板。点击任意缩略图直达该页；复制对应 <b>&lt;section&gt;</b> 即可复用版式，改文字就能出片。</p>
+      <div class="chips">
+        <span><b>29</b> 页版式</span>
+        <span><b>GSAP 3.13</b> 动效引擎</span>
+        <span><b>Lucide</b> 1500+ 图标</span>
+        <span>离线可用</span>
+        <span>编辑模式</span>
+        <span>PDF 导出</span>
+      </div>
+    </div>
+    <a class="cta" href="template.html">▶ 开始演示</a>
+  </header>
+
+  <div class="section-title"><h2>通用模板页</h2><small>17 – 29 · 复制即用的日常版式</small></div>
+  <p class="section-note">章节 / 目录 / 图片 / 视频 / 图表 / 金句 / 对比 / 时间轴 / 团队 / Logo 墙 / 结尾 —— 每页顶部的 HTML 注释写明了替换方法。</p>
+  <div class="grid" id="grid-templates"></div>
+
+  <div class="section-title"><h2>示例内容页</h2><small>01 – 16 · 来自 10× 方案的实战版式</small></div>
+  <p class="section-note">粒子封面、卡片网格、双栏议程、周历表格、赛道矩阵、组织分层…… 同样可以整页复制当版式用。</p>
+  <div class="grid" id="grid-content"></div>
+
+  <div class="tips">
+    <h3>快速上手</h3>
+    <ul>
+      <li>新增一页：在 <code>template.html</code> 里复制任意 <code>&lt;section class="slide"&gt;</code>，页码、进度条自动更新</li>
+      <li>改文字：演示中点右下角 ⚙ → 编辑模式，点击页面文字直接改，自动保存</li>
+      <li>加图标：<code>&lt;i data-lucide="rocket"&gt;&lt;/i&gt;</code>，彩色方块用 <code>.ico-chip blue|violet|green|fire</code></li>
+      <li>加动效：<code>data-anim="rise|left|right|scale|blur"</code>、<code>data-stagger</code>、<code>data-count="98%"</code></li>
+      <li>直达某页：<code>template.html?slide=22</code>；导出 PDF：⚙ 面板内一键导出</li>
+    </ul>
+  </div>
+
+  <p class="foot">ROLLING AI · HTML DECK TEMPLATE · 详见 README.md</p>
+</div>
+
+<script>
+  const PAGES = [
+    ["粒子封面", "互动地球 · 金属扫光标题"],
+    ["方案概览", "大标题 + 四宫格数据"],
+    ["五个北极星", "Bento 目标网格"],
+    ["方法论", "双栏对照 + 结论横幅"],
+    ["三阶段总览", "三卡路线 + 里程碑条"],
+    ["两天工作坊", "双栏日程时间块"],
+    ["冲刺总览", "四卡阶段"],
+    ["Sprint W1–W4", "周历表格"],
+    ["Sprint W5–W8", "周历表格 + 里程碑"],
+    ["孵化方案", "三赛道纵览"],
+    ["孵化 W1–W4", "赛道 × 周矩阵"],
+    ["孵化 W5–W8", "赛道 × 周矩阵"],
+    ["四层治理架构", "组织分层"],
+    ["教练不代工", "口号横幅 + 三卡"],
+    ["会议节奏", "四卡节奏"],
+    ["CEO 赋能", "编号四卡 + 结论"],
+    ["章节过渡页", "大编号水印", 1],
+    ["目录页", "图标条目 × 6", 1],
+    ["全屏大图", "Ken Burns 缓推", 1],
+    ["图文分栏", "左图右文要点", 1],
+    ["多图网格", "三图 + 图注", 1],
+    ["视频页", "mp4 / B站 / YouTube", 1],
+    ["数据图表", "柱状 + 环形 + KPI", 1],
+    ["金句页", "大引号逐字浮现", 1],
+    ["对比页", "BEFORE / AFTER + VS", 1],
+    ["时间轴", "横向五节点", 1],
+    ["团队页", "头像四卡", 1],
+    ["Logo 墙", "4 × 2 背书", 1],
+    ["结尾页", "金属扫光 Thank You", 1]
+  ];
+  const pad = n => String(n).padStart(2, "0");
+  const tile = (i, name, desc, isTpl) => `
+    <a class="tile" href="template.html?slide=${i}" title="${name} · ${desc}">
+      <img loading="lazy" src="assets/thumbs/slide-${pad(i)}.png" alt="${name}">
+      <div class="tile-hover"><span>▶ 打开此页</span></div>
+      <div class="tile-meta">
+        <span class="tile-no">${pad(i)}</span>
+        <span class="tile-name">${name}</span>
+        <span class="tile-tag ${isTpl ? "tag-tpl" : "tag-demo"}">${isTpl ? "模板" : "示例"}</span>
+      </div>
+    </a>`;
+  document.getElementById("grid-templates").innerHTML =
+    PAGES.map((p, idx) => p[2] ? tile(idx + 1, p[0], p[1], true) : "").join("");
+  document.getElementById("grid-content").innerHTML =
+    PAGES.map((p, idx) => !p[2] ? tile(idx + 1, p[0], p[1], false) : "").join("");
+</script>
+</body>
+</html>

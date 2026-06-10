@@ -1,0 +1,22 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1600" height="900" viewBox="0 0 1600 900">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#10202c"/>
+      <stop offset=".55" stop-color="#0c141d"/>
+      <stop offset="1" stop-color="#070b10"/>
+    </linearGradient>
+    <pattern id="grid" width="80" height="80" patternUnits="userSpaceOnUse">
+      <path d="M80 0H0v80" fill="none" stroke="rgba(255,255,255,.05)" stroke-width="1"/>
+    </pattern>
+  </defs>
+  <rect width="1600" height="900" fill="url(#bg)"/>
+  <rect width="1600" height="900" fill="url(#grid)"/>
+  <circle cx="1300" cy="180" r="280" fill="rgba(34,200,174,.09)"/>
+  <circle cx="220" cy="780" r="300" fill="rgba(96,165,250,.08)"/>
+  <g transform="translate(800,400)">
+    <circle r="110" fill="rgba(255,255,255,.08)" stroke="rgba(255,255,255,.4)" stroke-width="6"/>
+    <path d="M-30 -52 L62 0 L-30 52 Z" fill="rgba(255,255,255,.55)"/>
+  </g>
+  <text x="800" y="588" text-anchor="middle" font-family="PingFang SC, sans-serif" font-size="34" font-weight="700" fill="rgba(255,255,255,.5)">替换视频 · MP4 / WebM 或 iframe 嵌入</text>
+  <text x="800" y="638" text-anchor="middle" font-family="PingFang SC, sans-serif" font-size="22" fill="rgba(255,255,255,.28)">&lt;video src="assets/your-video.mp4"&gt; 或 B站 / YouTube iframe</text>
+</svg>
