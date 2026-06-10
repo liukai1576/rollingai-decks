@@ -79,6 +79,69 @@
     .slide-fit { transform-origin: top left; }
     @keyframes reveal { from { opacity: 0; transform: translateY(14px); } to { opacity: 1; transform: translateY(0); } }
 
+    /* === Vertical fill ===
+       Before: .slide-fit was just a static block, so content flowed top-down
+       and short slides (one section-head + one grid of 3 cards) left a tall
+       empty band at the bottom (~30% of the slide was dead space).
+       Now: .slide-fit is a flex column. Headers and footer bands stay at
+       their natural height. The main content block (any cards/hero-stats/
+       goals-grid/approach-grid/tl-weeks/calendar-wrap/org-stack) gets
+       `flex: 1` so it claims the remaining vertical room, and uses
+       `align-content: center` so its rows visually center within that room.
+       Authors don't have to do anything per-slide. */
+    .slide-fit { height: 100%; display: flex; flex-direction: column; }
+    .slide-fit > .section-head,
+    .slide-fit > .goals-head,
+    .slide-fit > .cover-wrap,
+    .slide-fit > .tl-section-label,
+    .slide-fit > .legend { flex: 0 0 auto; }
+    .slide-fit > .band,
+    .slide-fit > .synth-band,
+    .slide-fit > .cadence-note,
+    .slide-fit > .ceo-core,
+    .slide-fit > .coach-band,
+    .slide-fit > .goals-foot,
+    .slide-fit > .end-contact,
+    .slide-fit > .cover-note,
+    .slide-fit > .phase-strip { flex: 0 0 auto; }
+    .slide-fit > .cards-2,
+    .slide-fit > .cards-3,
+    .slide-fit > .cards-4,
+    .slide-fit > .cards-6,
+    .slide-fit > .hero-stats,
+    .slide-fit > .goals-grid,
+    .slide-fit > .approach-grid,
+    .slide-fit > .tl-weeks,
+    .slide-fit > .org-stack {
+      flex: 1 1 auto;
+      min-height: 0;
+      /* Center the grid's rows (one row gets centered within the container
+         when there's free space). Use `auto` rows so items sit at content
+         height instead of stretching to fill the inflated container. */
+      align-content: center;
+      grid-auto-rows: max-content;
+      align-items: start;
+    }
+    /* goals-grid has TWO explicit rows (`1fr 1fr`) — keep its existing
+       row scheme so the 5-card "1 lead + 4 supporting" layout still works. */
+    .slide-fit > .goals-grid { grid-auto-rows: auto; }
+    .slide-fit > .calendar-wrap {
+      flex: 1 1 auto;
+      min-height: 0;
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+    }
+    /* Plain lists (ol/ul) as the main content block — center them vertically. */
+    .slide-fit > ol,
+    .slide-fit > ul {
+      flex: 1 1 auto;
+      min-height: 0;
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+    }
+
     .brand-rail {
       position: absolute; left: 76px; right: 76px; top: 34px; z-index: 75;
       display: flex; align-items: center; gap: 24px;

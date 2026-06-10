@@ -1,8 +1,9 @@
 ---
 name: rolling-deck
 display_name: RollingAI 风格 H5（粒子地球封面 · 磨砂玻璃）
+author: liukai
 kind: [布局风格]
-version: "1.3"
+version: "1.4"
 input:  用户的 brief / 大纲 / 内容 (+ 可选：客户 logo)
 output: 单文件 index.html（assets/ 同目录），浏览器直接打开放映
 triggers:
@@ -68,6 +69,78 @@ produces_layout_pack: true
    或 4-card grid，**不要**强行编出 4、5 凑齐 `lead-card + 4 cards`
    的 5 格版式。
 
+## 🔍 自检：每张 slide 的空间利用率（必跑）
+
+做完一份 deck 后，跑一次 **check-fill** 看每张 slide 内容有没有撑满 1080
+垂直空间。`./assets/check-fill.js` 自带逻辑：
+
+**三种用法（挑一种）：**
+
+```bash
+# 1) URL 加 ?check
+#    把片段 <script src="assets/check-fill.js"></script> 放进 index.html
+#    （或拷贝到 deck 的 assets/ 里），然后访问：
+open "http://localhost:8766/index.html?check"
+#    控制台自动打印每张 slide 的 fillPct + 汇总
+```
+
+```html
+<!-- 2) HTML 里加一行，按需调用 -->
+<script src="assets/check-fill.js"></script>
+<script>RollingDeckCheck.printReport();</script>
+```
+
+```js
+// 3) 开发者控制台手动 paste
+fetch("/plugin/skills/rolling-deck/assets/check-fill.js")
+  .then(r => r.text()).then(t => (new Function(t))()).then(() => RollingDeckCheck.printReport());
+```
+
+**它会输出什么：**
+
+每张非 cover slide 一行，含：
+- `fillPct` —— 内容底边 / 可用 874px 区域
+- `verdict` —— `OK` (80-105%) · `缺` (< 80%) · `溢` (> 105%)
+- `structure` —— 这页 .slide-fit 的直接子元素链（`div.section-head + div.approach-grid`）
+- 汇总 `{ total, ok, underfill, overflow }`
+
+**LKK SOW 这次 check 结果：**
+```
+12/12 OK · 0 缺 · 0 溢
+```
+所有 12 张内容页都精准 100%。
+
+**什么时候必跑：**
+- 拷模板做完 deck → **跑**
+- 改了某张 slide 的内容（加/删卡片、改文案）→ **跑**
+- 自定义了某页的 layout（hand-rolled `<div>` 不在标准组件库里）→ **跑**
+- 看到底部一片黑或文字溢出 nav bar → **跑**
+
+`缺` 的页面意味着：
+- 用了 `<div data-stagger>` 这种**不是标准组件**的容器（不在 `.slide-fit` flex-1 列表里）—— 把它换成 cards-N / approach-grid / hero-stats 等标准组件
+- 用了纯文字段落 `<p>` 当主内容 —— 包一层 `<div class="card">` 或者改成 cards-N
+- 用了 `align-self: start` 的逃生口但忘了对应内容
+
+`溢` 的页面意味着：
+- 单卡 `min-height` 强制过大（旧版本的 workaround，现在可以删掉）
+- 内容真的太多了，应该拆成两页
+
+## ✅ 自动垂直填满 — 不要再手动操心了
+
+从 v1.4 起，`.slide-fit` 是 flex 列容器：
+- 顶端：`.section-head` / `.goals-head` / `.cover-wrap` / `.tl-section-label` / `.legend` — 自然高度
+- 底端：`.synth-band` / `.band` / `.cadence-note` / `.ceo-core` / `.coach-band` / `.goals-foot` / `.end-contact` / `.cover-note` / `.phase-strip` — 自然高度
+- **中间主内容块自动抢占剩余垂直空间，内容居中**：`.cards-{2,3,4,6}` / `.hero-stats` / `.goals-grid` / `.approach-grid` / `.tl-weeks` / `.org-stack` / `.calendar-wrap` / 直接 `<ol>`、`<ul>`
+
+**所以现在你不需要：**
+- 凑数据塞满版式（goals-grid 5 卡只有 3 条目标也不用编凑）
+- 手动 `min-height` 让卡片膨胀
+- 在 slide 上加 padding / margin 撑高度
+
+引擎自己 flex 把内容居中到可用区域。短内容看起来"居中漂浮"，长内容自然撑满。
+
+不想被居中、要让某一页内容继续顶到上方？给那个 main content 加一行 inline style：`style="align-self: start; flex: 0 0 auto;"`。
+
 ## 只换内容，不动引擎
 
 模板里这些**绝对不要改**（它们是模板的全部价值）：
@@ -118,6 +191,37 @@ JS 用 `getElementById("prevBtn")` / `…("modeSwitch")` 这些 id 硬挂。
 ```bash
 bash plugin/skills/feishu-deck-h5/assets/verify-deck-shell.sh <deck-dir>
 ```
+
+### ⚠️ 加自定义 slide 类时千万别覆盖 `display`
+
+模板用这套机制一次只显示一张幻灯片：
+
+```css
+.slide { display: none; }
+.slide.active { display: block; animation: reveal .28s ease-out; }
+```
+
+当你为某种自定义页（金句页、特殊封面、收口页）写新样式时，**绝对不要**
+在 `.slide.<你的类>` 上直接覆盖 `display`：
+
+```css
+/* ❌ BAD —— 2-class 同优先级，但你的 CSS 在后面，赢过 .slide.active。
+   所有 .slide.quote-page 永远 display:flex，全部堆在一起；
+   最后渲染的那张盖在最上面，看起来每一页都是同一张。 */
+.slide.quote-page { display: flex; align-items: center; ... }
+```
+
+正确写法 —— 把 flex 行为约束在 `.active` 上，让选择器升到 3-class，
+胜过 `.slide.active`：
+
+```css
+/* ✅ GOOD */
+.slide.quote-page { padding: 60px 80px; }   /* 不影响 display 的属性写这里 */
+.slide.quote-page.active { display: flex; align-items: center; justify-content: center; }
+```
+
+**症状识别：** 翻页按钮还能按，但每页都是同一张内容（通常是 DOM 顺序
+最后那张，因为它绘制最晚、覆盖在最上）。看起来像"播放器卡住了"。
 
 它会自动识别 pack 是 rolling-deck，逐一检查 14 个控件 id 是否齐全。
 出红字就把模板里那段 Controls 重新塞回 `</main>` 前。
