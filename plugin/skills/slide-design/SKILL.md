@@ -1,8 +1,9 @@
 ---
 name: slide-design
 display_name: 幻灯片设计
+author: liukai
 kind: [创建, 构思]
-version: "0.6"
+version: "0.7"
 input:  existing deck.json (optional) + author intent
 output: deck.json with new slides appended (or fresh deck.json)
 triggers:

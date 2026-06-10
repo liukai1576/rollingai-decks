@@ -160,6 +160,8 @@ def list_skills(strict: bool = True) -> list[dict]:
                   f"{sorted(CANONICAL_KINDS)} — slot under '其他'")
         if not kinds:
             _warn(f"{skill_id}: no `kind:` declared — slot under '其他'")
+        if not (meta.get("author") or "").strip():
+            _warn(f"{skill_id}: no `author:` declared in SKILL.md frontmatter")
 
         # Try-relative-path; fall back to absolute if outside the repo
         # (e.g. when plugin/ is vendored elsewhere — see review note).
@@ -174,6 +176,9 @@ def list_skills(strict: bool = True) -> list[dict]:
             # Optional human-readable Chinese label. Falls back to `name` so
             # any UI that just reads `display_name` is safe with older skills.
             "display_name": meta.get("display_name") or meta.get("中文名") or name,
+            # Optional skill author. Every skill SHOULD declare one — surfaces
+            # in the admin UI so it's clear who owns each skill.
+            "author":       (meta.get("author") or "").strip(),
             "kind":         kinds,
             "version":      meta.get("version") or "",
             "description":  description,

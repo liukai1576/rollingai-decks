@@ -1,8 +1,9 @@
 ---
 name: dedup-probe
 display_name: 跨册查重
+author: liukai
 kind: [管理分析]
-version: "0.4"
+version: "0.5"
 input:  one source deck_id + N target deck_ids (in slides.db)
 output: library/db/data/UNIFIED-PROBE-<source>.md report
 triggers:

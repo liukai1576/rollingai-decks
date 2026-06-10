@@ -1,8 +1,9 @@
 ---
 name: thumb-gen
 display_name: 缩略图生成
+author: liukai
 kind: [管理分析]
-version: "0.4"
+version: "0.5"
 input:  slides.db (rows pointing at rendered deck output dirs)
 output: 480×270 JPG per slide under library/db/data/thumbs/<deck_id>/<slide_key>.jpg
 triggers:

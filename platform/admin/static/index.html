@@ -648,8 +648,12 @@
                   </div>
                   <div class="skill-card-slug"
                        style="font-family:monospace;font-size:11px;color:var(--text-faint);
-                              margin-top:-2px;margin-bottom:6px;"
+                              margin-top:-2px;margin-bottom:2px;"
                        x-text="sk.name"></div>
+                  <div class="skill-card-author"
+                       style="font-size:11px;color:var(--text-faint);margin-bottom:6px;"
+                       x-text="sk.author ? '作者 · ' + sk.author : '作者 · —'"
+                       :style="sk.author ? '' : 'color:#c4456a;'"></div>
                   <div class="skill-card-kinds">
                     <template x-for="k in sk.kind" :key="k">
                       <span class="chip" :class="{ 'chip-pack': sk.produces_layout_pack }"

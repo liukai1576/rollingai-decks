@@ -1,8 +1,9 @@
 ---
 name: slim-deck
 display_name: Deck 瘦身
+author: liukai
 kind: [管理分析]
-version: "0.2"
+version: "0.3"
 input:  a deck project directory (containing render-output-full/, optionally media/, source.pdf, redesigns/, etc.)
 output: "same directory, slimmed: deck made self-contained, orphans + cache + external sources removed"
 triggers:

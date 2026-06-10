@@ -1,0 +1,27 @@
+<!--
+  slide-anim — drop-in animation engine.
+
+  Paste this block immediately before </body> of any deck that uses the
+  `.slide` / `.slide.active` convention (rolling-deck, feishu-deck-h5,
+  hand-authored). The engine auto-hooks via MutationObserver — you do NOT
+  need to modify the deck's existing show() / paging code.
+
+  Path-resolve: if your deck lives at imports/<deck>/render-output-full/
+  you'll typically copy the 4 JS files into a per-deck subdir and adjust
+  the src= paths below. The 4 files are independent — no relative-path
+  assumptions between them.
+-->
+<script src="assets/slide-anim/gsap-3.13.0.min.js"></script>
+<script src="assets/slide-anim/gsap-splittext-3.13.0.min.js"></script>
+<script src="assets/slide-anim/gsap-textplugin-3.13.0.min.js"></script>
+<script src="assets/slide-anim/slide-anim.js"></script>
+<script>
+  // Wait for the deck's initial slide to be in the DOM, then hand control to
+  // slide-anim. autoHook() animates the current .slide.active immediately and
+  // re-animates every time the .active class jumps to a new slide.
+  if (document.readyState === "loading") {
+    document.addEventListener("DOMContentLoaded", () => RollingSlideAnim.autoHook());
+  } else {
+    RollingSlideAnim.autoHook();
+  }
+</script>

@@ -1,8 +1,9 @@
 ---
 name: slide-fingerprint
 display_name: 幻灯片指纹
+author: liukai
 kind: [管理分析]
-version: "0.3"
+version: "0.4"
 input:  deck_id + path to original .key bundle
 output: slides.db rows get iwa_uuid + element_sig + template_sig filled
 triggers:
