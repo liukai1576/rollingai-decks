@@ -46,11 +46,12 @@ REPO = Path(__file__).resolve().parents[2]
 DB_PATH = REPO / "library" / "db" / "data" / "slides.db"
 THUMBS_DIR = REPO / "library" / "db" / "data" / "thumbs"
 
-DECK_RENDER_DIRS: dict[str, Path] = {
-    "RollingAI分享":              REPO / "imports" / "RollingAI分享" / "render-output-full",
-    "AI案例分享和AI转型建议-导入": REPO / "imports" / "AI案例分享" / "render-output-full",
-    "10x-transformation":         REPO / "imports" / "10x-transformation" / "render-output-full",
-}
+# Auto-discover from imports/. Legacy DB-id → dir-name aliases (e.g.
+# "AI案例分享和AI转型建议-导入" → "AI案例分享") live in the optional,
+# gitignored file imports/.deck-mounts.json.
+from deck_mounts import discover_mounts  # same package: library/db/
+
+DECK_RENDER_DIRS: dict[str, Path] = discover_mounts(REPO)
 
 CHROME = "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome"
 # Render at 960×540 (2x retina) — paints faster than 1920×1080 and

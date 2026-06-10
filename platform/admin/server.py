@@ -48,10 +48,15 @@ sys.path.insert(0, str(REPO / "plugin"))
 
 # Decks live outside the public repo (imports/ is gitignored). The admin
 # server only proxies them locally for the preview iframe.
-DECK_PATHS: dict[str, Path] = {
-    "kangshifu":         REPO / "imports" / "RollingAI分享" / "render-output-full",
-    "10x-transformation": REPO / "imports" / "10x-transformation" / "render-output-full",
-}
+#
+# Mount discovery is now dynamic — any imports/<deck_id>/render-output-full/
+# with an index.html is auto-mounted. Legacy DB-id → dir-name aliases (e.g.
+# "kangshifu" → "RollingAI分享") live in the optional, gitignored file
+# imports/.deck-mounts.json. See library/db/deck_mounts.py.
+sys.path.insert(0, str(REPO / "library" / "db"))
+from deck_mounts import discover_mounts  # noqa: E402
+
+DECK_PATHS: dict[str, Path] = discover_mounts(REPO)
 
 _DECK_TITLE_CACHE: dict[str, str] = {}
 
