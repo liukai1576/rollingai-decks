@@ -380,6 +380,127 @@
     border-radius: 50%; animation: spin 0.8s linear infinite;
   }
   @keyframes spin { to { transform: rotate(360deg); } }
+
+  /* ---- cart (add-to-deck) ---- */
+  .task-dot {
+    display: inline-block; width: 7px; height: 7px; margin-left: 5px;
+    border-radius: 50%; background: var(--accent);
+    animation: pulse 1.2s ease-in-out infinite;
+    vertical-align: middle;
+  }
+  @keyframes pulse { 0%,100% { opacity: 1; } 50% { opacity: 0.3; } }
+
+  .cart-check { cursor: pointer; width: 15px; height: 15px; accent-color: var(--accent); }
+  .check-cell { width: 30px; text-align: center; }
+
+  .cart-bar {
+    position: fixed; left: 50%; bottom: 18px; transform: translateX(-50%);
+    z-index: 60;
+    display: flex; align-items: center; gap: 14px;
+    background: var(--panel); border: 1px solid var(--accent);
+    border-radius: 999px; padding: 9px 20px;
+    box-shadow: 0 8px 30px rgba(0,0,0,.5);
+    font-size: 13px;
+  }
+  .cart-bar b { color: var(--accent); }
+  .cart-bar button {
+    background: var(--panel-2); color: var(--text);
+    border: 1px solid var(--hairline); border-radius: 999px;
+    padding: 5px 14px; cursor: pointer; font-size: 12.5px;
+  }
+  .cart-bar button:hover { border-color: var(--accent); }
+  .cart-bar button.primary { background: var(--accent); color: #10141c; font-weight: 700; border: 0; }
+  .cart-bar button.ghost { background: transparent; border: 0; color: var(--text-dim); }
+
+  .cart-panel {
+    position: fixed; left: 50%; bottom: 70px; transform: translateX(-50%);
+    z-index: 59; width: min(860px, 92vw); max-height: 46vh; overflow-y: auto;
+    background: var(--panel); border: 1px solid var(--hairline);
+    border-radius: 12px; padding: 14px 16px;
+    box-shadow: 0 12px 40px rgba(0,0,0,.55);
+  }
+  .cart-panel .item {
+    display: flex; align-items: center; gap: 12px;
+    padding: 6px 4px; border-bottom: 1px solid var(--hairline);
+    font-size: 13px;
+  }
+  .cart-panel .item:last-child { border-bottom: 0; }
+  .cart-panel .item img { width: 88px; aspect-ratio: 16/9; object-fit: cover; border-radius: 4px; }
+  .cart-panel .item .src { color: var(--text-faint); font-size: 11.5px; }
+  .cart-panel .item .rm {
+    margin-left: auto; background: transparent; border: 0;
+    color: var(--text-dim); cursor: pointer; font-size: 15px;
+  }
+  .cart-panel .item .rm:hover { color: #ff7878; }
+
+  /* ---- insert-position modal ---- */
+  .modal-mask {
+    position: fixed; inset: 0; z-index: 80;
+    background: rgba(6,8,12,.72); backdrop-filter: blur(3px);
+    display: flex; align-items: center; justify-content: center;
+  }
+  .pos-modal {
+    width: min(1080px, 94vw); max-height: 86vh; overflow-y: auto;
+    background: var(--panel); border: 1px solid var(--hairline);
+    border-radius: 14px; padding: 22px 24px;
+  }
+  .pos-modal h3 { margin: 0 0 6px; font-size: 16px; }
+  .pos-modal .hint { color: var(--text-dim); font-size: 12.5px; margin: 0 0 16px; }
+  .filmstrip { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; }
+  .filmstrip .page {
+    width: 128px; flex: 0 0 auto; text-align: center;
+  }
+  .filmstrip .page img, .filmstrip .page .ph {
+    width: 100%; aspect-ratio: 16/9; object-fit: cover;
+    border-radius: 5px; border: 1px solid var(--hairline);
+    background: var(--panel-2);
+    display: flex; align-items: center; justify-content: center;
+    color: var(--text-faint); font-size: 11px;
+  }
+  .filmstrip .page .pno { font-size: 11px; color: var(--text-dim); margin-top: 3px; }
+  .gap-btn {
+    flex: 0 0 auto; width: 26px; height: 72px;
+    border-radius: 6px; border: 1px dashed var(--hairline);
+    background: transparent; color: var(--text-faint);
+    cursor: pointer; font-size: 16px; line-height: 1;
+  }
+  .gap-btn:hover { border-color: var(--accent); color: var(--accent); }
+  .gap-btn.chosen { border: 2px solid var(--accent); color: var(--accent); background: rgba(124,196,255,.08); }
+  .pos-modal .actions { display: flex; gap: 10px; justify-content: flex-end; margin-top: 18px; }
+  .pos-modal .actions button {
+    border-radius: 8px; padding: 8px 18px; cursor: pointer; font-size: 13px;
+    background: var(--panel-2); color: var(--text); border: 1px solid var(--hairline);
+  }
+  .pos-modal .actions button.primary { background: var(--accent); color: #10141c; font-weight: 700; border: 0; }
+  .pos-modal .actions button:disabled { opacity: .45; cursor: not-allowed; }
+
+  /* ---- tasks view ---- */
+  .task-card {
+    background: var(--panel); border: 1px solid var(--hairline);
+    border-radius: 10px; padding: 14px 16px; margin-bottom: 12px;
+    font-size: 13px;
+  }
+  .task-card .head { display: flex; align-items: center; gap: 10px; cursor: pointer; }
+  .task-card .status {
+    font-size: 11.5px; font-weight: 700; border-radius: 999px; padding: 3px 10px;
+  }
+  .task-card .status.queued  { background: #3a3f4d; color: #cdd3e0; }
+  .task-card .status.running { background: #2b4a6d; color: #9fd0ff; }
+  .task-card .status.done    { background: #234a32; color: #7fe0a4; }
+  .task-card .status.failed  { background: #5a2733; color: #ff9aa8; }
+  .task-card .meta { color: var(--text-dim); font-size: 12px; }
+  .task-card pre {
+    margin: 10px 0 0; padding: 10px 12px; border-radius: 8px;
+    background: #0b0e14; border: 1px solid var(--hairline);
+    color: #b9c2d4; font-size: 11.5px; line-height: 1.55;
+    max-height: 320px; overflow-y: auto; white-space: pre-wrap;
+  }
+  .story-cart-btn {
+    background: var(--panel-2); border: 1px solid var(--hairline);
+    color: var(--text-dim); border-radius: 6px; padding: 3px 10px;
+    cursor: pointer; font-size: 12px; margin-top: 6px;
+  }
+  .story-cart-btn:hover { border-color: var(--accent); color: var(--accent); }
 </style>
 </head>
 <body x-data="app()" x-init="boot()" :class="{ 'no-sidebar': view !== 'slides' }">
@@ -392,6 +513,9 @@
     <button :class="{active: view==='slides'}" @click="view='slides'">幻灯片</button>
     <button :class="{active: view==='stories'}" @click="view='stories'">故事</button>
     <button :class="{active: view==='skills'}" @click="view='skills'">技能</button>
+    <button :class="{active: view==='tasks'}" @click="view='tasks'">
+      任务<span class="task-dot" x-show="hasActiveTask"></span>
+    </button>
   </div>
   <input class="search" type="search"
          :placeholder="view==='decks' ? '搜索 Deck（按名称）'
@@ -511,6 +635,11 @@
       <table class="slide-table" x-show="slides.length">
         <thead>
           <tr>
+            <th class="check-cell" @click.stop>
+              <input type="checkbox" class="cart-check"
+                     :checked="slides.length && slides.every(s => inCart(s.id))"
+                     @change="toggleAllVisible($event.target.checked)">
+            </th>
             <th class="page-no">页</th>
             <th class="thumb-cell">缩略图</th>
             <th>标题</th>
@@ -524,6 +653,11 @@
         <tbody>
           <template x-for="s in slides" :key="s.id">
             <tr @click="openSlide(s.id)">
+              <td class="check-cell" @click.stop>
+                <input type="checkbox" class="cart-check"
+                       :checked="inCart(s.id)"
+                       @change="toggleCart(s)">
+              </td>
               <td class="page-no" x-text="s.page_no"></td>
               <td class="thumb-cell">
                 <template x-if="s.thumbnail_path">
@@ -609,6 +743,9 @@
                          @blur="commitEditTitle(st)">
                 </h3>
               </template>
+              <button class="story-cart-btn" @click.stop="addStoryToCart(st)">
+                🛒 整组加入购物车 (<span x-text="st.slide_count"></span> 张)
+              </button>
             </div>
           </div>
         </template>
@@ -677,7 +814,132 @@
       </template>
     </div>
   </template>
+
+  <!-- Tasks view -->
+  <template x-if="view === 'tasks'">
+    <div>
+      <h2>任务 · <span x-text="tasks.length"></span> 条
+        <span x-show="loading" class="spinner"></span>
+      </h2>
+      <p style="color:var(--text-dim);font-size:13px;margin:0 0 20px;">
+        购物车「加入 Deck」生成的后台任务。一次只跑一个，跑完自动开始下一个。
+      </p>
+      <template x-for="t in tasks" :key="t.id">
+        <div class="task-card">
+          <div class="head" @click="toggleTaskLog(t)">
+            <span class="status" :class="t.status" x-text="({queued:'排队中',running:'运行中',done:'完成',failed:'失败'})[t.status] || t.status"></span>
+            <b x-text="(t.payload && t.payload.target_deck_id) || t.kind"></b>
+            <span class="meta">
+              <template x-if="t.payload && t.payload.items">
+                <span>
+                  插入 <b x-text="t.payload.items.length"></b> 张到第
+                  <b x-text="t.payload.after_page"></b> 页之后
+                </span>
+              </template>
+            </span>
+            <span class="meta" style="margin-left:auto" x-text="t.created_at"></span>
+          </div>
+          <template x-if="t.error">
+            <div style="color:#ff9aa8;font-size:12px;margin-top:6px;" x-text="t.error"></div>
+          </template>
+          <template x-if="expandedTask === t.id">
+            <pre x-text="taskLog || '（无日志）'"></pre>
+          </template>
+        </div>
+      </template>
+      <div class="empty" x-show="!loading && !tasks.length">还没有任务 — 在「幻灯片」勾选几张，点「加入 Deck」试试</div>
+    </div>
+  </template>
 </main>
+
+<!-- ===== Cart bar + panel ===== -->
+<template x-if="cart.length && view !== 'tasks'">
+  <div>
+    <div class="cart-panel" x-show="cartOpen" @click.outside="cartOpen = false">
+      <template x-for="(it, i) in cart" :key="it.id">
+        <div class="item">
+          <span style="color:var(--text-faint);width:18px;text-align:right;" x-text="i+1"></span>
+          <template x-if="it.thumbnail_path">
+            <img :src="'/' + it.thumbnail_path" loading="lazy" alt="">
+          </template>
+          <div>
+            <div x-text="it.title || it.slide_key"></div>
+            <div class="src" x-text="it.deck_id + ' · ' + it.slide_key"></div>
+          </div>
+          <button class="rm" title="移出" @click="removeFromCart(it.id)">✕</button>
+        </div>
+      </template>
+    </div>
+    <div class="cart-bar">
+      <span>已选 <b x-text="cart.length"></b> 张</span>
+      <button class="ghost" @click="cartOpen = !cartOpen"
+              x-text="cartOpen ? '收起' : '查看'"></button>
+      <button class="primary" @click="openInsertModal()">加入 Deck →</button>
+      <button class="ghost" @click="clearCart()">清空</button>
+    </div>
+  </div>
+</template>
+
+<!-- ===== Insert position modal ===== -->
+<template x-if="insertModal.open">
+  <div class="modal-mask" @click.self="closeInsertModal()">
+    <div class="pos-modal">
+      <h3>插入到哪个 Deck、哪一页之后？</h3>
+      <p class="hint">
+        将插入 <b x-text="cart.length"></b> 张 · 原样拷贝（DOM + 素材），不改风格不加 logo ·
+        只有 rolling-deck 壳的 deck 可以作为目标
+      </p>
+      <div style="margin-bottom:14px;">
+        <select x-model="insertModal.targetDeck" @change="loadTargetPages()"
+                style="background:var(--panel-2);color:var(--text);border:1px solid var(--hairline);
+                       border-radius:8px;padding:8px 12px;font-size:13px;min-width:320px;">
+          <option value="" disabled>选择目标 Deck…</option>
+          <template x-for="d in rollingTargets" :key="d.deck_id">
+            <option :value="d.deck_id"
+                    x-text="(d.display_name || d.deck_id) + ' (' + d.slide_count + ' 页)'"></option>
+          </template>
+        </select>
+      </div>
+      <template x-if="insertModal.targetDeck && insertModal.pages.length">
+        <div class="filmstrip">
+          <button class="gap-btn" :class="{chosen: insertModal.afterPage === 0}"
+                  title="插入到最前" @click="insertModal.afterPage = 0">+</button>
+          <template x-for="p in insertModal.pages" :key="p.id">
+            <template x-if="true">
+              <div style="display:flex;align-items:center;gap:6px;">
+                <div class="page">
+                  <template x-if="p.thumbnail_path">
+                    <img :src="'/' + p.thumbnail_path" loading="lazy" alt="">
+                  </template>
+                  <template x-if="!p.thumbnail_path">
+                    <div class="ph">无图</div>
+                  </template>
+                  <div class="pno" x-text="'p' + p.page_no"></div>
+                </div>
+                <button class="gap-btn" :class="{chosen: insertModal.afterPage === p.page_no}"
+                        :title="'插入到第 ' + p.page_no + ' 页之后'"
+                        @click="insertModal.afterPage = p.page_no">+</button>
+              </div>
+            </template>
+          </template>
+        </div>
+      </template>
+      <template x-if="insertModal.afterPage !== null">
+        <p style="color:var(--accent);font-size:13px;margin:14px 0 0;">
+          ✓ 将插入到
+          <b x-text="insertModal.afterPage === 0 ? '最前面（第 1 页之前）' : '第 ' + insertModal.afterPage + ' 页之后'"></b>
+        </p>
+      </template>
+      <div class="actions">
+        <button @click="closeInsertModal()">取消</button>
+        <button class="primary"
+                :disabled="!insertModal.targetDeck || insertModal.afterPage === null || insertModal.submitting"
+                @click="submitInsert()"
+                x-text="insertModal.submitting ? '创建中…' : '创建插入任务'"></button>
+      </div>
+    </div>
+  </div>
+</template>
 
 <!-- ===== Skill drawer ===== -->
 <div class="drawer" :class="{open: !!skillDetail}">
@@ -947,11 +1209,36 @@ function app() {
       type_tag: null, customer_tag: null, media_tag: null,
       needs_review: null, search: '',
     },
+    // ---- cart (add-to-deck) ----
+    cart: JSON.parse(localStorage.getItem('deck-cart') || '[]'),
+    cartOpen: false,
+    insertModal: {
+      open: false, targetDeck: '', pages: [],
+      afterPage: null, submitting: false,
+    },
+    rollingTargets: [],     // decks usable as insert targets
+    // ---- tasks ----
+    tasks: [],
+    expandedTask: null,
+    taskLog: '',
+    hasActiveTask: false,
+    _taskTimer: null,
 
     async boot() {
       await this.loadStats();
       await this.refresh();
       this.$watch('view', () => this.refresh());
+      // Light poll for the topbar task indicator (even outside the tasks tab).
+      const ping = async () => {
+        try {
+          const r = await fetch('/api/tasks?limit=5');
+          const d = await r.json();
+          this.hasActiveTask = (d.tasks || []).some(
+            t => t.status === 'queued' || t.status === 'running');
+        } catch { /* server restarting — ignore */ }
+        setTimeout(ping, this.hasActiveTask ? 3000 : 15000);
+      };
+      ping();
     },
 
     async loadStats() {
@@ -965,6 +1252,7 @@ function app() {
       else if (this.view === 'stories') await this.loadStories();
       else if (this.view === 'decks')   await this.loadDecks();
       else if (this.view === 'skills')  await this.loadSkills();
+      else if (this.view === 'tasks')   await this.loadTasks();
       this.loading = false;
     },
 
@@ -1118,6 +1406,155 @@ function app() {
       } else {
         alert('保存失败：' + r.status);
       }
+    },
+
+    // ---- Cart (add-to-deck) ----
+    _saveCart() {
+      localStorage.setItem('deck-cart', JSON.stringify(this.cart));
+    },
+    inCart(id) { return this.cart.some(it => it.id === id); },
+    toggleCart(s) {
+      if (this.inCart(s.id)) {
+        this.cart = this.cart.filter(it => it.id !== s.id);
+      } else {
+        this.cart.push({
+          id: s.id, deck_id: s.deck_id, slide_key: s.slide_key,
+          title: s.title, thumbnail_path: s.thumbnail_path,
+        });
+      }
+      this._saveCart();
+    },
+    toggleAllVisible(checked) {
+      if (checked) {
+        for (const s of this.slides) {
+          if (!this.inCart(s.id)) this.toggleCart(s);
+        }
+      } else {
+        const visible = new Set(this.slides.map(s => s.id));
+        this.cart = this.cart.filter(it => !visible.has(it.id));
+        this._saveCart();
+      }
+    },
+    removeFromCart(id) {
+      this.cart = this.cart.filter(it => it.id !== id);
+      this._saveCart();
+      if (!this.cart.length) this.cartOpen = false;
+    },
+    clearCart() {
+      this.cart = [];
+      this.cartOpen = false;
+      this._saveCart();
+    },
+    async addStoryToCart(st) {
+      // Expand the story into its member slides (page-order) and add each.
+      const r = await fetch('/api/stories/' + st.id);
+      if (!r.ok) { alert('读取故事失败：' + r.status); return; }
+      const d = await r.json();
+      let added = 0;
+      for (const s of (d.slides || [])) {
+        if (!this.inCart(s.id)) {
+          this.cart.push({
+            id: s.id, deck_id: s.deck_id, slide_key: s.slide_key,
+            title: s.title, thumbnail_path: s.thumbnail_path,
+          });
+          added++;
+        }
+      }
+      this._saveCart();
+      this.cartOpen = true;
+    },
+
+    // ---- Insert modal ----
+    async openInsertModal() {
+      // Refresh target list: only mounted rolling-deck hosts qualify.
+      const r = await fetch('/api/decks');
+      const d = await r.json();
+      this.rollingTargets = (d.decks || []).filter(x => x.is_rolling_target);
+      if (!this.rollingTargets.length) {
+        alert('没有可用的目标 Deck（需要 rolling-deck 壳且已挂载）');
+        return;
+      }
+      this.insertModal = {
+        open: true, targetDeck: '', pages: [],
+        afterPage: null, submitting: false,
+      };
+    },
+    closeInsertModal() { this.insertModal.open = false; },
+    async loadTargetPages() {
+      this.insertModal.afterPage = null;
+      this.insertModal.pages = [];
+      if (!this.insertModal.targetDeck) return;
+      const params = new URLSearchParams({
+        deck_id: this.insertModal.targetDeck, limit: '2000',
+      });
+      const r = await fetch('/api/slides?' + params);
+      const d = await r.json();
+      this.insertModal.pages = (d.slides || [])
+        .slice()
+        .sort((a, b) => a.page_no - b.page_no);
+    },
+    async submitInsert() {
+      const m = this.insertModal;
+      if (!m.targetDeck || m.afterPage === null) return;
+      m.submitting = true;
+      const body = {
+        after_page: m.afterPage,
+        items: this.cart.map(it => ({
+          source_deck_id: it.deck_id,
+          source_slide_key: it.slide_key,
+        })),
+      };
+      const r = await fetch(
+        '/api/decks/' + encodeURIComponent(m.targetDeck) + '/insert-slides', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(body),
+        });
+      m.submitting = false;
+      if (!r.ok) {
+        const e = await r.json().catch(() => ({}));
+        alert('创建任务失败：' + (e.detail || r.status));
+        return;
+      }
+      this.clearCart();
+      this.closeInsertModal();
+      this.view = 'tasks';
+    },
+
+    // ---- Tasks ----
+    async loadTasks() {
+      const r = await fetch('/api/tasks');
+      const d = await r.json();
+      this.tasks = d.tasks || [];
+      this.hasActiveTask = this.tasks.some(
+        t => t.status === 'queued' || t.status === 'running');
+      // Refresh the expanded task's log while it runs.
+      if (this.expandedTask) {
+        const cur = this.tasks.find(t => t.id === this.expandedTask);
+        if (cur) await this._fetchTaskLog(this.expandedTask);
+      }
+      // Poll while anything is active (or while watching the tasks view).
+      clearTimeout(this._taskTimer);
+      if (this.hasActiveTask && this.view === 'tasks') {
+        this._taskTimer = setTimeout(() => this.loadTasks(), 3000);
+      }
+    },
+    async _fetchTaskLog(id) {
+      const r = await fetch('/api/tasks/' + id);
+      if (r.ok) {
+        const d = await r.json();
+        this.taskLog = d.log || '';
+      }
+    },
+    async toggleTaskLog(t) {
+      if (this.expandedTask === t.id) {
+        this.expandedTask = null;
+        this.taskLog = '';
+        return;
+      }
+      this.expandedTask = t.id;
+      this.taskLog = '加载中…';
+      await this._fetchTaskLog(t.id);
     },
 
     async saveSlide() {

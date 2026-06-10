@@ -221,14 +221,43 @@ def open_db() -> sqlite3.Connection:
     return conn
 
 
-def upsert_slide(conn: sqlite3.Connection, row: dict) -> None:
+def upsert_slide(conn: sqlite3.Connection, row: dict, *, retag: bool = False) -> None:
+    """Insert or update one slide row.
+
+    On UPDATE (slide already in DB), human-curated fields are PRESERVED by
+    default: type_tag / subtype_tag / customer_tag / media_tag / free_tags
+    keep their existing values, notes and thumbnail_path only take the new
+    value when the new value is non-null. Content-derived fields (page_no,
+    title, body_text) always refresh — re-ingesting after an insert-slides
+    task must renumber pages without losing a week of tagging work.
+
+    Pass retag=True to force the auto-guessed tags over existing ones
+    (the pre-2026-06 behaviour).
+    """
     cols = ["id", "deck_id", "slide_key", "page_no", "title", "title_source",
             "thumbnail_path", "body_text",
             "type_tag", "subtype_tag", "customer_tag", "media_tag",
             "free_tags", "notes",
             "created_at", "updated_at"]
     placeholders = ", ".join(["?"] * len(cols))
-    updates = ", ".join(f"{c}=excluded.{c}" for c in cols if c not in ("id", "created_at"))
+
+    ALWAYS_REFRESH = {"deck_id", "slide_key", "page_no", "title",
+                      "title_source", "body_text", "updated_at"}
+    PRESERVE_UNLESS_RETAG = {"type_tag", "subtype_tag", "customer_tag",
+                             "media_tag", "free_tags"}
+    # nullable payload: only overwrite when the new value is non-null
+    COALESCE_NEW = {"notes", "thumbnail_path"}
+
+    parts = []
+    for c in cols:
+        if c in ("id", "created_at"):
+            continue
+        if c in ALWAYS_REFRESH or (retag and c in PRESERVE_UNLESS_RETAG):
+            parts.append(f"{c}=excluded.{c}")
+        elif c in COALESCE_NEW:
+            parts.append(f"{c}=COALESCE(excluded.{c}, {c})")
+        # PRESERVE_UNLESS_RETAG without retag: omit → keeps existing value
+    updates = ", ".join(parts)
     sql = (f"INSERT INTO slides ({', '.join(cols)}) VALUES ({placeholders}) "
            f"ON CONFLICT(id) DO UPDATE SET {updates}")
     conn.execute(sql, [row[c] for c in cols])
@@ -245,6 +274,9 @@ def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("deck_id", help="Short id for this deck, e.g. 'kangshifu'")
     ap.add_argument("deck_json", type=Path, help="Path to deck.json")
+    ap.add_argument("--retag", action="store_true",
+                    help="Force auto-guessed tags over existing DB tags "
+                         "(default: existing tags are preserved on re-ingest)")
     args = ap.parse_args()
 
     deck = json.loads(args.deck_json.read_text(encoding="utf-8"))
@@ -311,7 +343,7 @@ def main():
             "created_at": now,
             "updated_at": now,
         }
-        upsert_slide(conn, row)
+        upsert_slide(conn, row, retag=args.retag)
 
     conn.commit()
     conn.close()

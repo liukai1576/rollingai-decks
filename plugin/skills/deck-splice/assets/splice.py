@@ -112,11 +112,25 @@ def load_manifest(path: str) -> dict:
 
 
 def source_path_of(deck_id: str) -> Path:
-    """Resolve a source deck id to its rendered index.html path. Assumes
-    decks live under <repo>/imports/<deck_id>/render-output-full/."""
+    """Resolve a source deck id to its rendered index.html path.
+
+    Resolution order:
+      1. library/db/deck_mounts.discover_mounts — handles DB deck_ids that
+         alias to a different directory name (imports/.deck-mounts.json)
+      2. plain <repo>/imports/<deck_id>/render-output-full/
+    """
+    try:
+        sys.path.insert(0, str(REPO_ROOT / "library" / "db"))
+        from deck_mounts import discover_mounts
+        mount = discover_mounts(REPO_ROOT).get(deck_id)
+        if mount and (mount / "index.html").is_file():
+            return mount / "index.html"
+    except ImportError:
+        pass
     p = REPO_ROOT / "imports" / deck_id / "render-output-full" / "index.html"
     if not p.exists():
-        sys.exit(f"source deck not found: imports/{deck_id}/render-output-full/index.html")
+        sys.exit(f"source deck not found: no mount for '{deck_id}' and no "
+                 f"imports/{deck_id}/render-output-full/index.html")
     return p
 
 
@@ -133,7 +147,7 @@ def copy_asset(rel_path: str, source_deck_id: str, target_dir: Path) -> str:
     """Copy <source_deck>/render-output-full/<rel_path> to
     <target>/assets/_borrowed/<source_deck>/<rel_path>. Returns the new
     URL to use (relative to the target index.html)."""
-    src = REPO_ROOT / "imports" / source_deck_id / "render-output-full" / rel_path
+    src = source_path_of(source_deck_id).parent / rel_path
     dst = target_dir / "assets" / "_borrowed" / source_deck_id / rel_path
     if src.exists():
         dst.parent.mkdir(parents=True, exist_ok=True)

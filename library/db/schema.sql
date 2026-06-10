@@ -113,3 +113,20 @@ CREATE VIRTUAL TABLE IF NOT EXISTS slides_fts USING fts5(
   body_text,
   tokenize = "unicode61 remove_diacritics 2"
 );
+
+-- Background tasks created from the admin UI (e.g. "insert these N slides
+-- into deck X after page P"). One worker thread in the admin server runs
+-- them strictly one at a time; payload is the task-kind-specific JSON spec.
+CREATE TABLE IF NOT EXISTS tasks (
+  id          TEXT PRIMARY KEY,           -- "task-20260611-153000-ab12"
+  kind        TEXT NOT NULL,              -- 'insert-slides'
+  status      TEXT NOT NULL DEFAULT 'queued',  -- queued / running / done / failed
+  payload     TEXT NOT NULL,              -- JSON spec for the runner
+  log         TEXT NOT NULL DEFAULT '',   -- captured runner output
+  error       TEXT,                       -- short failure summary
+  created_at  TEXT NOT NULL,
+  started_at  TEXT,
+  finished_at TEXT
+);
+
+CREATE INDEX IF NOT EXISTS idx_tasks_status ON tasks(status);

@@ -3,7 +3,7 @@ name: deck-splice
 display_name: Deck Splice — 复用旧 deck 的 slide 到新 deck 里
 author: liukai
 kind: [创建]
-version: "0.1"
+version: "0.2"
 input:  manifest.json（N 个 splice 条目：outer_key + source_deck_id + source_slide_key）+ 目标 deck 目录（已有 N 个空 `is-splice` placeholder section）
 output: 修改后的目标 index.html（splice section 已填好）+ `assets/_borrowed/<src_deck>/...`（视频/图片素材已拷贝并改路径）
 triggers:
@@ -108,6 +108,29 @@ splice.py 做的事（每条 splice）：
    .src-slide { position: absolute; inset: 0; width: 1920px; height: 1080px; ... }
    .slide-fit > .src-slide { flex: 1 1 0; min-height: 0; }
    ```
+
+### 一步到位的替代入口：insert.py（admin 购物车走这条）
+
+如果你不想手写 placeholder + manifest，`insert.py` 把整条管线包成一步：
+
+```bash
+echo '{
+  "target_deck_id": "lanyueliang-pitch",
+  "after_page": 5,
+  "items": [
+    {"source_deck_id": "RollingAI分享", "source_slide_key": "slide-041"}
+  ]
+}' | python3 plugin/skills/deck-splice/assets/insert.py --spec -
+```
+
+它会：快照 index.html → 在第 N 页后自动生成 placeholder（key 唯一化
+`sp-<源key>`）→ 调 splice.py 填充 → 重排 data-screen-label 序号 →
+重建 deck.json（rolling-deck build-deckjson）→ 重新入库（已打标签
+保留）→ 把源 slide 的标签拷给新行 → 只给新 slide 出缩略图 →
+跑 verify.sh。失败自动回滚快照。
+
+admin 管理平台的「购物车 → 加入 Deck」按钮生成的后台任务就是调它
+（`POST /api/decks/{id}/insert-slides` → tasks 表 → worker 线程）。
 
 ### Step 5 — verify + 入库
 ```bash

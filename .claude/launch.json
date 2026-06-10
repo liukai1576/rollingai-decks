@@ -5,29 +5,69 @@
       "name": "deck",
       "autoPort": false,
       "runtimeExecutable": "python3",
-      "runtimeArgs": ["-m", "http.server", "8765", "--directory", "imports/ai-and-me/render-output-full"],
+      "runtimeArgs": [
+        "-m",
+        "http.server",
+        "8765",
+        "--directory",
+        "imports/ai-and-me/render-output-full"
+      ],
       "port": 8765
     },
     {
       "name": "aiorg",
       "autoPort": false,
       "runtimeExecutable": "python3",
-      "runtimeArgs": ["-m", "http.server", "8767", "--directory", "imports/AI组织方法论/render-output-full"],
+      "runtimeArgs": [
+        "-m",
+        "http.server",
+        "8767",
+        "--directory",
+        "imports/AI组织方法论/render-output-full"
+      ],
       "port": 8767
     },
     {
       "name": "lkk",
       "autoPort": false,
       "runtimeExecutable": "python3",
-      "runtimeArgs": ["-m", "http.server", "8766", "--directory", "imports/李锦记菜谱AI项目/render-output-full"],
+      "runtimeArgs": [
+        "-m",
+        "http.server",
+        "8766",
+        "--directory",
+        "imports/李锦记菜谱AI项目/render-output-full"
+      ],
       "port": 8766
     },
     {
       "name": "rd-template",
       "autoPort": false,
       "runtimeExecutable": "python3",
-      "runtimeArgs": ["-m", "http.server", "8768", "--directory", "plugin/skills/rolling-deck"],
+      "runtimeArgs": [
+        "-m",
+        "http.server",
+        "8768",
+        "--directory",
+        "plugin/skills/rolling-deck"
+      ],
       "port": 8768
+    },
+    {
+      "name": "admin",
+      "autoPort": false,
+      "runtimeExecutable": "python3",
+      "runtimeArgs": [
+        "-m",
+        "uvicorn",
+        "server:app",
+        "--host",
+        "127.0.0.1",
+        "--port",
+        "8123"
+      ],
+      "cwd": "platform/admin",
+      "port": 8123
     }
   ]
 }

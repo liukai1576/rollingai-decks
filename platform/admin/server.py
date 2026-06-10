@@ -144,6 +144,16 @@ class StoryUpdate(BaseModel):
     end_page: Optional[int] = None
 
 
+class InsertItem(BaseModel):
+    source_deck_id: str
+    source_slide_key: str
+
+
+class InsertSlidesRequest(BaseModel):
+    after_page: int          # 0 = insert before page 1
+    items: list[InsertItem]
+
+
 # ---- API: slides ----
 @app.get("/api/slides")
 def list_slides(
@@ -383,11 +393,37 @@ def list_decks(search: Optional[str] = None):
         d = dict(r)
         d["display_name"] = deck_display_name(d["deck_id"])
         d["has_mount"] = d["deck_id"] in DECK_PATHS and DECK_PATHS[d["deck_id"]].is_dir()
+        d["is_rolling_target"] = _is_rolling_deck(d["deck_id"])
         if needle and needle not in d["deck_id"].lower() and needle not in (d["display_name"] or "").lower():
             continue
         decks.append(d)
     conn.close()
     return {"count": len(decks), "decks": decks}
+
+
+# mtime-keyed cache: deck_id → (index mtime, is rolling-deck host)
+_ROLLING_CACHE: dict[str, tuple[float, bool]] = {}
+
+def _is_rolling_deck(deck_id: str) -> bool:
+    """True if the mounted deck's index.html is a rolling-deck host —
+    i.e. a valid insert-slides target. The marker is the pack's
+    <main class="deck" id="deck"> shell element."""
+    base = DECK_PATHS.get(deck_id)
+    if not base:
+        return False
+    index = base / "index.html"
+    if not index.is_file():
+        return False
+    mtime = index.stat().st_mtime
+    cached = _ROLLING_CACHE.get(deck_id)
+    if cached and cached[0] == mtime:
+        return cached[1]
+    try:
+        ok = '<main class="deck" id="deck">' in index.read_text(encoding="utf-8")
+    except OSError:
+        ok = False
+    _ROLLING_CACHE[deck_id] = (mtime, ok)
+    return ok
 
 
 # ---- API: skills ----
@@ -455,6 +491,179 @@ def stats():
     ]
     conn.close()
     return out
+
+
+# ---- API: tasks (background insert-slides runner) ----
+#
+# One daemon worker thread, strictly one task at a time (matches the
+# "跑完一个再加下一段" workflow). Tasks persist in the `tasks` table;
+# live output of the running task is buffered in memory and merged into
+# GET responses, then flushed to the DB row on completion.
+import secrets
+import subprocess
+import threading
+import time as _time
+
+INSERT_RUNNER = REPO / "plugin" / "skills" / "deck-splice" / "assets" / "insert.py"
+TASK_TIMEOUT_S = 1800
+_LIVE_LOGS: dict[str, list[str]] = {}
+_worker_started = threading.Event()
+
+
+def _set_task(task_id: str, **fields) -> None:
+    conn = db()
+    sets = ", ".join(f"{k}=?" for k in fields)
+    conn.execute(f"UPDATE tasks SET {sets} WHERE id=?",
+                 [*fields.values(), task_id])
+    conn.commit()
+    conn.close()
+
+
+def _run_one_task(task_id: str, kind: str, payload: str) -> None:
+    _set_task(task_id, status="running", started_at=now_iso())
+    lines = _LIVE_LOGS.setdefault(task_id, [])
+    try:
+        if kind != "insert-slides":
+            raise RuntimeError(f"unknown task kind: {kind}")
+        proc = subprocess.Popen(
+            [sys.executable, str(INSERT_RUNNER), "--spec", "-"],
+            stdin=subprocess.PIPE, stdout=subprocess.PIPE,
+            stderr=subprocess.STDOUT, text=True, cwd=str(REPO),
+        )
+        proc.stdin.write(payload)
+        proc.stdin.close()
+        deadline = _time.time() + TASK_TIMEOUT_S
+        for line in proc.stdout:
+            lines.append(line.rstrip("\n"))
+            if _time.time() > deadline:
+                proc.kill()
+                raise RuntimeError(f"task exceeded {TASK_TIMEOUT_S}s; killed")
+        rc = proc.wait(timeout=60)
+        if rc == 0:
+            _set_task(task_id, status="done", finished_at=now_iso(),
+                      log="\n".join(lines))
+        else:
+            _set_task(task_id, status="failed", finished_at=now_iso(),
+                      log="\n".join(lines),
+                      error=f"runner exited with code {rc}")
+    except Exception as e:  # noqa: BLE001 — task isolation boundary
+        lines.append(f"!! {e}")
+        _set_task(task_id, status="failed", finished_at=now_iso(),
+                  log="\n".join(lines), error=str(e))
+    finally:
+        _LIVE_LOGS.pop(task_id, None)
+        # New slides / new pages → deck title & rolling-target caches and
+        # mounts may be stale.
+        _ROLLING_CACHE.clear()
+        _DECK_TITLE_CACHE.clear()
+
+
+def _worker_loop() -> None:
+    while True:
+        conn = db()
+        row = conn.execute(
+            "SELECT id, kind, payload FROM tasks WHERE status='queued' "
+            "ORDER BY created_at LIMIT 1").fetchone()
+        conn.close()
+        if row:
+            _run_one_task(row["id"], row["kind"], row["payload"])
+        else:
+            _time.sleep(1.5)
+
+
+@app.on_event("startup")
+def _start_worker() -> None:
+    if _worker_started.is_set():
+        return
+    _worker_started.set()
+    # Tasks stuck in 'running' from a previous server process are dead.
+    conn = db()
+    conn.execute(
+        "UPDATE tasks SET status='failed', error='interrupted by server restart', "
+        "finished_at=? WHERE status='running'", (now_iso(),))
+    conn.commit()
+    conn.close()
+    threading.Thread(target=_worker_loop, daemon=True,
+                     name="task-worker").start()
+
+
+@app.post("/api/decks/{deck_id:path}/insert-slides")
+def create_insert_task(deck_id: str, body: InsertSlidesRequest):
+    if not body.items:
+        raise HTTPException(400, "items is empty")
+    if not _is_rolling_deck(deck_id):
+        raise HTTPException(409,
+            f"deck '{deck_id}' is not a rolling-deck host — v1 only supports "
+            f"rolling-deck targets (feishu-deck-h5 decks would be overwritten "
+            f"on next render)")
+    # Validate page bound against the DB's view of the deck.
+    conn = db()
+    page_count = conn.execute(
+        "SELECT COUNT(*) FROM slides WHERE deck_id=?", (deck_id,)).fetchone()[0]
+    if not (0 <= body.after_page <= page_count):
+        conn.close()
+        raise HTTPException(400,
+            f"after_page {body.after_page} out of range (deck has {page_count} pages)")
+    # Validate every source slide exists in the DB.
+    missing = []
+    for it in body.items:
+        sid = f"{it.source_deck_id}/{it.source_slide_key}"
+        if not conn.execute("SELECT 1 FROM slides WHERE id=?", (sid,)).fetchone():
+            missing.append(sid)
+    if missing:
+        conn.close()
+        raise HTTPException(404, f"source slides not in DB: {', '.join(missing)}")
+
+    task_id = (f"task-{datetime.now(timezone.utc):%Y%m%d-%H%M%S}-"
+               f"{secrets.token_hex(2)}")
+    spec = {
+        "target_deck_id": deck_id,
+        "after_page": body.after_page,
+        "items": [it.model_dump() for it in body.items],
+    }
+    conn.execute(
+        "INSERT INTO tasks (id, kind, status, payload, created_at) "
+        "VALUES (?, 'insert-slides', 'queued', ?, ?)",
+        (task_id, json.dumps(spec, ensure_ascii=False), now_iso()))
+    conn.commit()
+    conn.close()
+    return {"task_id": task_id, "status": "queued"}
+
+
+@app.get("/api/tasks")
+def list_tasks(limit: int = Query(20, le=100)):
+    conn = db()
+    rows = conn.execute(
+        "SELECT id, kind, status, payload, error, created_at, started_at, "
+        "finished_at FROM tasks ORDER BY created_at DESC LIMIT ?",
+        (limit,)).fetchall()
+    conn.close()
+    tasks = []
+    for r in rows:
+        d = dict(r)
+        try:
+            d["payload"] = json.loads(d["payload"])
+        except json.JSONDecodeError:
+            pass
+        tasks.append(d)
+    return {"count": len(tasks), "tasks": tasks}
+
+
+@app.get("/api/tasks/{task_id}")
+def get_task(task_id: str):
+    conn = db()
+    row = conn.execute("SELECT * FROM tasks WHERE id=?", (task_id,)).fetchone()
+    conn.close()
+    if not row:
+        raise HTTPException(404, f"task not found: {task_id}")
+    d = dict(row)
+    try:
+        d["payload"] = json.loads(d["payload"])
+    except json.JSONDecodeError:
+        pass
+    if d["status"] == "running" and task_id in _LIVE_LOGS:
+        d["log"] = "\n".join(_LIVE_LOGS[task_id])
+    return d
 
 
 # ---- API: future-feature stubs ----
