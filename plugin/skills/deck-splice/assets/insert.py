@@ -260,12 +260,24 @@ def main() -> int:
     log(f"placeholders inserted: {', '.join(k for k, _ in mapping)}")
 
     # 3. fill via splice.py
+    def _wants_sound(meta: dict) -> bool:
+        """Source slide tagged 有声视频 (or 有声) in its free_tags → its
+        videos should be audible after splice. All source mp4s carry an
+        audio track, so audibility is editorial intent — carried as an
+        admin tag, defaulting to muted."""
+        try:
+            tags = json.loads(meta.get("free_tags") or "[]")
+        except json.JSONDecodeError:
+            tags = []
+        return any(("有声" in (t or "")) for t in tags)
+
     manifest = {
         "host_pack": "rolling-deck",
         "splices": [
             {"outer_key": k,
              "source_deck_id": m["source_deck_id"],
-             "source_slide_key": m["source_slide_key"]}
+             "source_slide_key": m["source_slide_key"],
+             **({"sound": True} if _wants_sound(m) else {})}
             for k, m in mapping
         ],
     }

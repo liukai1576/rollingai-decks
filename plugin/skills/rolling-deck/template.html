@@ -2559,6 +2559,7 @@
     show(Number.isFinite(startAt) && startAt >= 1 && startAt <= slides.length ? startAt - 1 : 0);
   </script>
 
+
 <script>
 /* === deck-splice video runtime === */
 (function () {
@@ -2566,7 +2567,7 @@
   function markEngaged() {
     if (engaged) return;
     engaged = true;
-    document.querySelectorAll('.slide.active video').forEach(v => {
+    document.querySelectorAll('.slide.active video[data-sound]').forEach(v => {
       if (!v.paused) v.muted = false;
     });
   }
@@ -2582,7 +2583,7 @@
         const isCur = sl === cur;
         sl.querySelectorAll('video').forEach(v => {
           if (isCur) {
-            v.muted = !engaged;
+            v.muted = !(engaged && v.hasAttribute('data-sound'));
             const p = v.play();
             if (p && p.catch) p.catch(() => { v.muted = true; v.play().catch(() => {}); });
           } else if (!v.paused || v.currentTime > 0) {

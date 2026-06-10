@@ -259,13 +259,15 @@ def fill_placeholder(target_html: str, outer_key: str, inlined_markup: str) -> t
     return new_html, True
 
 
-# Video runtime injected into the host deck. Mirrors what feishu-deck-h5's
-# player does for its own videos:
+# Video runtime injected into the host deck.
 #   · only the ACTIVE slide's videos play; leaving a slide pauses + rewinds
-#   · all videos start muted (so autoplay is allowed), and after the first
-#     user interaction (click / keydown / touch — i.e. any slide navigation)
-#     they are unmuted. Videos without an audio track simply stay silent;
-#     videos with one become audible. No per-video configuration needed.
+#   · sound is OPT-IN per video: every source mp4 carries an audio track
+#     (street-noise b-roll, AI-gen bgm, …) and was muted by markup in the
+#     source deck, so "should this be audible" is editorial intent that the
+#     data doesn't carry. Videos marked data-sound="1" are unmuted after the
+#     first user interaction (autoplay policy); everything else stays muted
+#     forever. The flag comes from the source slide's free_tag 有声视频
+#     (set in the admin slide drawer) — see materialize_lazy_media/insert.py.
 # Works on every <video> in the deck — spliced AND host-authored alike.
 HOST_JS_BLOCK = """
 <script>
@@ -275,7 +277,7 @@ HOST_JS_BLOCK = """
   function markEngaged() {
     if (engaged) return;
     engaged = true;
-    document.querySelectorAll('.slide.active video').forEach(v => {
+    document.querySelectorAll('.slide.active video[data-sound]').forEach(v => {
       if (!v.paused) v.muted = false;
     });
   }
@@ -291,7 +293,7 @@ HOST_JS_BLOCK = """
         const isCur = sl === cur;
         sl.querySelectorAll('video').forEach(v => {
           if (isCur) {
-            v.muted = !engaged;
+            v.muted = !(engaged && v.hasAttribute('data-sound'));
             const p = v.play();
             if (p && p.catch) p.catch(() => { v.muted = true; v.play().catch(() => {}); });
           } else if (!v.paused || v.currentTime > 0) {
@@ -376,6 +378,14 @@ def main() -> int:
 
         rewrite_asset_paths(div, src_deck_id, target_dir)
         materialize_lazy_media(div)
+        # Optional per-splice sound opt-in (manifest "sound": true — set by
+        # insert.py from the source slide's 有声视频 free_tag). Stamps
+        # data-sound on this slide's videos so the runtime unmutes them
+        # after first user interaction.
+        if entry.get("sound"):
+            for v in div.find_all("video"):
+                v["data-sound"] = "1"
+            log(f"  · {outer_key}: 有声视频 — videos will unmute on engagement")
         namespace_rename(div)
         warn_collisions(div, src_deck_id, src_key)
 

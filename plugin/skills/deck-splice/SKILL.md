@@ -3,7 +3,7 @@ name: deck-splice
 display_name: Deck Splice — 复用旧 deck 的 slide 到新 deck 里
 author: liukai
 kind: [创建]
-version: "0.4"
+version: "0.5"
 input:  manifest.json（N 个 splice 条目：outer_key + source_deck_id + source_slide_key）+ 目标 deck 目录（已有 N 个空 `is-splice` placeholder section）
 output: 修改后的目标 index.html（splice section 已填好）+ `assets/_borrowed/<src_deck>/...`（视频/图片素材已拷贝并改路径）
 triggers:
@@ -164,11 +164,16 @@ verifier 检查：
 - **视频是例外，已完整处理**：splice 时自动物化懒加载视频
   （`data-src`→`src`，`preload=none`），并给 host deck 注入一段幂等的
   视频运行时（sentinel: `deck-splice video runtime`）：翻到该页才播放、
-  离开自动暂停归零、用户首次交互（翻页就算）后解除静音——有音轨的
-  视频出声，没音轨的保持无声，无需逐视频配置。该运行时管整个 deck 的
-  所有 `<video>`（host 自带的也一样）。注意：`visibilityState: hidden`
-  的页面（如某些嵌入式预览面板）里 Chrome 会拒播视频，这是浏览器省电
-  策略，不是 bug。
+  离开自动暂停归零。该运行时管整个 deck 的所有 `<video>`（host 自带
+  的也一样）。
+- **声音是 opt-in 的，按 slide 打标签**：所有源 mp4 都带音轨（街拍
+  环境音、AI 生成配乐都算），"该不该出声"是编辑意图，数据里没有。
+  约定：在 admin 给源 slide 的自由标签加 `有声视频` → insert.py 拼接
+  时给该页视频盖 `data-sound` 标记 → 运行时在用户首次交互（翻页就算）
+  后解除这些视频的静音；没标签的视频永远静音。手写 manifest 时等价
+  写法是给 splice 条目加 `"sound": true`。
+  注意：`visibilityState: hidden` 的页面（如某些嵌入式预览面板）里
+  Chrome 会拒播视频，这是浏览器省电策略，不是 bug。
 - **共有类名风险**：源 slide 用了 `.card` / `.grid` 这种常见类，host
   pack 也定义了同名类 → 样式会被 host 覆盖。splice.py 会在 stderr
   打 ⚠ 警告，但不会自动改。需要人工 namespace 或挑选不冲突的源
