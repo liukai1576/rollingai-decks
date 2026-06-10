@@ -260,26 +260,33 @@ def main() -> int:
     log(f"placeholders inserted: {', '.join(k for k, _ in mapping)}")
 
     # 3. fill via splice.py
-    def _wants_sound(meta: dict) -> bool:
-        """Source slide tagged 有声视频 (or 有声) in its free_tags → its
-        videos should be audible after splice. All source mp4s carry an
-        audio track, so audibility is editorial intent — carried as an
-        admin tag, defaulting to muted."""
+    def _sound_override(meta: dict):
+        """Default sound comes from source markup (lazy-video class →
+        audible, mirrors the feishu player). Admin free_tags override per
+        slide: 有声视频 forces ON, 静音视频 forces OFF, neither → None
+        (markup default stands)."""
         try:
             tags = json.loads(meta.get("free_tags") or "[]")
         except json.JSONDecodeError:
             tags = []
-        return any(("有声" in (t or "")) for t in tags)
+        if any("静音" in (t or "") for t in tags):
+            return False
+        if any("有声" in (t or "") for t in tags):
+            return True
+        return None
+
+    def _splice_entry(k, m):
+        e = {"outer_key": k,
+             "source_deck_id": m["source_deck_id"],
+             "source_slide_key": m["source_slide_key"]}
+        ov = _sound_override(m)
+        if ov is not None:
+            e["sound"] = ov
+        return e
 
     manifest = {
         "host_pack": "rolling-deck",
-        "splices": [
-            {"outer_key": k,
-             "source_deck_id": m["source_deck_id"],
-             "source_slide_key": m["source_slide_key"],
-             **({"sound": True} if _wants_sound(m) else {})}
-            for k, m in mapping
-        ],
+        "splices": [_splice_entry(k, m) for k, m in mapping],
     }
     manifest_path = target_dir / f".insert-manifest-{ts}.json"
     manifest_path.write_text(json.dumps(manifest, ensure_ascii=False, indent=2),

@@ -3,7 +3,7 @@ name: deck-splice
 display_name: Deck Splice — 复用旧 deck 的 slide 到新 deck 里
 author: liukai
 kind: [创建]
-version: "0.5"
+version: "0.6"
 input:  manifest.json（N 个 splice 条目：outer_key + source_deck_id + source_slide_key）+ 目标 deck 目录（已有 N 个空 `is-splice` placeholder section）
 output: 修改后的目标 index.html（splice section 已填好）+ `assets/_borrowed/<src_deck>/...`（视频/图片素材已拷贝并改路径）
 triggers:

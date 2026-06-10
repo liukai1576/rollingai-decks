@@ -200,12 +200,22 @@ def materialize_lazy_media(div: Tag) -> None:
     unmute after first user interaction) is handled by the video runtime
     injected via inject_host_js() — we deliberately do NOT set autoplay
     here, otherwise every video in the deck decodes simultaneously at
-    page load."""
+    page load.
+
+    Sound default is derived FROM THE SOURCE MARKUP: the feishu player
+    only unmutes `video.lazy-video` after user engagement (its unmute
+    selector is literally 'video.lazy-video'), so in the source deck
+    lazy videos are audible and plain <video muted autoplay> ones are
+    silent forever. We mirror that: lazy-video → data-sound. The
+    manifest "sound" flag / 有声视频 · 静音视频 free_tags override this
+    per slide."""
     for v in div.find_all("video"):
         if v.get("data-src") and not v.get("src"):
             v["src"] = v["data-src"]
             del v["data-src"]
             v["preload"] = "none"   # runtime's play() triggers the load
+        if "lazy-video" in (v.get("class") or []):
+            v["data-sound"] = "1"   # audible in the source deck → keep audible
 
 
 def namespace_rename(div: Tag) -> None:
@@ -378,16 +388,30 @@ def main() -> int:
 
         rewrite_asset_paths(div, src_deck_id, target_dir)
         materialize_lazy_media(div)
-        # Optional per-splice sound opt-in (manifest "sound": true — set by
-        # insert.py from the source slide's 有声视频 free_tag). Stamps
-        # data-sound on this slide's videos so the runtime unmutes them
-        # after first user interaction.
-        if entry.get("sound"):
+        # Optional per-splice sound OVERRIDE (manifest "sound": true/false —
+        # insert.py sets it from the source slide's 有声视频 / 静音视频
+        # free_tags). Absent → markup-derived default from
+        # materialize_lazy_media stands.
+        if "sound" in entry:
             for v in div.find_all("video"):
-                v["data-sound"] = "1"
-            log(f"  · {outer_key}: 有声视频 — videos will unmute on engagement")
+                if entry["sound"]:
+                    v["data-sound"] = "1"
+                elif v.has_attr("data-sound"):
+                    del v["data-sound"]
+            log(f"  · {outer_key}: sound override → "
+                f"{'有声' if entry['sound'] else '静音'}")
         namespace_rename(div)
         warn_collisions(div, src_deck_id, src_key)
+        # slide-anim hooks (data-anim / data-count / .bar-fill …) are DOM
+        # attributes that splice copies fine, but the GSAP engine lives at
+        # deck level. If the source slide expects it and the target deck
+        # doesn't ship RollingSlideAnim, those elements render static.
+        if (div.find(attrs={"data-anim": True}) or div.find(attrs={"data-count": True})) \
+                and "RollingSlideAnim" not in target_html:
+            log(f"  ⚠  {outer_key}: source slide has slide-anim hooks "
+                f"(data-anim/data-count) but the target deck has no "
+                f"RollingSlideAnim engine — install the slide-anim skill on "
+                f"the target or these elements stay static")
 
         markup = str(div)
         target_html, ok = fill_placeholder(target_html, outer_key, markup)
