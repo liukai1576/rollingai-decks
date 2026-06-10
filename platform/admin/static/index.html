@@ -201,6 +201,14 @@
     display: flex; gap: 12px;
   }
   .deck-card .body .meta span { display: inline-flex; align-items: center; gap: 4px; }
+  .deck-actions { display: flex; gap: 8px; margin-top: 10px; }
+  .deck-actions button {
+    flex: 1; background: var(--panel-2); color: var(--text-dim);
+    border: 1px solid var(--hairline); border-radius: 6px;
+    padding: 6px 0; cursor: pointer; font-size: 12.5px;
+  }
+  .deck-actions button:hover:not(:disabled) { border-color: var(--accent); color: var(--accent); }
+  .deck-actions button:disabled { opacity: .4; cursor: not-allowed; }
 
   /* Story cards: big slide-count badge in the thumb's top-right corner.
      What the user cares about is the length of the story, not which
@@ -607,6 +615,14 @@
               <h3 x-text="d.display_name"></h3>
               <div class="meta">
                 <span><span x-text="d.story_count"></span> 个故事</span>
+              </div>
+              <div class="deck-actions" @click.stop>
+                <button @click="drillIntoDeck(d.deck_id)">☰ 浏览 slides</button>
+                <button :disabled="!d.has_mount"
+                        :title="d.has_mount ? '新窗口打开放映' : '未挂载 deck 文件'"
+                        @click="window.open('/decks/' + encodeURIComponent(d.deck_id) + '/index.html', '_blank')">
+                  ▶ 打开 Deck
+                </button>
               </div>
             </div>
           </div>
