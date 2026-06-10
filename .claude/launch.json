@@ -3,9 +3,24 @@
   "configurations": [
     {
       "name": "deck",
+      "autoPort": false,
       "runtimeExecutable": "python3",
-      "runtimeArgs": ["-m", "http.server", "8765", "--directory", "imports/RollingAI分享-康师傅/render-output-full"],
+      "runtimeArgs": ["-m", "http.server", "8765", "--directory", "imports/ai-and-me/render-output-full"],
       "port": 8765
+    },
+    {
+      "name": "aiorg",
+      "autoPort": false,
+      "runtimeExecutable": "python3",
+      "runtimeArgs": ["-m", "http.server", "8767", "--directory", "imports/AI组织方法论/render-output-full"],
+      "port": 8767
+    },
+    {
+      "name": "lkk",
+      "autoPort": false,
+      "runtimeExecutable": "python3",
+      "runtimeArgs": ["-m", "http.server", "8766", "--directory", "imports/李锦记菜谱AI项目/render-output-full"],
+      "port": 8766
     }
   ]
 }
