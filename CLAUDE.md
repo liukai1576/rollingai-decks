@@ -3,6 +3,21 @@
 做 deck（演示 / PPT / pitch / 汇报）的工作台。**所有 deck 相关请求必须走
 skill 体系，不要裸写 HTML。**
 
+## 自然语言 → 能力路由（用户不一定知道命令，听到这些话就走对应路径）
+
+| 用户说的话（举例） | 走哪条路径 |
+|---|---|
+| 做个 PPT / deck / 演示 / 路演材料 | `/new-deck` 流程：先让用户选模板 |
+| 把这个 Keynote 转成网页 / .key 文件 | `/keynote`（keynote-to-html skill）|
+| 把 XX deck 的那几页拿过来 / 复用立白案例 | `/splice`（deck-splice skill）|
+| 让它动起来 / 数字滚动 / 加动画 | `/animate`（slide-anim；rolling-deck 已内置勿重装）|
+| 入库 / 进管理平台 / 出缩略图 / 打标签 | `/ingest`（ingest→tags→thumbs 三连）|
+| 这页改一下 / 重新设计这页 | slide-redesign skill |
+| 系统都能干啥 | `/deck-help` |
+
+用户的说法对不上表里的任何一条、但明显和 deck 有关 → 先跑
+`python3 plugin/skills/registry.py` 看全部 skill 再决定，不要自己发明流程。
+
 ## 🛑 做 deck 前必读（最重要的一条规则）
 
 用户要做新 deck / 演示 / PPT / H5 时，**第一步永远是**：
