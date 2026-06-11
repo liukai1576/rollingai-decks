@@ -7,11 +7,11 @@ skill 体系，不要裸写 HTML。**
 
 | 用户说的话（举例） | 走哪条路径 |
 |---|---|
-| 做个 PPT / deck / 演示 / 路演材料 | `/new-deck` 流程：先让用户选模板 |
-| 把这个 Keynote 转成网页 / .key 文件 | `/keynote`（keynote-to-html skill）|
-| 把 XX deck 的那几页拿过来 / 复用立白案例 | `/splice`（deck-splice skill）|
-| 让它动起来 / 数字滚动 / 加动画 | `/animate`（slide-anim；rolling-deck 已内置勿重装）|
-| 入库 / 进管理平台 / 出缩略图 / 打标签 | `/ingest`（ingest→tags→thumbs 三连）|
+| 做个 PPT / deck / 演示 / 路演材料 | `/deck-new` 流程：先让用户选模板 |
+| 把这个 Keynote 转成网页 / .key 文件 | `/deck-keynote`（keynote-to-html skill）|
+| 把 XX deck 的那几页拿过来 / 复用立白案例 | `/deck-splice`（deck-splice skill）|
+| 让它动起来 / 数字滚动 / 加动画 | `/deck-animate`（slide-anim；rolling-deck 已内置勿重装）|
+| 入库 / 进管理平台 / 出缩略图 / 打标签 | `/deck-ingest`（ingest→tags→thumbs 三连）|
 | 这页改一下 / 重新设计这页 | slide-redesign skill |
 | 系统都能干啥 | `/deck-help` |
 
