@@ -19,6 +19,7 @@ result.
 """
 from __future__ import annotations
 import json
+import sys
 from pathlib import Path
 
 _ALIAS_FILE = ".deck-mounts.json"
@@ -55,4 +56,13 @@ def discover_mounts(repo: Path) -> dict[str, Path]:
             render = imports / dir_name / "render-output-full"
             if (render / "index.html").is_file():
                 mounts[deck_id] = render
+            else:
+                # A broken alias used to make the deck silently vanish from
+                # the admin UI / thumbnails — surface it loudly instead.
+                # (Aliases are a legacy compatibility layer; new decks must
+                # use deck_id == directory name.)
+                print(f"[deck_mounts] WARNING: alias '{deck_id}' → "
+                      f"'{dir_name}' points at a missing deck "
+                      f"({render}/index.html not found); deck will not be "
+                      f"mounted", file=sys.stderr)
     return mounts

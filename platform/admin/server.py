@@ -243,16 +243,7 @@ def update_slide(slide_id: str, body: SlideUpdate):
         f"UPDATE slides SET {set_clause}, updated_at = ? WHERE id = ?",
         params
     )
-    # Sync FTS
-    if "title" in changes:
-        conn.execute("DELETE FROM slides_fts WHERE id = ?", (slide_id,))
-        new = conn.execute(
-            "SELECT title, body_text FROM slides WHERE id = ?", (slide_id,)
-        ).fetchone()
-        conn.execute(
-            "INSERT INTO slides_fts(id, title, body_text) VALUES (?, ?, ?)",
-            (slide_id, new["title"], new["body_text"])
-        )
+    # FTS shadow is maintained by schema triggers (slides_fts_after_*).
     conn.commit()
     conn.close()
     return {"updated": 1, "id": slide_id}
@@ -394,11 +385,41 @@ def list_decks(search: Optional[str] = None):
         d["display_name"] = deck_display_name(d["deck_id"])
         d["has_mount"] = d["deck_id"] in DECK_PATHS and DECK_PATHS[d["deck_id"]].is_dir()
         d["is_rolling_target"] = _is_rolling_deck(d["deck_id"])
+        d["stale"] = _is_stale(conn, d["deck_id"])
         if needle and needle not in d["deck_id"].lower() and needle not in (d["display_name"] or "").lower():
             continue
         decks.append(d)
     conn.close()
     return {"count": len(decks), "decks": decks}
+
+
+def _is_stale(conn, deck_id: str) -> bool:
+    """True when the mounted index.html is newer than the deck's last
+    ingest — i.e. someone edited the deck but the DB (page_no, titles,
+    body_text, search index) still reflects the old content. Surfaced as
+    a '需重新入库' badge in the UI instead of silently drifting."""
+    base = DECK_PATHS.get(deck_id)
+    if not base:
+        return False
+    index = base / "index.html"
+    if not index.is_file():
+        return False
+    row = conn.execute(
+        "SELECT MAX(updated_at) FROM slides WHERE deck_id = ?", (deck_id,)
+    ).fetchone()
+    if not row or not row[0]:
+        return False
+    try:
+        # Tolerate both '+00:00' and 'Z' suffixes (different writers), and
+        # treat naive timestamps as UTC (every writer in this repo uses UTC).
+        dt = datetime.fromisoformat(row[0].replace("Z", "+00:00"))
+        if dt.tzinfo is None:
+            dt = dt.replace(tzinfo=timezone.utc)
+        ingested_at = dt.timestamp()
+    except ValueError:
+        return False
+    # 5s grace: ingest runs right after the html is written.
+    return index.stat().st_mtime > ingested_at + 5
 
 
 # mtime-keyed cache: deck_id → (index mtime, is rolling-deck host)
@@ -519,26 +540,69 @@ def _set_task(task_id: str, **fields) -> None:
     conn.close()
 
 
+def _stream_subprocess(cmd: list[str], lines: list[str],
+                       stdin_data: str | None = None) -> int:
+    """Run one subprocess, streaming combined output into `lines`.
+    Returns the exit code; raises on global task timeout."""
+    proc = subprocess.Popen(
+        cmd,
+        stdin=subprocess.PIPE if stdin_data is not None else None,
+        stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
+        text=True, cwd=str(REPO),
+    )
+    if stdin_data is not None:
+        proc.stdin.write(stdin_data)
+        proc.stdin.close()
+    deadline = _time.time() + TASK_TIMEOUT_S
+    for line in proc.stdout:
+        lines.append(line.rstrip("\n"))
+        if _time.time() > deadline:
+            proc.kill()
+            raise RuntimeError(f"task exceeded {TASK_TIMEOUT_S}s; killed")
+    return proc.wait(timeout=60)
+
+
+def _run_reingest(spec: dict, lines: list[str]) -> int:
+    """Re-ingest pipeline for one deck: (rolling hosts) rebuild deck.json
+    from index.html → ingest (tags preserved) → thumbnails for new/changed
+    slides. Mirrors the manual three-step ritual in CLAUDE.md."""
+    deck_id = spec["target_deck_id"]
+    base = DECK_PATHS.get(deck_id)
+    if not base:
+        raise RuntimeError(f"no mount for deck '{deck_id}'")
+    deck_json = base / "deck.json"
+    if _is_rolling_deck(deck_id):
+        rc = _stream_subprocess(
+            [sys.executable,
+             str(REPO / "plugin/skills/rolling-deck/assets/build-deckjson.py"),
+             str(base / "index.html")], lines)
+        if rc != 0:
+            return rc
+    if not deck_json.is_file():
+        raise RuntimeError(f"{deck_json} missing (non-rolling deck without "
+                           f"deck.json cannot be re-ingested)")
+    rc = _stream_subprocess(
+        [sys.executable, str(REPO / "library/db/ingest_deck.py"),
+         deck_id, str(deck_json)], lines)
+    if rc != 0:
+        return rc
+    return _stream_subprocess(
+        [sys.executable, str(REPO / "library/db/gen_thumbnails.py"),
+         "--deck", deck_id], lines)
+
+
 def _run_one_task(task_id: str, kind: str, payload: str) -> None:
     _set_task(task_id, status="running", started_at=now_iso())
     lines = _LIVE_LOGS.setdefault(task_id, [])
     try:
-        if kind != "insert-slides":
+        if kind == "insert-slides":
+            rc = _stream_subprocess(
+                [sys.executable, str(INSERT_RUNNER), "--spec", "-"],
+                lines, stdin_data=payload)
+        elif kind == "reingest":
+            rc = _run_reingest(json.loads(payload), lines)
+        else:
             raise RuntimeError(f"unknown task kind: {kind}")
-        proc = subprocess.Popen(
-            [sys.executable, str(INSERT_RUNNER), "--spec", "-"],
-            stdin=subprocess.PIPE, stdout=subprocess.PIPE,
-            stderr=subprocess.STDOUT, text=True, cwd=str(REPO),
-        )
-        proc.stdin.write(payload)
-        proc.stdin.close()
-        deadline = _time.time() + TASK_TIMEOUT_S
-        for line in proc.stdout:
-            lines.append(line.rstrip("\n"))
-            if _time.time() > deadline:
-                proc.kill()
-                raise RuntimeError(f"task exceeded {TASK_TIMEOUT_S}s; killed")
-        rc = proc.wait(timeout=60)
         if rc == 0:
             _set_task(task_id, status="done", finished_at=now_iso(),
                       log="\n".join(lines))
@@ -624,6 +688,25 @@ def create_insert_task(deck_id: str, body: InsertSlidesRequest):
     conn.execute(
         "INSERT INTO tasks (id, kind, status, payload, created_at) "
         "VALUES (?, 'insert-slides', 'queued', ?, ?)",
+        (task_id, json.dumps(spec, ensure_ascii=False), now_iso()))
+    conn.commit()
+    conn.close()
+    return {"task_id": task_id, "status": "queued"}
+
+
+@app.post("/api/decks/{deck_id:path}/reingest")
+def create_reingest_task(deck_id: str):
+    """Queue a re-ingest for a deck whose index.html changed after its
+    last ingest (the 'stale' badge's one-click fix)."""
+    if deck_id not in DECK_PATHS:
+        raise HTTPException(404, f"no mount for deck '{deck_id}'")
+    task_id = (f"task-{datetime.now(timezone.utc):%Y%m%d-%H%M%S}-"
+               f"{secrets.token_hex(2)}")
+    spec = {"target_deck_id": deck_id}
+    conn = db()
+    conn.execute(
+        "INSERT INTO tasks (id, kind, status, payload, created_at) "
+        "VALUES (?, 'reingest', 'queued', ?, ?)",
         (task_id, json.dumps(spec, ensure_ascii=False), now_iso()))
     conn.commit()
     conn.close()

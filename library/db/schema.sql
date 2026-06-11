@@ -130,3 +130,25 @@ CREATE TABLE IF NOT EXISTS tasks (
 );
 
 CREATE INDEX IF NOT EXISTS idx_tasks_status ON tasks(status);
+
+-- Keep slides_fts in lockstep with slides automatically. Before these
+-- triggers, sync was manual (ingest_deck / admin server each re-synced by
+-- hand) — any direct UPDATE outside those paths silently de-synced search.
+CREATE TRIGGER IF NOT EXISTS slides_fts_after_insert
+AFTER INSERT ON slides BEGIN
+  DELETE FROM slides_fts WHERE id = new.id;
+  INSERT INTO slides_fts (id, title, body_text)
+  VALUES (new.id, new.title, new.body_text);
+END;
+
+CREATE TRIGGER IF NOT EXISTS slides_fts_after_update
+AFTER UPDATE OF title, body_text ON slides BEGIN
+  DELETE FROM slides_fts WHERE id = new.id;
+  INSERT INTO slides_fts (id, title, body_text)
+  VALUES (new.id, new.title, new.body_text);
+END;
+
+CREATE TRIGGER IF NOT EXISTS slides_fts_after_delete
+AFTER DELETE ON slides BEGIN
+  DELETE FROM slides_fts WHERE id = old.id;
+END;

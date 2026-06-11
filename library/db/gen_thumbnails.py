@@ -394,8 +394,18 @@ def main() -> int:
             failed += 1
             continue
 
-        out_rel = f"thumbs/{deck_id}/{slide_key}.jpg"
-        out_abs = THUMBS_DIR.parent / out_rel
+        render_dir = DECK_RENDER_DIRS.get(deck_id)
+        if not render_dir or not render_dir.is_dir():
+            print(f"{r['id']}  no render dir, skip", file=sys.stderr)
+            failed += 1
+            continue
+        # Thumbnails live INSIDE the deck directory so they travel with it
+        # when a deck is copied to a colleague's machine ("拷目录就同步" is
+        # the team's sync model). The DB path is the admin-server URL form:
+        # /decks/<deck_id>/.thumbs/<key>.jpg — served by the deck proxy.
+        # (Exclude .thumbs/ when packaging a client deliverable.)
+        out_rel = f"decks/{deck_id}/.thumbs/{slide_key}.jpg"
+        out_abs = render_dir / ".thumbs" / f"{slide_key}.jpg"
         if out_abs.is_file() and not args.force:
             skipped += 1
             if r["thumbnail_path"] != out_rel:
@@ -403,11 +413,6 @@ def main() -> int:
                     "UPDATE slides SET thumbnail_path = ? WHERE id = ?",
                     (out_rel, r["id"])
                 )
-            continue
-        render_dir = DECK_RENDER_DIRS.get(deck_id)
-        if not render_dir or not render_dir.is_dir():
-            print(f"{r['id']}  no render dir, skip", file=sys.stderr)
-            failed += 1
             continue
         index_html = render_dir / "index.html"
         if not index_html.is_file():
@@ -464,7 +469,7 @@ def main() -> int:
     conn.close()
     print(f"\nDone in {time.time()-t0:.1f}s: "
           f"{made} made, {skipped} skipped, {failed} failed.")
-    print(f"Output: {THUMBS_DIR}")
+    print("Output: imports/<deck>/render-output-full/.thumbs/ (per deck)")
     return 0 if failed == 0 else 2
 
 

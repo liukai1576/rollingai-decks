@@ -261,11 +261,8 @@ def upsert_slide(conn: sqlite3.Connection, row: dict, *, retag: bool = False) ->
     sql = (f"INSERT INTO slides ({', '.join(cols)}) VALUES ({placeholders}) "
            f"ON CONFLICT(id) DO UPDATE SET {updates}")
     conn.execute(sql, [row[c] for c in cols])
-
-    # Update FTS shadow
-    conn.execute("DELETE FROM slides_fts WHERE id = ?", (row["id"],))
-    conn.execute("INSERT INTO slides_fts(id, title, body_text) VALUES (?, ?, ?)",
-                 (row["id"], row["title"], row["body_text"]))
+    # FTS shadow is maintained by schema triggers (slides_fts_after_*) —
+    # no manual sync here.
 
 
 # ---------- Main --------------------------------------------------------

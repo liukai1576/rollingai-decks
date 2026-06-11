@@ -209,6 +209,18 @@
   }
   .deck-actions button:hover:not(:disabled) { border-color: var(--accent); color: var(--accent); }
   .deck-actions button:disabled { opacity: .4; cursor: not-allowed; }
+  .stale-row { display: flex; align-items: center; gap: 8px; margin-top: 8px; }
+  .stale-badge {
+    font-size: 11.5px; color: #ffce7a;
+    background: rgba(255,178,46,.12); border: 1px solid rgba(255,178,46,.35);
+    border-radius: 999px; padding: 3px 10px;
+  }
+  .stale-fix {
+    background: transparent; border: 1px solid var(--hairline);
+    color: var(--text-dim); border-radius: 6px; padding: 3px 10px;
+    cursor: pointer; font-size: 11.5px;
+  }
+  .stale-fix:hover { border-color: #ffce7a; color: #ffce7a; }
 
   /* Story cards: big slide-count badge in the thumb's top-right corner.
      What the user cares about is the length of the story, not which
@@ -624,6 +636,14 @@
                   ▶ 打开 Deck
                 </button>
               </div>
+              <template x-if="d.stale">
+                <div class="stale-row" @click.stop>
+                  <span class="stale-badge" title="index.html 在上次入库之后被修改过——页码/标题/搜索可能已过期">
+                    ⟳ 内容已变，库已过期
+                  </span>
+                  <button class="stale-fix" @click="reingestDeck(d.deck_id)">重新入库</button>
+                </div>
+              </template>
             </div>
           </div>
         </template>
@@ -846,11 +866,14 @@
             <span class="status" :class="t.status" x-text="({queued:'排队中',running:'运行中',done:'完成',failed:'失败'})[t.status] || t.status"></span>
             <b x-text="(t.payload && t.payload.target_deck_id) || t.kind"></b>
             <span class="meta">
-              <template x-if="t.payload && t.payload.items">
+              <template x-if="t.kind === 'insert-slides' && t.payload && t.payload.items">
                 <span>
                   插入 <b x-text="t.payload.items.length"></b> 张到第
                   <b x-text="t.payload.after_page"></b> 页之后
                 </span>
+              </template>
+              <template x-if="t.kind === 'reingest'">
+                <span>重新入库（deck.json → DB → 缩略图）</span>
               </template>
             </span>
             <span class="meta" style="margin-left:auto" x-text="t.created_at"></span>
@@ -1283,6 +1306,17 @@ function app() {
     drillIntoDeck(deckId) {
       this.filters.deck_id = deckId;
       this.view = 'slides';
+    },
+
+    async reingestDeck(deckId) {
+      const r = await fetch('/api/decks/' + encodeURIComponent(deckId) + '/reingest',
+                            { method: 'POST' });
+      if (!r.ok) {
+        const e = await r.json().catch(() => ({}));
+        alert('创建任务失败：' + (e.detail || r.status));
+        return;
+      }
+      this.view = 'tasks';
     },
 
     async loadSlides() {
