@@ -55,7 +55,7 @@ What it does NOT do:
     – does not touch deck.json or DB — re-run deck-ingest after splicing.
 """
 from __future__ import annotations
-import argparse, json, re, shutil, sys
+import argparse, json, re, shutil, subprocess, sys
 from pathlib import Path
 from bs4 import BeautifulSoup, Tag
 
@@ -148,8 +148,26 @@ def extract_source_slide(src_html: str, slide_key: str) -> Tag | None:
     return None
 
 
+def clone_or_copy(src: Path, dst: Path) -> None:
+    """Copy src → dst, preferring an APFS clone (`cp -c`).
+
+    A clone is a REAL independent file (own inode/metadata) whose data
+    blocks are shared with the source via reference counting — so a 200MB
+    video borrowed by five decks costs 200MB once on the working disk,
+    yet every deck directory remains fully self-contained: deleting the
+    source deck leaves the clone intact (refcount), editing either side
+    is copy-on-write, and tar/Finder/rsync materialize a normal file.
+    Falls back to a plain copy on non-APFS volumes / cross-device."""
+    dst.unlink(missing_ok=True)   # cp -c refuses to overwrite
+    try:
+        subprocess.run(["cp", "-c", str(src), str(dst)],
+                       check=True, capture_output=True)
+    except (subprocess.CalledProcessError, FileNotFoundError):
+        shutil.copy2(src, dst)
+
+
 def copy_asset(rel_path: str, source_deck_id: str, target_dir: Path) -> str:
-    """Copy <source_deck>/render-output-full/<rel_path> to
+    """Copy (APFS-clone) <source_deck>/render-output-full/<rel_path> to
     <target>/assets/_borrowed/<source_deck>/<rel_path>. Returns the new
     URL to use (relative to the target index.html)."""
     src = source_path_of(source_deck_id).parent / rel_path
@@ -157,7 +175,7 @@ def copy_asset(rel_path: str, source_deck_id: str, target_dir: Path) -> str:
     if src.exists():
         dst.parent.mkdir(parents=True, exist_ok=True)
         if not dst.exists() or dst.stat().st_size != src.stat().st_size:
-            shutil.copy2(src, dst)
+            clone_or_copy(src, dst)
     else:
         log(f"  ! missing asset: {source_deck_id}/{rel_path}")
     return f"assets/_borrowed/{source_deck_id}/{rel_path}"

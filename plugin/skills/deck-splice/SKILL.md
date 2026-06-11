@@ -3,7 +3,7 @@ name: deck-splice
 display_name: Deck Splice — 复用旧 deck 的 slide 到新 deck 里
 author: liukai
 kind: [创建]
-version: "0.7"
+version: "0.8"
 input:  manifest.json（N 个 splice 条目：outer_key + source_deck_id + source_slide_key）+ 目标 deck 目录（已有 N 个空 `is-splice` placeholder section）
 output: 修改后的目标 index.html（splice section 已填好）+ `assets/_borrowed/<src_deck>/...`（视频/图片素材已拷贝并改路径）
 triggers:
@@ -178,10 +178,12 @@ verifier 检查：
   pack 也定义了同名类 → 样式会被 host 覆盖。splice.py 会在 stderr
   打 ⚠ 警告，但不会自动改。需要人工 namespace 或挑选不冲突的源
   slide。
-- **大文件素材**：视频会被实际拷贝（dedup 按 hash 在
-  `assets/_borrowed/<src_deck>/...` 子树内），可能让 deck 目录
-  从 5 MB 暴涨到几百 MB。这是为了让 deck 自包含、可打包发客户。
-  如果不需要 portability，可以手动改成符号链接。
+- **大文件素材：APFS 克隆，自包含且不费磁盘**。借用的素材通过
+  `cp -c`（clonefile）落到 `assets/_borrowed/<src_deck>/...`：每份是
+  独立真文件（删源不影响、打包自动物化、目录拷走即自包含），但在工作
+  盘上与原件共享数据块——200MB 视频被 5 份 deck 借用只占一份磁盘。
+  非 APFS 卷自动回退为实拷贝。旧 deck 的实拷贝可用
+  `assets/reclone-borrowed.py` 一键回收（按 hash 校验后才替换）。
 
 ## 跟其它 skill 的边界
 
