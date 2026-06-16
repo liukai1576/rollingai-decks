@@ -1,9 +1,9 @@
 ---
 name: rolling-deck-v2
 display_name: RollingAI 影像玻璃 H5（粒子地球 · 实景影像 · 磨砂玻璃）
-author: liukai
+author: ganyifan
 kind: [布局风格]
-version: "1.0"
+version: "1.1"
 input:  用户的 brief / 大纲 / 内容 (+ 可选：客户 logo / 实景照片)
 output: 单文件 index.html（assets/ 同目录），浏览器直接打开放映
 triggers:
