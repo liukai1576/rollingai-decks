@@ -1,0 +1,2540 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>企业的 AI 转型与家庭教师的修养</title>
+  <style>
+    :root {
+      --bg: #0c0e12;
+      --panel: #15181e;
+      --panel-2: #1a1e25;
+      --line: rgba(255,255,255,.12);
+      --line-soft: rgba(255,255,255,.07);
+      --text: #f3f5f8;
+      --muted: #aab2bf;
+      --subtle: #79828f;
+      /* frosted glass tokens — dark frosted glass (ref: DroneShield UI) */
+      --glass-bg: rgba(13,17,24,.45);
+      --glass-bg-strong: rgba(13,17,24,.62);
+      --glass-border: rgba(255,255,255,.12);
+      --glass-blur: blur(28px) saturate(170%);
+      --glass-hi: inset 0 1px 0 rgba(255,255,255,.10), inset 0 -1px 0 rgba(0,0,0,.28);
+      --yellow: #fbbf24;
+      --yellow-soft: rgba(251,191,36,.13);
+      --blue: #60a5fa;
+      --blue-soft: rgba(59,130,246,.14);
+      --violet: #c4b5fd;
+      --violet-soft: rgba(167,139,250,.15);
+      --green: #34d399;
+      --orange: #fb923c;
+      --fire: #ff5b2e;
+      --fire-soft: rgba(255,91,46,.16);
+      --fire-glow: rgba(255,91,46,.42);
+      --scale: 1;
+    }
+
+    * { box-sizing: border-box; }
+    html, body { margin: 0; width: 100%; height: 100%; overflow: hidden; }
+    body {
+      color: var(--text);
+      background: #07080a;
+      font-family: "PingFang SC", "Microsoft YaHei", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      line-height: 1.55;
+    }
+    button, input { font: inherit; }
+    button { cursor: pointer; }
+
+    .deck-viewport {
+      position: fixed; inset: 0; display: grid; place-items: center; overflow: hidden;
+      background:
+        radial-gradient(circle at 13% 10%, rgba(80,120,140,.12), transparent 30rem),
+        radial-gradient(circle at 90% 16%, rgba(255,120,70,.07), transparent 28rem),
+        #07080a;
+    }
+    .deck {
+      position: absolute; left: 50%; top: 50%; width: 1920px; height: 1080px; overflow: hidden;
+      transform: translate(-50%, -50%) scale(var(--scale)); transform-origin: center center;
+      background: var(--bg);
+    }
+    .slide {
+      position: absolute; inset: 0; display: none; overflow: hidden;
+      /* bottom padding = safe area so content never sits under the nav bar
+         (controls top out ~90px from the bottom; 110 keeps a 20px gap) */
+      padding: 96px 112px 110px;
+      /* abstract colour-wash backdrop so the frosted panels have light to refract.
+         Colour reaches the centre too, so centred / table-heavy slides still get
+         light under the glass instead of reading as a flat grey slab. */
+      background:
+        radial-gradient(52% 46% at 15% 13%, rgba(255,122,54,.26), transparent 60%),
+        radial-gradient(50% 48% at 87% 15%, rgba(34,200,174,.24), transparent 60%),
+        radial-gradient(58% 54% at 84% 92%, rgba(56,132,255,.22), transparent 62%),
+        radial-gradient(50% 46% at 17% 90%, rgba(154,88,255,.20), transparent 60%),
+        radial-gradient(78% 66% at 50% 48%, rgba(70,150,190,.15), transparent 72%),
+        linear-gradient(150deg, #121826 0%, #0d1018 55%, #090a10 100%);
+    }
+    .slide.active { display: block; animation: reveal .28s ease-out; }
+    /* auto-fit wrapper: scaled down by JS when a slide's content would otherwise
+       overflow into the bottom nav safe-area */
+    .slide-fit { transform-origin: top left; }
+    @keyframes reveal { from { opacity: 0; transform: translateY(14px); } to { opacity: 1; transform: translateY(0); } }
+
+    /* === Vertical fill ===
+       Before: .slide-fit was just a static block, so content flowed top-down
+       and short slides (one section-head + one grid of 3 cards) left a tall
+       empty band at the bottom (~30% of the slide was dead space).
+       Now: .slide-fit is a flex column. Headers and footer bands stay at
+       their natural height. The main content block (any cards/hero-stats/
+       goals-grid/approach-grid/tl-weeks/calendar-wrap/org-stack) gets
+       `flex: 1` so it claims the remaining vertical room, and uses
+       `align-content: center` so its rows visually center within that room.
+       Authors don't have to do anything per-slide. */
+    .slide-fit { height: 100%; display: flex; flex-direction: column; }
+    .slide-fit > .section-head,
+    .slide-fit > .goals-head,
+    .slide-fit > .cover-wrap,
+    .slide-fit > .tl-section-label,
+    .slide-fit > .legend { flex: 0 0 auto; }
+    .slide-fit > .band,
+    .slide-fit > .synth-band,
+    .slide-fit > .cadence-note,
+    .slide-fit > .ceo-core,
+    .slide-fit > .coach-band,
+    .slide-fit > .goals-foot,
+    .slide-fit > .end-contact,
+    .slide-fit > .cover-note,
+    .slide-fit > .phase-strip { flex: 0 0 auto; }
+    .slide-fit > .cards-2,
+    .slide-fit > .cards-3,
+    .slide-fit > .cards-4,
+    .slide-fit > .cards-6,
+    .slide-fit > .hero-stats,
+    .slide-fit > .goals-grid,
+    .slide-fit > .approach-grid,
+    .slide-fit > .tl-weeks,
+    .slide-fit > .org-stack {
+      flex: 1 1 auto;
+      min-height: 0;
+      /* Center the grid's rows (one row gets centered within the container
+         when there's free space). Use `auto` rows so items sit at content
+         height instead of stretching to fill the inflated container. */
+      align-content: center;
+      grid-auto-rows: max-content;
+      align-items: start;
+    }
+    /* goals-grid has TWO explicit rows (`1fr 1fr`) — keep its existing
+       row scheme so the 5-card "1 lead + 4 supporting" layout still works. */
+    .slide-fit > .goals-grid { grid-auto-rows: auto; }
+    .slide-fit > .calendar-wrap {
+      flex: 1 1 auto;
+      min-height: 0;
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+    }
+    /* Plain lists (ol/ul) as the main content block — center them vertically. */
+    .slide-fit > ol,
+    .slide-fit > ul {
+      flex: 1 1 auto;
+      min-height: 0;
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+    }
+
+    .brand-rail {
+      position: absolute; left: 76px; right: 76px; top: 34px; z-index: 75;
+      display: flex; align-items: center; gap: 24px;
+    }
+    /* Both logos sit flush left, same height; the gap separates them.
+       Height tuned to 48px so the marks read as a header lockup, not a
+       banner. RollingAI's wordmark is wide (aspect ~6:1) so 48px tall is
+       still ~285px wide visually. */
+    .rolling-logo, .client-logo {
+      height: 48px; width: auto; object-fit: contain; object-position: left center;
+      opacity: 1; filter: drop-shadow(0 0 1px rgba(255,255,255,.55));
+    }
+    /* Optional thin vertical divider between the two marks. */
+    .brand-rail .brand-sep {
+      width: 1px; height: 32px; background: rgba(255,255,255,.18);
+    }
+    .deck-label { color: var(--subtle); font-size: 18px; font-weight: 700; letter-spacing: .16em; }
+
+    .kicker { color: var(--yellow); font-size: 18px; font-weight: 800; letter-spacing: .18em; }
+    h1 { margin: 28px 0 24px; font-size: 104px; line-height: 1.05; letter-spacing: -.07em; }
+    h2 { margin: 15px 0 0; font-size: 62px; line-height: 1.12; letter-spacing: -.055em; }
+    h3 { margin: 0; font-size: 28px; line-height: 1.25; letter-spacing: -.025em; }
+    p { margin: 0; }
+    .lead { color: #c4cfdd; font-size: 28px; line-height: 1.7; }
+    .copy { color: var(--muted); font-size: 23px; line-height: 1.68; }
+    .copy strong, .lead strong { color: var(--text); }
+    .section-head { display: grid; grid-template-columns: .82fr 1.18fr; gap: 70px; align-items: end; margin-bottom: 40px; padding-right: 150px; }
+
+    .hero-grid { display: grid; grid-template-columns: 1.25fr .75fr; gap: 80px; align-items: end; margin-top: 86px; }
+    .hero-side { padding: 26px 0 0; border-top: 1px solid rgba(255,255,255,.24); }
+    .hero-side h3 { font-size: 30px; }
+    .hero-stats { display: grid; grid-template-columns: repeat(4,1fr); gap: 16px; margin-top: 52px; }
+    .stat { min-height: 154px; padding: 24px; border: 1px solid var(--line); border-radius: 18px; background: rgba(255,255,255,.045); }
+    .stat-num { color: var(--yellow); font-size: 56px; font-weight: 850; line-height: 1; letter-spacing: -.05em; }
+    .stat b { display: block; margin-top: 14px; font-size: 21px; }
+    .stat span { display: block; margin-top: 5px; color: var(--subtle); font-size: 17px; }
+
+    .cards-3, .cards-4, .cards-6, .cards-2 { display: grid; gap: 18px; }
+    .cards-3 { grid-template-columns: repeat(3,1fr); }
+    .cards-4 { grid-template-columns: repeat(4,1fr); }
+    .cards-6 { grid-template-columns: repeat(3,1fr); grid-template-rows: repeat(2,1fr); }
+    .cards-2 { grid-template-columns: repeat(2,1fr); }
+    .card { border: 1px solid var(--line); border-radius: 18px; background: rgba(255,255,255,.045); }
+    .card-pad { padding: 24px; }
+    .card-no { color: var(--yellow); font-size: 17px; font-weight: 800; letter-spacing: .14em; }
+    .card p { margin-top: 10px; color: var(--muted); font-size: 20px; line-height: 1.55; }
+    .card ul { margin: 18px 0 0; padding: 15px 0 0; border-top: 1px solid var(--line-soft); list-style: none; }
+    .card li { position: relative; padding: 3px 0 3px 17px; color: #d2dce8; font-size: 18px; }
+    .card li::before { content: "·"; position: absolute; left: 0; color: var(--yellow); font-weight: 900; }
+
+    .route-card { min-height: 500px; padding: 28px 30px; position: relative; overflow: hidden; }
+    .route-card::after { display: none; }
+    .route-card.sprint { --tone: var(--yellow); }
+    .route-card.deep1 { --tone: var(--blue); }
+    .route-card.deep2 { --tone: var(--violet); }
+    .route-top { display: flex; justify-content: space-between; color: var(--subtle); font-size: 17px; font-weight: 800; letter-spacing: .12em; }
+    .route-top strong { color: var(--tone); }
+    .route-card h3 { margin-top: 46px; font-size: 38px; }
+    .route-card p { min-height: 90px; margin-top: 14px; font-size: 20px; }
+    .route-card li { padding-top: 6px; padding-bottom: 6px; font-size: 19px; }
+    .exit { margin-top: 18px; padding: 14px; border-radius: 10px; background: rgba(255,255,255,.04); color: var(--muted); font-size: 17px; }
+    .exit strong { color: var(--text); }
+
+    .scope-card { min-height: 292px; padding: 23px; }
+    .scope-card h3 { margin-top: 12px; font-size: 28px; }
+    .scope-card p { font-size: 18px; }
+    .scope-card ul { margin-top: 12px; padding-top: 11px; }
+    .scope-card li { font-size: 17px; }
+
+    .operating-card { min-height: 270px; padding: 28px; }
+    .operating-card h3 { font-size: 31px; }
+    .operating-card p { margin-top: 12px; font-size: 22px; line-height: 1.62; }
+    .operating-card strong { color: var(--yellow); }
+    .band { margin-top: 20px; padding: 20px 24px; border-left: 4px solid var(--yellow); border-radius: 14px; background: var(--yellow-soft); color: #f2e2ae; font-size: 21px; }
+
+    .stream { min-height: 475px; padding: 26px; }
+    .stream.primary { background: var(--glass-bg); }
+    .stream h3 { margin-top: 10px; font-size: 36px; }
+    .stream p { margin-top: 7px; font-size: 20px; }
+    .stream-item { margin-top: 12px; padding: 12px 15px; border: 1px solid var(--line-soft); border-radius: 11px; background: rgba(255,255,255,.035); }
+    .stream-item b { display: block; font-size: 20px; }
+    .stream-item span { display: block; margin-top: 2px; color: var(--muted); font-size: 17px; }
+
+    .gov { min-height: 310px; padding: 26px; }
+    .gov h3 { margin-top: 15px; font-size: 29px; }
+    .gov p { font-size: 19px; }
+    .principles { display: grid; grid-template-columns: repeat(3,1fr); gap: 18px; margin-top: 18px; }
+    .principle { padding: 20px; border-radius: 14px; background: rgba(255,255,255,.045); }
+    .principle b { display: block; font-size: 21px; }
+    .principle span { display: block; margin-top: 6px; color: var(--muted); font-size: 18px; }
+
+    .cadence-card { min-height: 408px; padding: 26px; position: relative; }
+    .cadence-card:not(:last-child)::after { content: ""; position: absolute; right: -19px; top: 52px; width: 18px; height: 2px; background: var(--yellow); }
+    .cadence-card h3 { margin-top: 18px; font-size: 30px; }
+    .cadence-card p { font-size: 20px; }
+    .cadence-card li { padding-top: 5px; padding-bottom: 5px; font-size: 18px; }
+    .cadence-note { margin-top: 20px; padding: 20px 24px; border-radius: 15px; background: var(--yellow-soft); color: #efe0ab; font-size: 22px; }
+
+    .phase-strip { display: grid; grid-template-columns: repeat(4,1fr); gap: 14px; margin-bottom: 18px; }
+    .phase { padding: 17px; border: 1px solid var(--line); border-radius: 13px; background: rgba(255,255,255,.045); }
+    .phase b { display: block; margin-top: 5px; font-size: 20px; }
+    .phase span { color: var(--yellow); font-size: 15px; font-weight: 800; letter-spacing: .1em; }
+    .phase small { display: block; margin-top: 5px; color: var(--muted); font-size: 15px; }
+    .legend { display: flex; gap: 22px; margin-bottom: 12px; color: var(--muted); font-size: 16px; }
+    .legend i { display: inline-block; width: 12px; height: 12px; margin-right: 7px; border-radius: 3px; }
+    .calendar-wrap { padding: 14px; border: 1px solid var(--line); border-radius: 16px; background: rgba(13,27,45,.9); }
+    table { width: 100%; border-collapse: separate; border-spacing: 5px; table-layout: fixed; }
+    th { padding: 7px; border-radius: 6px; background: rgba(255,255,255,.05); color: var(--muted); font-size: 15px; }
+    td { height: 118px; padding: 10px; vertical-align: top; border-radius: 8px; }
+    .phase-cell { width: 154px; border-left: 4px solid var(--yellow); background: rgba(255,255,255,.055); }
+    .phase-cell b { display: block; font-size: 18px; }
+    .phase-cell span { color: var(--subtle); font-size: 14px; }
+    .week-cell { width: 74px; text-align: center; background: rgba(255,255,255,.055); }
+    .week-cell b { font-size: 20px; }
+    .week-cell span { display: block; color: var(--subtle); font-size: 13px; }
+    .cal-cell { border: 1px solid var(--line-soft); background: rgba(255,255,255,.04); }
+    .cal-cell.both { border-color: rgba(251,191,36,.34); background: var(--yellow-soft); }
+    .cal-cell.us { border-color: rgba(96,165,250,.34); background: var(--blue-soft); }
+    .cal-cell.client { border-color: rgba(196,181,253,.34); background: var(--violet-soft); }
+    .cal-cell b { display: block; font-size: 18px; line-height: 1.25; }
+    .cal-cell small { display: block; margin-top: 4px; color: #c5d0df; font-size: 15px; line-height: 1.36; }
+    .owner { display: inline-block; margin-top: 6px; padding: 2px 7px; border-radius: 99px; background: rgba(255,255,255,.1); color: var(--muted); font-size: 13px; font-weight: 800; }
+
+    /* 3-Track Incubation Calendar */
+    .track-legend { display: flex; gap: 22px; margin-bottom: 12px; color: var(--muted); font-size: 16px; align-items: center; }
+    .track-legend i { display: inline-block; width: 12px; height: 12px; margin-right: 7px; border-radius: 3px; }
+    .track-table { width: 100%; border-collapse: separate; border-spacing: 5px; table-layout: fixed; }
+    .track-table th { padding: 8px 10px; border-radius: 6px; background: rgba(255,255,255,.05); color: var(--muted); font-size: 15px; font-weight: 700; text-align: left; }
+    .tt-track-col { width: 138px; }
+    .tt-label { width: 138px; padding: 14px 12px; border-radius: 8px; vertical-align: middle; text-align: left; }
+    .tt-label .tt-code { display: block; font-size: 12px; font-weight: 900; letter-spacing: .14em; margin-bottom: 5px; opacity: .8; }
+    .tt-label b { display: block; font-size: 18px; line-height: 1.2; }
+    .tt-label small { display: block; margin-top: 4px; font-size: 12px; line-height: 1.3; opacity: .75; }
+    .tt-org { border-left: 4px solid var(--yellow); background: var(--yellow-soft); color: #f2e2ae; }
+    .tt-workflow { border-left: 4px solid var(--blue); background: var(--blue-soft); color: #bfdbfe; }
+    .tt-agent { border-left: 4px solid var(--violet); background: var(--violet-soft); color: #ddd6fe; }
+    .tt-cell { height: 130px; padding: 10px 12px; border-radius: 8px; vertical-align: top; }
+    .tt-org-cell { border: 1px solid rgba(251,191,36,.28); background: rgba(251,191,36,.05); }
+    .tt-workflow-cell { border: 1px solid rgba(96,165,250,.28); background: rgba(59,130,246,.05); }
+    .tt-agent-cell { border: 1px solid rgba(167,139,250,.28); background: rgba(167,139,250,.05); }
+    .tt-cell b { display: block; font-size: 16px; line-height: 1.3; color: var(--text); }
+    .tt-cell small { display: block; margin-top: 4px; color: var(--muted); font-size: 13px; line-height: 1.38; }
+    .tt-deliver { display: inline-block; margin-top: 7px; padding: 2px 8px; border-radius: 99px; font-size: 11.5px; font-weight: 800; letter-spacing: .05em; }
+    .tt-deliver-org { background: rgba(251,191,36,.18); color: var(--yellow); }
+    .tt-deliver-wf { background: rgba(96,165,250,.18); color: var(--blue); }
+    .tt-deliver-ag { background: rgba(167,139,250,.18); color: var(--violet); }
+    .incub-milestones { display: grid; grid-template-columns: repeat(4,1fr); gap: 12px; margin-top: 12px; }
+    .incub-ms { padding: 12px 14px; border: 1px solid var(--line); border-radius: 11px; background: rgba(255,255,255,.04); }
+    .incub-ms span { color: var(--yellow); font-size: 14px; font-weight: 800; letter-spacing: .1em; }
+    .incub-ms b { display: block; margin-top: 3px; font-size: 17px; }
+    .incub-ms small { display: block; margin-top: 2px; color: var(--subtle); font-size: 13px; }
+    .slide[data-slide-key="incub-w1w4"] td { height: 124px; }
+    .slide[data-slide-key="incub-w5w8"] td { height: 124px; }
+    .slide[data-slide-key="sprint-calendar-2"] td { height: 98px; }
+    .slide[data-slide-key="sprint-calendar-2"] .phase-strip { margin-top: 12px !important; }
+
+    /* Workshop slide */
+    .ws-day { min-height: 500px; padding: 26px 28px; }
+    .ws-day.d1 { background: var(--glass-bg); }
+    .ws-day.d2 { background: var(--glass-bg); }
+    .ws-day-label { font-size: 14px; font-weight: 900; letter-spacing: .18em; }
+    .ws-day.d1 .ws-day-label { color: var(--blue); }
+    .ws-day.d2 .ws-day-label { color: var(--fire); }
+    .ws-day h3 { margin-top: 8px; font-size: 32px; }
+    .ws-block { margin-top: 14px; padding: 12px 14px; border: 1px solid var(--line-soft); border-radius: 10px; background: rgba(255,255,255,.035); }
+    .ws-block b { display: block; font-size: 17px; color: var(--text); }
+    .ws-block span { display: block; margin-top: 3px; color: var(--muted); font-size: 15px; line-height: 1.4; }
+    .ws-block .ws-time { font-size: 13px; font-weight: 800; letter-spacing: .08em; color: var(--subtle); margin-bottom: 4px; }
+    .ws-outcome { margin-top: 16px; padding: 14px 16px; border-radius: 10px; }
+    .ws-day.d1 .ws-outcome { background: rgba(96,165,250,.1); border: 1px solid rgba(96,165,250,.3); color: #bfdbfe; }
+    .ws-day.d2 .ws-outcome { background: rgba(255,91,46,.1); border: 1px solid rgba(255,91,46,.3); color: #ffe4d6; }
+    .ws-outcome b { font-size: 16px; }
+    .ws-outcome span { display: block; margin-top: 4px; font-size: 15px; line-height: 1.4; }
+
+    /* Incubation overview track cards */
+    .track-overview { min-height: 560px; padding: 28px; position: relative; overflow: hidden; }
+    .track-overview::after { display: none; }
+    .track-overview.t-org { --track-tone: var(--yellow); }
+    .track-overview.t-workflow { --track-tone: var(--blue); }
+    .track-overview.t-agent { --track-tone: var(--violet); }
+    .track-code { font-size: 13px; font-weight: 900; letter-spacing: .16em; }
+    .t-org .track-code { color: var(--yellow); }
+    .t-workflow .track-code { color: var(--blue); }
+    .t-agent .track-code { color: var(--violet); }
+    .track-overview h3 { margin-top: 14px; font-size: 34px; }
+    .track-overview .track-sub { margin-top: 6px; color: var(--muted); font-size: 17px; }
+    .track-overview ul { margin: 16px 0 0; padding: 0; list-style: none; border-top: 1px solid var(--line-soft); }
+    .track-overview li { position: relative; padding: 7px 0 7px 18px; font-size: 17px; color: #d2dce8; border-bottom: 1px solid var(--line-soft); }
+    .track-overview li::before { content: ""; position: absolute; left: 0; top: 15px; width: 7px; height: 7px; border-radius: 50%; background: var(--track-tone); }
+    .track-deliver { margin-top: 16px; padding: 14px 16px; border-radius: 11px; background: rgba(255,255,255,.05); }
+    .track-deliver b { display: block; font-size: 16px; }
+    .track-deliver span { display: block; margin-top: 4px; color: var(--muted); font-size: 15px; line-height: 1.4; }
+
+    /* Goals grid */
+    .goals-head { display: grid; grid-template-columns: 1fr 1.05fr; gap: 60px; align-items: end; margin-bottom: 32px; padding-right: 150px; }
+    .goals-grid { display: grid; grid-template-columns: 1.05fr 1fr 1fr; grid-template-rows: 1fr 1fr; gap: 18px; }
+    .goal-card {
+      position: relative; padding: 26px 26px 24px;
+      border: 1px solid var(--line); border-radius: 18px;
+      background: linear-gradient(150deg, rgba(255,91,46,.07), rgba(255,255,255,.04));
+      overflow: hidden;
+    }
+    .goal-card::before {
+      content: ""; position: absolute; right: -56px; top: -52px;
+      width: 200px; height: 200px; border-radius: 50%;
+      background: radial-gradient(circle, var(--fire-soft) 0%, transparent 70%);
+    }
+    .goal-card.lead-card {
+      grid-row: span 2;
+      border: 1px solid var(--fire-glow);
+      background: linear-gradient(150deg, rgba(255,91,46,.22), rgba(251,191,36,.08));
+    }
+    .goal-num {
+      display: inline-block; padding: 4px 12px; border-radius: 99px;
+      background: rgba(255,255,255,.07); color: var(--fire);
+      font-size: 15px; font-weight: 900; letter-spacing: .14em;
+    }
+    .goal-headline { margin-top: 22px; font-size: 30px; line-height: 1.18; letter-spacing: -.03em; color: var(--text); }
+    .goal-card.lead-card .goal-headline { font-size: 44px; line-height: 1.08; }
+    .goal-card.lead-card .goal-headline .tenx-mark { padding: 0 12px; }
+    .goal-tag { margin-top: 14px; color: #ffd0bd; font-size: 18px; font-weight: 700; }
+    .goal-card.lead-card .goal-tag { color: #ffe4d6; font-size: 21px; }
+    .goal-note { margin-top: 16px; color: var(--muted); font-size: 18px; line-height: 1.55; }
+    .goals-foot {
+      margin-top: 24px; padding: 18px 24px;
+      border: 1px dashed var(--fire-glow); border-radius: 14px;
+      color: #ffe2d4; font-size: 20px; line-height: 1.55;
+    }
+    .goals-foot strong { color: var(--fire); }
+
+    /* 10X styling */
+    .tenx-chip {
+      display: inline-flex; align-items: center; gap: 8px;
+      padding: 6px 14px; border-radius: 99px;
+      border: 1px solid var(--fire-glow); background: var(--fire-soft);
+      color: #ffd9c8; font-size: 16px; font-weight: 900; letter-spacing: .22em;
+      text-transform: uppercase;
+    }
+    .tenx-chip b { color: var(--fire); font-size: 20px; letter-spacing: 0; }
+    .tenx-mega {
+      position: absolute; right: -12px; top: -42px; z-index: 1; pointer-events: none;
+      color: rgba(255,91,46,.09); font-size: 460px; font-weight: 900; line-height: .85;
+      letter-spacing: -.08em;
+    }
+    .tenx-mark {
+      display: inline-block; padding: 0 8px; border-radius: 10px;
+      background: linear-gradient(135deg, var(--fire), var(--yellow));
+      color: #1a0a04; font-weight: 900; letter-spacing: -.02em;
+      box-shadow: 0 0 26px var(--fire-glow);
+    }
+    h1 .tenx-mark { padding: 0 18px; }
+    .cover-shout {
+      margin-top: 24px; padding: 22px 26px;
+      border: 1px solid var(--fire-glow); border-left: 6px solid var(--fire);
+      border-radius: 16px; background: linear-gradient(115deg, rgba(255,91,46,.12), rgba(255,255,255,.03));
+      color: #ffe4d6; font-size: 22px; line-height: 1.6;
+    }
+    .cover-shout strong { color: #ffb29a; }
+    .cover-wrap { max-width: 1320px; margin-top: 60px; }
+    .cover-wrap h1 { margin: 30px 0 0; }
+    .cover-lead { margin-top: 30px; max-width: 1180px; color: #c4cfdd; font-size: 30px; line-height: 1.66; }
+    .cover-lead strong { color: var(--text); }
+    .cover-note {
+      display: inline-block; margin-top: 26px; padding: 14px 22px;
+      border: 1px solid var(--line); border-left: 4px solid var(--yellow); border-radius: 12px;
+      background: rgba(255,255,255,.035); color: var(--muted); font-size: 21px;
+    }
+    .cover-note strong { color: #f2e2ae; }
+
+    /* Approach grid */
+    .approach-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 18px; }
+    .approach-card { padding: 28px 30px; min-height: 410px; }
+    .approach-card.left { background: var(--glass-bg); }
+    .approach-card.right { background: var(--glass-bg); }
+    .approach-card h3 { font-size: 32px; }
+    .approach-card .ac-sub { margin-top: 8px; color: var(--muted); font-size: 19px; }
+    .approach-list { margin: 16px 0 0; padding: 0; list-style: none; }
+    .approach-list li { position: relative; padding: 10px 0 10px 26px; border-top: 1px solid var(--line-soft); color: #d7e0ec; font-size: 20px; line-height: 1.42; }
+    .approach-list li:first-child { border-top: none; }
+    .approach-list li b { color: var(--text); }
+    .approach-list li::before { content: ""; position: absolute; left: 0; top: 19px; width: 9px; height: 9px; border-radius: 50%; background: var(--blue); }
+    .approach-card.right .approach-list li::before { background: var(--fire); }
+    .approach-list small { display: block; margin-top: 2px; color: var(--subtle); font-size: 16px; }
+    .ref-chips { display: flex; flex-wrap: wrap; gap: 9px; margin-top: 16px; padding-top: 14px; border-top: 1px solid var(--line-soft); }
+    .ref-chips span { padding: 7px 13px; border: 1px solid var(--line); border-radius: 99px; background: rgba(255,255,255,.05); color: #cfe0f3; font-size: 15px; }
+    .synth-band { margin-top: 18px; padding: 22px 28px; border: 1px solid var(--fire-glow); border-left: 6px solid var(--fire); border-radius: 16px; background: linear-gradient(115deg, rgba(255,91,46,.12), rgba(255,255,255,.03)); color: #ffe4d6; font-size: 22px; line-height: 1.55; }
+    .synth-band strong { color: #ffb29a; }
+
+    /* Org structure */
+    .org-stack { display: grid; gap: 13px; margin-top: 4px; }
+    .org-layer { display: grid; grid-template-columns: 290px 1fr; gap: 22px; align-items: center; padding: 20px 26px; border: 1px solid var(--line); border-radius: 16px; background: rgba(255,255,255,.045); }
+    .ol-label { display: flex; flex-direction: column; gap: 7px; }
+    .ol-tag { width: max-content; padding: 5px 12px; border-radius: 99px; font-size: 14px; font-weight: 900; letter-spacing: .1em; }
+    .ol-name { font-size: 25px; font-weight: 800; line-height: 1.2; }
+    .ol-body { color: #d2dce8; font-size: 19px; line-height: 1.5; }
+    .ol-body b { color: var(--text); }
+    .org-layer.l1 { background: var(--glass-bg); }
+    .org-layer.l1 .ol-tag { background: linear-gradient(135deg, var(--fire), var(--yellow)); color: #1a0a04; }
+    .org-layer.l2 .ol-tag { background: var(--yellow-soft); color: var(--yellow); }
+    .org-layer.l3 .ol-tag { background: var(--blue-soft); color: var(--blue); }
+    .org-layer.l4 .ol-tag { background: var(--violet-soft); color: var(--violet); }
+    .org-sub { display: flex; gap: 10px; flex-wrap: wrap; margin-top: 9px; }
+    .org-sub span { padding: 6px 12px; border: 1px solid var(--line-soft); border-radius: 8px; background: rgba(255,255,255,.04); color: #cdd8e6; font-size: 16px; }
+
+    /* Coach band */
+    .coach-band {
+      display: flex; align-items: center; gap: 26px; margin-top: 6px;
+      padding: 24px 30px; border: 1px solid var(--fire-glow); border-left: 6px solid var(--fire);
+      border-radius: 16px; background: linear-gradient(115deg, rgba(255,91,46,.12), rgba(255,255,255,.03));
+    }
+    .coach-pill {
+      flex: none; padding: 11px 20px; border-radius: 99px;
+      background: linear-gradient(135deg, var(--fire), var(--yellow));
+      color: #1a0a04; font-size: 23px; font-weight: 900; letter-spacing: -.01em;
+    }
+    .coach-band p { color: #ffe4d6; font-size: 23px; line-height: 1.5; }
+    .coach-card { min-height: 300px; padding: 30px; }
+    .coach-card h3 { margin-top: 14px; font-size: 34px; }
+    .coach-card p { margin-top: 14px; font-size: 22px; line-height: 1.6; }
+
+    /* CEO */
+    .ceo-grid { display: grid; grid-template-columns: repeat(4,1fr); gap: 18px; }
+    .ceo-card { padding: 28px; min-height: 372px; }
+    .ceo-card .cc-num { font-size: 46px; font-weight: 900; color: var(--fire); line-height: 1; letter-spacing: -.04em; }
+    .ceo-card h3 { margin-top: 18px; font-size: 27px; line-height: 1.25; }
+    .ceo-card p { margin-top: 12px; color: var(--muted); font-size: 19px; line-height: 1.55; }
+    .ceo-core { margin-top: 18px; padding: 22px 28px; border: 1px solid var(--fire-glow); border-left: 6px solid var(--fire); border-radius: 16px; background: linear-gradient(115deg, rgba(255,91,46,.12), rgba(255,255,255,.03)); color: #ffe4d6; font-size: 24px; }
+    .ceo-core strong { color: #ffb29a; }
+
+    /* Nav & controls */
+    .deck-progress { position: absolute; left: 0; right: 0; bottom: 0; z-index: 30; height: 5px; background: rgba(255,255,255,.055); }
+    .deck-progress span { display: block; width: 0; height: 100%; background: linear-gradient(90deg,var(--yellow),var(--blue),var(--violet)); transition: width .25s ease; }
+    .deck-controls {
+      position: absolute; left: 50%; bottom: 28px; z-index: 40; transform: translateX(-50%);
+      display: flex; align-items: center; gap: 10px; padding: 9px;
+      border: 1px solid rgba(255,255,255,.16); border-radius: 99px;
+      background: rgba(2,7,17,.82); backdrop-filter: blur(18px);
+    }
+    .deck-controls button, .confirm-toggle, .confirm-close, .comment-tool, .comment-overview-toggle, .comment-close, .comment-action {
+      display: grid; place-items: center; border: 1px solid rgba(255,255,255,.12);
+      color: var(--text); background: rgba(255,255,255,.07); transition: background .2s ease, border-color .2s ease;
+    }
+    .deck-controls button { width: 50px; height: 44px; border-radius: 99px; font-size: 22px; }
+    .deck-controls button:hover, .deck-controls button.active, .confirm-toggle:hover, .confirm-close:hover { background: rgba(251,191,36,.16); border-color: rgba(251,191,36,.5); }
+    .page-no { min-width: 90px; text-align: center; color: var(--muted); font-size: 17px; font-weight: 800; letter-spacing: .12em; }
+    .vertical-pager { position: absolute; right: 30px; top: 50%; z-index: 40; display: grid; gap: 9px; transform: translateY(-50%); }
+    .vertical-pager button { position: relative; width: 48px; height: 48px; border: 1px solid rgba(255,255,255,.14); border-radius: 50%; color: var(--text); background: rgba(2,7,17,.76); font-size: 21px; }
+
+    /* ── brushed blue-grey metal rim (native, no deps) ──
+       a soft metallic conic gradient (no rainbow — cool blue-grey with two
+       silver highlights) drifting around the edge; the double-mask keeps only
+       a thin 1px ring. Brighter on the controls, whisper-subtle on cards. */
+    @property --lm-angle { syntax: "<angle>"; initial-value: 0deg; inherits: false; }
+    .deck-controls::before, .confirm-toggle::before, .vertical-pager button::before,
+    .card::before, .stat::before, .calendar-wrap::before, .principle::before,
+    .stream-item::before, .org-layer::before, .incub-ms::before, .phase::before,
+    .ws-block::before, .synth-band::before, .cadence-note::before,
+    .ceo-core::before, .coach-band::before, .band::before {
+      content: ""; position: absolute; inset: 0; border-radius: inherit;
+      padding: 1px; pointer-events: none; z-index: 1;
+      background: conic-gradient(from var(--lm-angle),
+        #353e4a, #c4d4ea, #5b6a7d, #9cafc7, #2f3744, #b1c2d9, #353e4a);
+      -webkit-mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
+              mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
+      -webkit-mask-composite: xor; mask-composite: exclude;
+      animation: lmSpin 7s linear infinite;
+    }
+    /* content cards: keep the metal edge very restrained */
+    .card::before, .stat::before, .calendar-wrap::before, .principle::before,
+    .stream-item::before, .org-layer::before, .incub-ms::before, .phase::before,
+    .ws-block::before, .synth-band::before, .cadence-note::before,
+    .ceo-core::before, .coach-band::before, .band::before { opacity: .28; }
+    /* positioning context so the rim can anchor to each card */
+    .card, .stat, .calendar-wrap, .principle, .stream-item, .org-layer,
+    .incub-ms, .phase, .ws-block, .synth-band, .cadence-note, .ceo-core,
+    .coach-band, .band { position: relative; }
+    /* controls: brighter rim + a faint outer bloom */
+    .deck-controls::before, .confirm-toggle::before, .vertical-pager button::before { opacity: .8; }
+    .deck-controls::after, .confirm-toggle::after, .vertical-pager button::after {
+      content: ""; position: absolute; inset: -2px; border-radius: inherit;
+      padding: 2px; pointer-events: none; z-index: 0; opacity: .32; filter: blur(5px);
+      background: conic-gradient(from var(--lm-angle),
+        #353e4a, #c4d4ea, #5b6a7d, #9cafc7, #2f3744, #b1c2d9, #353e4a);
+      -webkit-mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
+              mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
+      -webkit-mask-composite: xor; mask-composite: exclude;
+      animation: lmSpin 7s linear infinite;
+    }
+    @keyframes lmSpin { to { --lm-angle: 360deg; } }
+
+    .confirm-toggle {
+      position: absolute; right: 30px; bottom: 30px; z-index: 55;
+      width: 56px; height: 56px; min-width: 0; padding: 0; border-radius: 50%;
+      color: #d9fbed; font-size: 24px;
+    }
+    .confirm-toggle span { color: var(--green); }
+    .fn-confirm { background: rgba(52,211,153,.16) !important; border-color: rgba(52,211,153,.5) !important; color: #c7f6e4 !important; }
+    .fn-confirm:hover { background: rgba(52,211,153,.26) !important; }
+    .fn-section-title b { color: var(--green); font-weight: 900; }
+    .confirm-panel {
+      position: absolute; right: 30px; bottom: 94px; z-index: 54; display: none;
+      width: 470px; padding: 22px; border: 1px solid rgba(255,255,255,.16); border-radius: 18px;
+      background: rgba(5,12,23,.96); backdrop-filter: blur(20px);
+    }
+    .confirm-panel.open { display: block; animation: pop .18s ease-out; }
+    @keyframes pop { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: translateY(0); } }
+    .confirm-header { display: flex; align-items: center; justify-content: space-between; gap: 14px; }
+    .confirm-header h3 { font-size: 25px; }
+    .confirm-close { width: 34px; height: 34px; border-radius: 50%; font-size: 18px; }
+    .confirm-sub { margin-top: 7px; color: var(--muted); font-size: 16px; }
+    .confirm-list { display: grid; gap: 8px; margin-top: 16px; }
+    .confirm-item { display: grid; grid-template-columns: 22px 1fr; gap: 10px; align-items: start; padding: 10px; border-radius: 10px; background: rgba(255,255,255,.045); color: #d7e0ec; font-size: 16px; line-height: 1.42; }
+    .confirm-item input { width: 18px; height: 18px; margin-top: 2px; accent-color: var(--green); }
+    .confirm-item:has(input:checked) { color: #9adbc2; text-decoration: line-through; opacity: .75; }
+    .confirm-meter { height: 6px; margin-top: 16px; overflow: hidden; border-radius: 99px; background: rgba(255,255,255,.08); }
+    .confirm-meter span { display: block; width: 0; height: 100%; background: var(--green); transition: width .2s ease; }
+
+    /* ── function panel: mode switch + export + confirm ── */
+    .mode-switch { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-top: 4px; padding: 5px; border-radius: 12px; background: rgba(255,255,255,.05); }
+    .mode-btn { padding: 9px 0; border: 1px solid transparent; border-radius: 9px; background: transparent; color: var(--muted); font-size: 15px; font-weight: 800; letter-spacing: .04em; transition: background .18s ease, color .18s ease, border-color .18s ease; }
+    .mode-btn.active { background: rgba(251,191,36,.16); border-color: rgba(251,191,36,.45); color: #ffe6ab; }
+    .edit-tools { margin-top: 14px; display: flex; gap: 10px; }
+    .edit-tools[hidden] { display: none; }
+    .fn-action { flex: 1; padding: 11px 0; border: 1px solid var(--glass-border); border-radius: 10px; background: rgba(255,255,255,.06); color: var(--text); font-size: 15px; font-weight: 800; }
+    .fn-action:hover { background: rgba(96,165,250,.16); border-color: rgba(96,165,250,.5); }
+    .fn-section-title { margin-top: 18px; margin-bottom: 8px; color: var(--subtle); font-size: 14px; font-weight: 800; letter-spacing: .14em; }
+    /* edit mode: highlight editable text */
+    body.edit-mode [data-edit-key] { outline: 1px dashed rgba(96,165,250,0); border-radius: 4px; cursor: text; transition: outline-color .15s ease, background .15s ease; }
+    body.edit-mode [data-edit-key]:hover { outline-color: rgba(96,165,250,.45); background: rgba(96,165,250,.06); }
+    body.edit-mode [data-edit-key]:focus { outline: 1px solid rgba(96,165,250,.85); background: rgba(96,165,250,.10); }
+    body.edit-mode .confirm-item span[contenteditable="true"] { outline: 1px dashed rgba(96,165,250,.35); border-radius: 4px; padding: 1px 4px; }
+    .edit-badge { position: absolute; left: 34px; bottom: 40px; z-index: 56; display: none; align-items: center; gap: 8px; padding: 8px 14px; border-radius: 99px; background: rgba(96,165,250,.16); border: 1px solid rgba(96,165,250,.5); color: #cfe0ff; font-size: 14px; font-weight: 800; letter-spacing: .04em; }
+    body.edit-mode .edit-badge { display: inline-flex; }
+
+    .hint { position: absolute; left: 34px; bottom: 40px; z-index: 35; color: var(--subtle); font-size: 15px; letter-spacing: .06em; }
+
+    /* ════════════════════════════════════════════════
+       FROSTED-GLASS TEXTURE — applied to every surface
+       (gray glassmorphism, ref: dashboard mockups)
+    ════════════════════════════════════════════════ */
+    .card, .stat, .calendar-wrap, .principle, .stream-item,
+    .org-layer, .incub-ms, .phase, .exit, .ref-chips span,
+    .org-sub span, .ws-block, .confirm-item,
+    .synth-band, .cadence-note, .ceo-core, .coach-band, .band {
+      backdrop-filter: var(--glass-blur);
+      -webkit-backdrop-filter: var(--glass-blur);
+    }
+    .card, .stat, .calendar-wrap {
+      background: var(--glass-bg);
+      border-color: var(--glass-border);
+      box-shadow: var(--glass-hi), 0 18px 50px -28px rgba(0,0,0,.7);
+    }
+    .card { transition: transform .25s ease, box-shadow .25s ease, border-color .25s ease; }
+    .calendar-wrap { background: var(--glass-bg); }
+    .stat { background: var(--glass-bg); }
+
+    /* ════════════════════════════════════════════════
+       SLIDE 01 · PARTICLE COVER (mouse-following ink)
+    ════════════════════════════════════════════════ */
+    .cover-hero { padding: 0;
+      background:
+        radial-gradient(110% 85% at 70% 28%, rgba(26,50,80,.85) 0%, transparent 55%),
+        radial-gradient(85% 75% at 20% 80%, rgba(38,28,62,.8) 0%, transparent 60%),
+        radial-gradient(circle at 50% 46%, #0b1422 0%, #070a12 55%, #050507 100%);
+    }
+    .cover-hero .particle-canvas {
+      position: absolute; inset: 0; width: 100%; height: 100%;
+      display: block; z-index: 1; cursor: grab; touch-action: none;
+    }
+    .cover-hero .particle-canvas:active { cursor: grabbing; }
+    .cover-hero-veil {
+      position: absolute; inset: 0; z-index: 2; pointer-events: none;
+      background: radial-gradient(120% 120% at 50% 50%, transparent 40%, rgba(8,9,12,.55) 100%);
+    }
+    .cover-hero-content {
+      position: absolute; left: 96px; bottom: 104px; z-index: 3; pointer-events: none;
+      display: flex; flex-direction: column; align-items: flex-start;
+      gap: 20px; text-align: left;
+    }
+    .cover-hero-logo {
+      width: 360px; height: auto; object-fit: contain;
+      filter: drop-shadow(0 2px 6px rgba(0,0,0,.9)) drop-shadow(0 4px 34px rgba(0,0,0,.7));
+      opacity: 0; animation: heroFade 1.1s .15s ease-out forwards;
+    }
+    .cover-hero-title {
+      margin: 0; font-size: 132px; line-height: 1; letter-spacing: -.06em; font-weight: 850;
+      /* metal-fx (native, no deps): a polished-metal gradient with a bright
+         specular band that sweeps across the glyphs like brushed gold */
+      background: linear-gradient(100deg,
+        #f2a06b 0%, #ffd9c2 28%, #fff4ec 43%, #ffffff 50%,
+        #fff1e3 57%, #ffba8c 72%, #f5854f 100%);
+      background-size: 240% 100%; background-position: 115% 0;
+      -webkit-background-clip: text; background-clip: text; color: transparent;
+      /* gradient text is transparent, so text-shadow can't help — drop-shadow
+         lays a dark halo under the glyphs so the light sweep never washes them out */
+      filter: drop-shadow(0 2px 5px rgba(0,0,0,.92)) drop-shadow(0 6px 40px rgba(0,0,0,.78));
+      opacity: 0;
+      animation: heroFade 1.1s .35s ease-out forwards,
+                 metalSweep 5.5s 1.6s ease-in-out infinite;
+    }
+    @keyframes metalSweep {
+      0%, 100% { background-position: 115% 0; }
+      50%      { background-position: -15% 0; }
+    }
+    .cover-hero-sub {
+      margin: 0; font-size: 30px; letter-spacing: .42em; font-weight: 600;
+      color: rgba(243,245,248,.78); padding-left: .42em;
+      text-shadow: 0 1px 4px rgba(0,0,0,.92), 0 2px 22px rgba(0,0,0,.7);
+      opacity: 0; animation: heroFade 1.1s .6s ease-out forwards;
+    }
+    .cover-hero-hint {
+      position: absolute; left: 98px; bottom: 56px; z-index: 3;
+      color: var(--subtle); font-size: 17px; letter-spacing: .14em; pointer-events: none;
+      opacity: 0; animation: heroFade 1.2s 1.1s ease-out forwards;
+    }
+    @keyframes heroFade { from { opacity: 0; transform: translateY(18px); } to { opacity: 1; transform: translateY(0); } }
+    /* hide global brand-rail while the particle cover is on top */
+    body.on-cover .brand-rail { opacity: 0; pointer-events: none; }
+    .brand-rail { transition: opacity .3s ease; }
+
+    /* ── optional reusable components ── */
+    /* big faded number/word watermark in a card corner (add .has-watermark to the card) */
+    .has-watermark { position: relative; overflow: hidden; }
+    .dir-watermark { position: absolute; right: 12px; top: -6px; font-size: 128px; line-height: 1; font-weight: 900; opacity: .07; pointer-events: none; }
+    .dir-icon { margin-right: 10px; }
+    /* timeline / week grid — pair each .tl-w with .card for the glass look */
+    .tl-section-label { margin: 6px 0 12px; color: var(--subtle); font-size: 16px; font-weight: 800; letter-spacing: .1em; }
+    .tl-weeks { display: grid; grid-template-columns: repeat(4,1fr); gap: 12px; }
+    .tl-w { padding: 16px; border-radius: 13px; }
+    .tl-w b { display: block; font-size: 22px; }
+    .tl-w span { color: var(--subtle); font-size: 13px; font-weight: 800; letter-spacing: .06em; }
+    .tl-w small { display: block; margin-top: 4px; color: var(--muted); font-size: 15px; }
+    .tl-sum { display: block; margin-top: 5px; color: #d2dce8; font-size: 14px; line-height: 1.4; }
+    .tl-date { display: block; margin-top: 4px; color: var(--subtle); font-size: 14px; }
+    .tl-prep, .tl-p1 { border-left: 4px solid var(--yellow); }
+    .tl-ws { border-left: 4px solid var(--fire); }
+    .tl-p2 { border-left: 4px solid var(--blue); }
+    .tl-p3 { border-left: 4px solid var(--violet); }
+    .tl-p4 { border-left: 4px solid var(--green); }
+
+    /* ── print / export-to-PDF: lay every slide out as its own page ── */
+    @media print {
+      @page { size: 1920px 1080px; margin: 0; }
+      * { -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; }
+      html, body { width: 1920px !important; height: auto !important; overflow: visible !important; background: #0a0b0f !important; }
+      .deck-viewport { position: static !important; display: block !important; overflow: visible !important; background: #0a0b0f !important; }
+      .deck { position: static !important; transform: none !important; left: auto !important; top: auto !important; width: 1920px !important; height: auto !important; }
+      .slide { display: block !important; position: relative !important; inset: auto !important; width: 1920px !important; height: 1080px !important; break-after: page; page-break-after: always; overflow: hidden !important; }
+      .slide-fit { transform: none !important; }
+      .deck-controls, .vertical-pager, .confirm-toggle, .confirm-panel, .brand-rail, .edit-badge, .hint { display: none !important; }
+      .cover-hero .particle-canvas { display: none !important; }
+      .cover-hero-content, .cover-hero-title, .cover-hero-sub, .cover-hero-logo,
+      .cover-hero-lockup, .cover-hero-bluemoon { animation: none !important; opacity: 1 !important; }
+      /* backdrop-filter (frosted glass) is dropped by browsers when printing →
+         give panels a solid dark fallback so they don't go transparent in the PDF */
+      .card, .stat, .calendar-wrap, .principle, .stream-item, .org-layer,
+      .incub-ms, .phase, .exit, .ws-block, .confirm-item, .stream,
+      .approach-card, .ws-day, .route-card, .track-overview, .coach-card {
+        backdrop-filter: none !important; -webkit-backdrop-filter: none !important;
+        background-color: rgba(18,24,33,.94) !important;
+      }
+      .synth-band, .cadence-note, .ceo-core, .coach-band, .band {
+        backdrop-filter: none !important; -webkit-backdrop-filter: none !important;
+      }
+      /* animated metal rims don't print cleanly — hide them */
+      .card::before, .stat::before, .calendar-wrap::before, .principle::before,
+      .stream-item::before, .org-layer::before, .incub-ms::before, .phase::before,
+      .ws-block::before, .synth-band::before, .cadence-note::before,
+      .ceo-core::before, .coach-band::before, .band::before { display: none !important; }
+    }
+  </style>
+</head>
+<body>
+  <div class="deck-viewport">
+    <main class="deck" id="deck">
+      <div class="brand-rail">
+        <img class="rolling-logo" src="assets/rolling-ai-logo.svg" alt="Rolling AI">
+      </div>
+
+      <style>
+  /* Imported from the newer HTML deck template, scoped as reusable page types. */
+  .divider-body { position: relative; height: 100%; display: grid; grid-template-columns: 1.04fr .96fr; gap: 70px; align-items: center; }
+  .divider-copy { position: relative; z-index: 2; padding-bottom: 78px; }
+  .divider-eyebrow { display: inline-flex; align-items: center; gap: 12px; color: var(--yellow); font-size: 24px; font-weight: 900; letter-spacing: .16em; }
+  .divider-dot { width: 52px; height: 3px; border-radius: 99px; background: linear-gradient(90deg,var(--yellow),var(--fire)); }
+  .divider-num { position: static; display: grid; place-items: center; width: 520px; height: 520px; border-radius: 50%; justify-self: end; color: rgba(255,255,255,.12); font-size: 260px; font-weight: 900; line-height: .8; letter-spacing: -.06em; border: 1px solid rgba(255,255,255,.10); background: radial-gradient(circle at 38% 32%, rgba(255,91,46,.24), rgba(96,165,250,.08) 48%, rgba(255,255,255,.035)); box-shadow: inset 0 0 80px rgba(255,255,255,.04), 0 24px 90px -55px rgba(0,0,0,.9); }
+  .divider-title { margin: 24px 0 0; font-size: 104px; line-height: 1.06; letter-spacing: -.055em; }
+  .divider-sub { margin-top: 30px; max-width: 1080px; color: var(--muted); font-size: 31px; line-height: 1.58; }
+  .divider-line { display:none; }
+  .divider-strip { position:absolute; left:112px; right:112px; bottom:84px; display:grid; grid-template-columns:repeat(4,1fr); gap:18px; }
+  .divider-strip .phase { padding:24px 26px; min-height:118px; }
+  .divider-strip .phase span { font-size:17px; }
+  .divider-strip .phase b { margin-top:8px; font-size:28px; }
+  .divider-strip .phase small { font-size:18px; }
+
+  .agenda-list { display: grid; grid-template-columns: 1fr 1fr; gap: 20px 24px; margin-top: 18px; }
+  .agenda-item { display: flex; gap: 24px; align-items: flex-start; padding: 28px 30px; border: 1px solid var(--glass-border); border-radius: 18px; background: var(--glass-bg); backdrop-filter: var(--glass-blur); box-shadow: var(--glass-hi), 0 18px 50px -28px rgba(0,0,0,.7); }
+  .agenda-no { color: var(--yellow); font-size: 42px; font-weight: 900; letter-spacing: -.03em; line-height: 1; }
+  .agenda-item b { display: block; font-size: 29px; line-height: 1.22; }
+  .agenda-item p { margin-top: 8px !important; color: var(--muted); font-size: 20px !important; line-height: 1.48 !important; }
+  .map-route { position:absolute; left:112px; right:112px; bottom:152px; display:grid; grid-template-columns:repeat(6,1fr); gap:0; border:1px solid var(--glass-border); border-radius:18px; overflow:hidden; background:rgba(255,255,255,.035); box-shadow:var(--glass-hi), 0 18px 48px -34px rgba(0,0,0,.8); }
+  .map-step { position:relative; min-height:86px; padding:17px 18px 16px 26px; border-left:1px solid var(--line-soft); background:linear-gradient(145deg, rgba(251,191,36,.08), rgba(96,165,250,.035)); }
+  .map-step:first-child { border-left:none; }
+  .map-step::after { content:""; position:absolute; right:-10px; top:36px; z-index:2; width:20px; height:20px; border-top:2px solid rgba(251,191,36,.55); border-right:2px solid rgba(251,191,36,.55); transform:rotate(45deg); background:#101827; }
+  .map-step:last-child::after { display:none; }
+  .map-step span { display:block; color:var(--yellow); font-size:14px; font-weight:900; letter-spacing:.14em; }
+  .map-step b { display:block; margin-top:8px; color:#fff; font-size:22px; line-height:1.2; }
+
+  .media-frame { position: relative; overflow: hidden; border: 1px solid var(--glass-border); border-radius: 20px; background: rgba(6,10,17,.88); box-shadow: var(--glass-hi), 0 24px 60px -30px rgba(0,0,0,.8); }
+  .media-frame img { display: block; width: 100%; height: 100%; object-fit: cover; }
+  .media-frame img[src$=".svg"] { object-fit: contain; padding: 22px; }
+  .media-caption { position: absolute; left: 0; right: 0; bottom: 0; z-index: 2; padding: 44px 26px 18px; background: linear-gradient(transparent, rgba(5,7,10,.88)); color: #dfe6ef; font-size: 18px; }
+  .media-split { display: grid; grid-template-columns: 1.03fr .97fr; gap: 64px; align-items: center; height: 100%; }
+  .media-split .media-frame { height: 705px; }
+  .media-points { margin: 28px 0 0; padding: 0; list-style: none; }
+  .media-points li { position: relative; padding: 16px 0 16px 30px; border-top: 1px solid var(--line-soft); color: #d7e0ec; font-size: 23px; line-height: 1.5; }
+  .media-points li:first-child { border-top: none; }
+  .media-points li::before { content: ""; position: absolute; left: 0; top: 28px; width: 10px; height: 10px; border-radius: 50%; background: var(--yellow); }
+  .media-points li b { color: var(--text); }
+
+  .compare-grid { position: relative; display: grid; grid-template-columns: 1fr 1fr; gap: 86px; }
+  .compare-col { padding: 34px 38px; min-height: 560px; border: 1px solid var(--glass-border); border-radius: 18px; background: var(--glass-bg); backdrop-filter: var(--glass-blur); }
+  .compare-col h3 { font-size: 36px; }
+  .compare-col .cmp-sub { margin-top: 8px !important; color: var(--subtle); font-size: 20px !important; }
+  .compare-col.good { border-color: rgba(52,211,153,.42); background: linear-gradient(160deg, rgba(52,211,153,.10), rgba(255,255,255,.035)); }
+  .cmp-list { margin: 22px 0 0; padding: 0; list-style: none; }
+  .cmp-list li { position: relative; padding: 14px 0 14px 38px; border-top: 1px solid var(--line-soft); color: #d7e0ec; font-size: 22px; line-height: 1.45; }
+  .cmp-list li:first-child { border-top: none; }
+  .cmp-list li::before { position: absolute; left: 0; top: 13px; font-weight: 900; font-size: 20px; }
+  .compare-col.bad .cmp-list li::before { content: "x"; color: var(--subtle); }
+  .compare-col.good .cmp-list li::before { content: "✓"; color: var(--green); }
+  .vs-badge { position: absolute; left: 50%; top: 46%; z-index: 3; transform: translate(-50%, -50%); display: grid; place-items: center; width: 96px; height: 96px; border-radius: 50%; background: linear-gradient(135deg, var(--fire), var(--yellow)); color: #1a0a04; font-size: 31px; font-weight: 900; box-shadow: 0 0 44px var(--fire-glow); }
+
+  .timeline { position: relative; margin-top: 96px; }
+  .timeline-line { position: absolute; left: 30px; right: 30px; top: 18px; height: 4px; border-radius: 99px; background: linear-gradient(90deg, var(--yellow), var(--blue), var(--violet), var(--green)); transform-origin: left center; }
+  .timeline-nodes { position: relative; display: grid; grid-template-columns: repeat(5, 1fr); gap: 22px; }
+  .timeline-node { position: relative; padding-top: 66px; }
+  .timeline-node::before { content: ""; position: absolute; left: 24px; top: 4px; width: 24px; height: 24px; border-radius: 50%; background: var(--bg); border: 5px solid var(--yellow); box-shadow: 0 0 22px rgba(251,191,36,.45); }
+  .timeline-node:nth-child(2)::before { border-color: var(--orange); box-shadow: 0 0 22px rgba(251,146,60,.45); }
+  .timeline-node:nth-child(3)::before { border-color: var(--blue); box-shadow: 0 0 22px rgba(96,165,250,.45); }
+  .timeline-node:nth-child(4)::before { border-color: var(--violet); box-shadow: 0 0 22px rgba(196,181,253,.45); }
+  .timeline-node:nth-child(5)::before { border-color: var(--green); box-shadow: 0 0 22px rgba(52,211,153,.45); }
+  .tl-card { min-height: 330px; padding: 25px; }
+  .tl-date { color: var(--yellow); font-size: 16px; font-weight: 900; letter-spacing: .14em; }
+  .tl-card b { display: block; margin-top: 12px; font-size: 25px; line-height: 1.28; }
+  .tl-card p { margin-top: 10px !important; color: var(--muted); font-size: 18px !important; line-height: 1.52 !important; }
+
+  .chart-grid { display: grid; grid-template-columns: 1.05fr .95fr; gap: 20px; }
+  .chart-card { padding: 28px 30px; border: 1px solid var(--glass-border); border-radius: 18px; background: var(--glass-bg); backdrop-filter: var(--glass-blur); }
+  .chart-card h3 { font-size: 30px; }
+  .chart-card .chart-sub { margin-top: 6px !important; color: var(--subtle); font-size: 18px !important; }
+  .bar-chart { display: flex; align-items: flex-end; gap: 30px; height: 350px; margin-top: 30px; padding: 0 8px; }
+  .bar-col { flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: flex-end; gap: 12px; height: 100%; }
+  .bar-fill { flex: none; width: 100%; max-width: 96px; height: var(--h, 50%); border-radius: 12px 12px 4px 4px; background: linear-gradient(180deg, var(--yellow), rgba(251,191,36,.18)); transform-origin: bottom; }
+  .bar-col.alt .bar-fill { background: linear-gradient(180deg, var(--blue), rgba(96,165,250,.16)); }
+  .bar-col.hot .bar-fill { background: linear-gradient(180deg, var(--fire), rgba(255,91,46,.18)); }
+  .bar-val { font-size: 25px; font-weight: 850; color: var(--text); }
+  .bar-name { color: var(--muted); font-size: 16px; text-align: center; line-height: 1.25; }
+  .chart-kpis { display: grid; grid-template-columns: repeat(2, 1fr); gap: 14px; margin-top: 20px; }
+  .mini-kpi { padding: 19px; border: 1px solid var(--line-soft); border-radius: 14px; background: rgba(255,255,255,.04); }
+  .mini-kpi b { display: block; color: var(--yellow); font-size: 31px; line-height: 1; }
+  .mini-kpi span { display: block; margin-top: 8px; color: var(--muted); font-size: 17px; line-height: 1.35; }
+
+  .illustrated-card { display: grid; grid-template-columns: 1fr 1.05fr; gap: 22px; align-items: center; padding: 26px; min-height: 300px; }
+  .illustrated-card .media-frame { height: 232px; border-radius: 16px; }
+  .role-orbit { display: grid; grid-template-columns: 1.05fr .95fr; gap: 22px; align-items: stretch; }
+  .role-orbit .media-frame { min-height: 520px; }
+  .icon-badge { display:inline-grid; place-items:center; width:58px; height:58px; border-radius:18px; color:var(--yellow); background:rgba(251,191,36,.13); border:1px solid rgba(251,191,36,.30); box-shadow: inset 0 1px 0 rgba(255,255,255,.10); }
+  .icon-badge svg { width:30px; height:30px; stroke:currentColor; fill:none; stroke-width:2.2; stroke-linecap:round; stroke-linejoin:round; }
+  .icon-badge.fire { color:var(--fire); background:var(--fire-soft); border-color:var(--fire-glow); }
+  .icon-badge.blue { color:var(--blue); background:var(--blue-soft); border-color:rgba(96,165,250,.34); }
+  .icon-badge.violet { color:var(--violet); background:var(--violet-soft); border-color:rgba(196,181,253,.34); }
+  .icon-badge.green { color:var(--green); background:rgba(52,211,153,.12); border-color:rgba(52,211,153,.34); }
+  .detail-section { display:grid; grid-template-columns:42px 1fr; gap:12px; margin-top:12px; padding:12px; border:1px solid var(--line-soft); border-radius:13px; background:rgba(255,255,255,.04); }
+  .mini-ico { display:inline-grid; place-items:center; width:36px; height:36px; min-width:36px; border-radius:11px; color:var(--yellow); background:rgba(251,191,36,.12); vertical-align:middle; margin-right:8px; }
+  .mini-ico svg { width:19px; height:19px; stroke:currentColor; fill:none; stroke-width:2.2; stroke-linecap:round; stroke-linejoin:round; }
+  .detail-section .mini-ico { width:42px; height:42px; min-width:42px; margin-right:0; border-radius:12px; }
+  .detail-section .mini-ico svg { width:22px; height:22px; }
+  .detail-section b { display:block; font-size:16px; color:#fff; line-height:1.2; }
+  .detail-section p { margin-top:4px !important; color:#cbd5e1; }
+  .mode-visual { position:relative; min-height:520px; padding:32px; overflow:hidden; background:radial-gradient(circle at 78% 18%, rgba(251,191,36,.18), transparent 34%), var(--glass-bg); }
+  .mode-visual .mode-giant { position:absolute; right:-28px; bottom:-56px; color:rgba(255,255,255,.055); font-size:250px; font-weight:900; line-height:.8; }
+  .mode-visual h3 { margin-top:28px; font-size:44px; line-height:1.08; }
+  .mode-visual p { margin-top:18px !important; font-size:22px !important; line-height:1.55 !important; color:#dbe6f3 !important; }
+  .mode-panel-grid { display:grid; grid-template-columns:.85fr 1.15fr; gap:18px; }
+  .mode-info-grid { display:grid; grid-template-columns:1fr 1fr; gap:18px; }
+  .mode-info-card { padding:24px; min-height:250px; }
+  .mode-info-card h3 { display:flex; align-items:center; gap:12px; font-size:28px; }
+  .mode-info-card p { font-size:19px !important; line-height:1.52 !important; }
+  .mode-info-card.full { grid-column:1 / -1; min-height:230px; }
+  .scene-strip { display:grid; grid-template-columns:repeat(3,1fr); gap:12px; margin-top:22px; }
+  .scene-photo { position:relative; min-height:128px; overflow:hidden; border:1px solid var(--glass-border); border-radius:15px; background:#0b111c; box-shadow:var(--glass-hi), 0 16px 42px -30px rgba(0,0,0,.85); }
+  .scene-photo img { width:100%; height:100%; object-fit:cover; filter:saturate(.92) contrast(1.05); }
+  .scene-photo::after { content:""; position:absolute; inset:0; background:linear-gradient(180deg, transparent 30%, rgba(5,7,12,.82)); }
+  .scene-photo b { position:absolute; left:14px; right:14px; bottom:12px; z-index:2; color:#fff; font-size:17px; line-height:1.2; }
+  .mode-photo-bg { position:absolute; inset:0; width:100%; height:100%; object-fit:cover; opacity:.33; filter:saturate(.86) contrast(1.08); }
+  .mode-visual.photo-mode::before { content:""; position:absolute; inset:0; z-index:1; background:linear-gradient(110deg, rgba(7,11,19,.95) 0%, rgba(7,11,19,.75) 52%, rgba(7,11,19,.55) 100%); }
+  .mode-visual.photo-mode > *:not(.mode-photo-bg) { position:relative; z-index:2; }
+  .mode-visual.photo-mode .mode-photo-label { position:absolute; left:30px; right:30px; bottom:30px; z-index:2; display:flex; justify-content:space-between; gap:14px; color:#dbe6f3; font-size:16px; line-height:1.3; }
+  .photo-band { position:absolute; left:112px; right:112px; bottom:72px; display:grid; grid-template-columns:1.08fr .92fr 1fr; gap:18px; height:150px; }
+  .photo-band .scene-photo { min-height:150px; }
+  .ai-glow { position:absolute; inset:auto; pointer-events:none; filter:blur(38px); opacity:.42; }
+  .animated-ico { animation: aiPulse 2.8s ease-in-out infinite; }
+  @keyframes aiPulse { 0%,100% { transform:scale(1); box-shadow:0 0 0 rgba(96,165,250,0); } 50% { transform:scale(1.04); box-shadow:0 0 34px rgba(96,165,250,.22); } }
+  .thesis-os { position:absolute; inset:112px; display:grid; grid-template-columns:.86fr 1.14fr; gap:44px; align-items:stretch; }
+  .thesis-hero { position:relative; padding:44px; border:1px solid var(--glass-border); border-radius:22px; background:linear-gradient(145deg, rgba(255,91,46,.14), rgba(96,165,250,.07)); overflow:hidden; }
+  .thesis-hero::after { content:""; position:absolute; inset:0; background-image:radial-gradient(rgba(255,255,255,.16) 1px, transparent 1px); background-size:18px 18px; opacity:.22; }
+  .thesis-hero > * { position:relative; z-index:1; }
+  .thesis-hero h2 { margin-top:28px; font-size:76px; line-height:1.06; letter-spacing:-.05em; }
+  .thesis-hero p { margin-top:24px; color:#dbe6f3; font-size:26px; line-height:1.5; }
+  .ai-orbit-panel { position:relative; border:1px solid var(--glass-border); border-radius:22px; background:rgba(6,10,17,.74); overflow:hidden; }
+  .ai-orbit-panel::before { content:""; position:absolute; inset:28px; border:1px solid rgba(255,255,255,.08); border-radius:18px; }
+  .ai-core { position:absolute; left:50%; top:45%; transform:translate(-50%,-50%); width:250px; height:250px; border-radius:50%; display:grid; place-items:center; text-align:center; color:#081018; background:radial-gradient(circle at 35% 30%, #fff6d7, #fbbf24 42%, #60a5fa 100%); box-shadow:0 0 80px rgba(251,191,36,.25); animation: aiCore 4.2s ease-in-out infinite; }
+  @keyframes aiCore { 0%,100% { transform:translate(-50%,-50%) scale(1); } 50% { transform:translate(-50%,-50%) scale(1.035); } }
+  .ai-core b { display:block; font-size:34px; line-height:1.15; }
+  .ai-core span { display:block; margin-top:8px; font-size:16px; font-weight:800; }
+  .orbit-ring { position:absolute; left:50%; top:45%; transform:translate(-50%,-50%); border:1px solid rgba(255,255,255,.12); border-radius:50%; }
+  .orbit-ring.r1 { width:420px; height:420px; }
+  .orbit-ring.r2 { width:610px; height:610px; border-style:dashed; animation: orbitSpin 28s linear infinite; }
+  @keyframes orbitSpin { to { transform:translate(-50%,-50%) rotate(360deg); } }
+  .orbit-node { position:absolute; width:188px; min-height:118px; padding:18px; border:1px solid var(--glass-border); border-radius:18px; background:rgba(255,255,255,.055); backdrop-filter:blur(10px); }
+  .orbit-node b { display:flex; align-items:center; gap:8px; color:#fff; font-size:22px; }
+  .orbit-node p { margin-top:8px !important; color:#b8c4d4; font-size:15px !important; line-height:1.38 !important; }
+  .chapter-photo-break { position:absolute; inset:0; overflow:hidden; }
+  .chapter-photo-break img { position:absolute; inset:0; width:100%; height:100%; object-fit:cover; filter:saturate(.84) contrast(1.08) brightness(.68); transform:scale(1.04); animation: kenBurns 16s ease-in-out infinite alternate; }
+  @keyframes kenBurns { from { transform:scale(1.04) translateX(0); } to { transform:scale(1.11) translateX(-22px); } }
+  .chapter-photo-break .shade { position:absolute; inset:0; background:linear-gradient(90deg, rgba(5,8,13,.96) 0%, rgba(5,8,13,.68) 48%, rgba(5,8,13,.28) 100%), radial-gradient(circle at 78% 24%, rgba(96,165,250,.34), transparent 38%); }
+  .chapter-photo-copy { position:absolute; left:112px; top:118px; bottom:118px; z-index:2; width:900px; display:flex; flex-direction:column; justify-content:space-between; }
+  .chapter-photo-title { font-size:92px; line-height:1.04; letter-spacing:-.055em; }
+  .chapter-photo-title .tenx-mark { padding:0 .12em; }
+  .chapter-photo-cards { display:grid; grid-template-columns:repeat(4,1fr); gap:14px; width:1180px; }
+  .chapter-photo-cards .phase { min-height:118px; }
+  .visual-page { position:absolute; inset:96px 112px 88px; display:grid; grid-template-columns:.76fr 1.24fr; gap:28px; align-items:stretch; }
+  .visual-panel { position:relative; overflow:hidden; border:1px solid var(--glass-border); border-radius:22px; background:rgba(6,10,17,.76); box-shadow:var(--glass-hi), 0 24px 70px -42px rgba(0,0,0,.9); }
+  .visual-panel .panel-photo { position:absolute; inset:0; width:100%; height:100%; object-fit:cover; opacity:.28; filter:saturate(.75) contrast(1.08); }
+  .visual-panel::after { content:""; position:absolute; inset:0; background:radial-gradient(circle at 30% 22%, rgba(251,191,36,.18), transparent 32%), linear-gradient(180deg, rgba(4,7,12,.42), rgba(4,7,12,.92)); }
+  .visual-panel-content { position:absolute; inset:32px; z-index:2; display:flex; flex-direction:column; justify-content:space-between; }
+  .visual-panel h3 { font-size:50px; line-height:1.05; letter-spacing:-.04em; }
+  .visual-panel p { color:#dbe6f3; font-size:22px; line-height:1.5; }
+  .matrix-marker { display:grid; grid-template-columns:repeat(3,1fr); gap:8px; margin-top:28px; }
+  .matrix-marker span { min-height:54px; display:grid; place-items:center; border:1px solid rgba(255,255,255,.14); border-radius:10px; color:#94a3b8; font-size:14px; font-weight:900; }
+  .matrix-marker span.hot { color:#130802; background:linear-gradient(135deg, var(--yellow), var(--fire)); border-color:transparent; }
+  .playbook-grid { display:grid; grid-template-columns:repeat(3,1fr); gap:16px; }
+  .playbook-grid > .card, .lens-row > .card { min-height:0; overflow:hidden; }
+  .play-card { padding:20px; min-height:188px; }
+  .play-card h3 { display:flex; align-items:center; gap:10px; font-size:26px; }
+  .play-card .tagline { margin-top:10px !important; color:#8fd3ff; font-size:17px !important; font-weight:850; }
+  .play-card p { font-size:16px !important; line-height:1.46 !important; color:#f5f7fb !important; }
+  .play-card .card-kv { margin-top:10px; padding:11px 12px; border:1px solid rgba(251,191,36,.18); border-radius:12px; background:linear-gradient(135deg, rgba(251,191,36,.075), rgba(255,255,255,.035)); }
+  .play-card .card-kv b { display:block; color:#fbbf24; font-size:15.5px; line-height:1.2; font-weight:900; }
+  .play-card .card-kv span { display:block; margin-top:5px; color:#f8fafc; font-size:14.8px; line-height:1.36; }
+  .lens-row { display:grid; grid-template-columns:.72fr 1fr 1fr 1fr; gap:12px; align-items:stretch; }
+  .lens-card { padding:18px; border:1px solid var(--line-soft); border-radius:16px; background:rgba(255,255,255,.04); }
+  .lens-card h3 { display:flex; align-items:center; gap:10px; font-size:24px; }
+  .lens-card p { font-size:16px !important; line-height:1.45 !important; color:#cbd5e1; }
+  .ai-mini-label { display:inline-flex; align-items:center; gap:8px; padding:8px 11px; border:1px solid rgba(251,191,36,.30); border-radius:999px; color:#ffcf6f; background:rgba(251,191,36,.10); font-size:14px; font-weight:900; letter-spacing:.08em; }
+  .visual-stat-stack { display:grid; gap:10px; }
+  .visual-stat { padding:14px 16px; border:1px solid rgba(255,255,255,.13); border-radius:14px; background:rgba(255,255,255,.055); }
+  .visual-stat b { display:block; color:#fbbf24; font-size:20px; }
+  .visual-stat span { display:block; margin-top:5px; color:#f8fafc; font-size:15.5px; line-height:1.36; }
+  .detail-section { border-color:rgba(251,191,36,.16); background:linear-gradient(135deg, rgba(251,191,36,.06), rgba(255,255,255,.035)); }
+  .detail-section b { color:#fbbf24; font-size:16.5px; }
+  .detail-section p { color:#f8fafc !important; font-size:15.5px !important; line-height:1.42 !important; }
+  .card.coach-card p, .tl-card p, .compare-col p, .media-points li { color:#f3f6fb !important; }
+  .copy, .divider-sub { color:#e7edf6 !important; }
+  .card-no, .tl-date { color:#fbbf24 !important; }
+  .phase span { color:#fbbf24 !important; }
+  .phase b { color:#fff !important; }
+  .phase small { color:#f8fafc !important; line-height:1.35 !important; }
+  .media-caption, .synth-band, .cadence-note { color:#f8fafc !important; }
+  .media-caption b, .synth-band strong, .cadence-note strong { color:#fbbf24 !important; }
+	  .deck-controls, .deck-progress { display:none !important; }
+	  .vertical-pager .page-no { min-width:72px; width:72px; padding:8px 0; border:1px solid rgba(255,255,255,.14); border-radius:999px; color:#fbbf24; background:rgba(2,7,17,.76); backdrop-filter:blur(14px); font-size:11px; line-height:1.15; letter-spacing:.02em; white-space:nowrap; box-shadow:var(--glass-hi); }
+	  .slide[data-slide-key="opportunity-map"] .opportunity-visual-frame { opacity:1 !important; visibility:visible !important; transform:none !important; }
+	  .business-ladder { position:relative; height:610px; overflow:hidden; border:1px solid var(--glass-border); border-radius:20px; background:radial-gradient(circle at 78% 12%, rgba(96,165,250,.14), transparent 30%), linear-gradient(145deg, rgba(255,255,255,.055), rgba(255,255,255,.025)); box-shadow:var(--glass-hi), 0 24px 60px -30px rgba(0,0,0,.8); }
+	  .business-ladder::before { content:""; position:absolute; left:80px; right:78px; bottom:110px; height:12px; border-radius:999px; background:linear-gradient(90deg, var(--yellow), var(--blue), var(--green)); transform:rotate(-27deg); transform-origin:left center; opacity:.9; }
+	  .ladder-axis { position:absolute; left:44px; right:44px; bottom:28px; display:flex; justify-content:space-between; color:#f8fafc; font-size:18px; font-weight:850; }
+	  .ladder-node { position:absolute; width:245px; min-height:116px; padding:17px 18px; border:1px solid rgba(255,255,255,.14); border-radius:18px; background:rgba(9,15,26,.86); box-shadow:var(--glass-hi); }
+	  .ladder-node .tag { color:#fbbf24; font-size:12px; font-weight:950; letter-spacing:.12em; }
+	  .ladder-node b { display:block; margin-top:9px; color:#fff; font-size:24px; line-height:1.12; }
+	  .ladder-node span { display:block; margin-top:8px; color:#f8fafc; font-size:14px; line-height:1.32; }
+	  .ladder-node.n1 { left:44px; bottom:112px; }
+	  .ladder-node.n2 { left:210px; bottom:264px; }
+	  .ladder-node.n3 { left:430px; bottom:360px; }
+	  .ladder-node.n4 { right:190px; top:66px; }
+	  .ladder-node.n5 { right:44px; bottom:204px; }
+  .section-head { grid-template-columns:1.22fr .78fr !important; gap:42px !important; padding-right:58px !important; margin-bottom:34px !important; }
+  .section-head h2 { max-width:1120px; }
+  .section-head .copy { max-width:680px; justify-self:end; }
+  .position-page .visual-page { top:300px !important; bottom:86px !important; grid-template-columns:.58fr 1.42fr !important; gap:22px !important; }
+  .position-page .playbook-grid { gap:12px !important; }
+  .position-page .play-card { padding:15px; }
+  .position-page .play-card h3 { font-size:22px; }
+  .position-page .play-card .tagline { font-size:14.5px !important; }
+  .position-page .play-card .card-kv { padding:9px 10px; margin-top:8px; }
+  .position-page .play-card .card-kv b { font-size:14px; }
+  .position-page .play-card .card-kv span { font-size:13.4px; line-height:1.31; }
+  .position-page .visual-panel h3 { font-size:42px; }
+  .position-page .visual-panel p { font-size:18px; }
+  .position-page .visual-stat { padding:11px 12px; }
+  .position-page .visual-stat b { font-size:17px; }
+  .position-page .visual-stat span { font-size:13.5px; }
+
+  .thesis-canvas { position:absolute; inset:0; overflow:hidden; }
+  .thesis-canvas .bg { position:absolute; inset:0; width:100%; height:100%; object-fit:cover; filter:saturate(.78) contrast(1.08) brightness(.45); }
+  .thesis-canvas::after { content:""; position:absolute; inset:0; background:linear-gradient(90deg, rgba(4,7,13,.96), rgba(4,7,13,.76) 48%, rgba(4,7,13,.44)), radial-gradient(circle at 78% 25%, rgba(96,165,250,.34), transparent 34%); }
+  .thesis-layout { position:absolute; z-index:2; inset:108px 112px 92px; display:grid; grid-template-columns:1fr 1.05fr; gap:56px; align-items:center; }
+  .thesis-title h2 { margin-top:22px; font-size:90px; line-height:1.02; letter-spacing:-.055em; }
+  .thesis-title p { margin-top:26px; max-width:760px; color:#f8fafc; font-size:27px; line-height:1.48; }
+  .thesis-route { display:grid; gap:15px; }
+  .thesis-step { display:grid; grid-template-columns:86px 1fr; gap:18px; align-items:center; min-height:118px; padding:18px; border:1px solid rgba(255,255,255,.16); border-radius:18px; background:rgba(8,13,22,.62); backdrop-filter:blur(14px); box-shadow:var(--glass-hi), 0 18px 44px -32px rgba(0,0,0,.85); }
+  .thesis-step .num { display:grid; place-items:center; width:70px; height:70px; border-radius:18px; color:#130802; background:linear-gradient(135deg, var(--yellow), var(--fire)); font-size:28px; font-weight:950; }
+  .thesis-step b { display:block; color:#fbbf24; font-size:28px; line-height:1.15; }
+  .thesis-step span { display:block; margin-top:6px; color:#f8fafc; font-size:18px; line-height:1.42; }
+
+  .matrix-dashboard { position:absolute; inset:92px 96px 74px; display:grid; grid-template-rows:auto 1fr; gap:24px; }
+  .matrix-dashboard .head { display:grid; grid-template-columns:1.28fr .72fr; gap:42px; align-items:end; }
+  .matrix-dashboard h2 { font-size:64px; line-height:1.04; letter-spacing:-.045em; }
+  .matrix-dashboard .copy { color:#e7edf6; font-size:22px; line-height:1.5; }
+	  .matrix-board { display:grid; grid-template-columns:160px repeat(3,1fr); grid-template-rows:76px repeat(3,1fr); gap:10px; min-height:0; }
+  .matrix-axis, .matrix-cell { border:1px solid rgba(255,255,255,.14); border-radius:16px; background:linear-gradient(145deg, rgba(255,255,255,.055), rgba(255,255,255,.028)); box-shadow:var(--glass-hi); }
+  .matrix-axis { display:flex; flex-direction:column; justify-content:center; padding:14px 16px; }
+  .matrix-axis b { color:#fbbf24; font-size:22px; line-height:1.1; }
+  .matrix-axis span { margin-top:6px; color:#f8fafc; font-size:14px; line-height:1.25; }
+  .matrix-cell { position:relative; overflow:hidden; padding:16px; }
+  .matrix-cell::before { content:""; position:absolute; inset:0; opacity:.55; background:radial-gradient(circle at 80% 10%, rgba(96,165,250,.22), transparent 34%); }
+  .matrix-cell > * { position:relative; z-index:1; }
+  .matrix-cell h3 { font-size:24px; color:#fff; line-height:1.14; }
+  .matrix-cell p { margin-top:8px !important; color:#f8fafc; font-size:15.5px !important; line-height:1.36 !important; }
+  .matrix-cell .code { display:inline-flex; margin-bottom:8px; color:#130802; background:#fbbf24; border-radius:999px; padding:4px 9px; font-size:13px; font-weight:950; }
+	  .matrix-cell.hot { border-color:rgba(251,191,36,.38); background:linear-gradient(145deg, rgba(251,191,36,.11), rgba(96,165,250,.045)); }
+	  .matrix-dashboard, .matrix-board, .matrix-cell, .thesis-step, .risk-item, .meeting-card, .summary-step { will-change: transform, opacity; }
+
+  .risk-command { position:absolute; inset:92px 96px 74px; display:grid; grid-template-columns:.78fr 1.22fr; gap:28px; }
+  .risk-hero { position:relative; overflow:hidden; border:1px solid var(--glass-border); border-radius:24px; background:rgba(6,10,17,.78); }
+  .risk-hero img { position:absolute; inset:0; width:100%; height:100%; object-fit:cover; opacity:.26; filter:saturate(.75) contrast(1.08); }
+  .risk-hero::after { content:""; position:absolute; inset:0; background:linear-gradient(180deg, rgba(4,7,12,.32), rgba(4,7,12,.94)); }
+  .risk-hero-content { position:absolute; inset:34px; z-index:2; display:flex; flex-direction:column; justify-content:space-between; }
+  .risk-hero h2 { margin-top:18px; font-size:62px; line-height:1.04; letter-spacing:-.045em; }
+  .risk-hero p { margin-top:18px; color:#f8fafc; font-size:23px; line-height:1.46; }
+	  .risk-list { display:grid; grid-template-columns:repeat(2,1fr); grid-template-rows:repeat(5,minmax(0,1fr)); gap:10px; min-height:0; }
+	  .risk-item { min-height:0; padding:13px 15px; border:1px solid rgba(255,255,255,.13); border-radius:16px; background:linear-gradient(145deg, rgba(255,255,255,.055), rgba(255,255,255,.028)); }
+	  .risk-item b { display:block; color:#fbbf24; font-size:19px; line-height:1.1; }
+	  .risk-item span { display:block; margin-top:6px; color:#f8fafc; font-size:13.6px; line-height:1.29; }
+  .risk-lanes { display:grid; grid-template-rows:auto 1fr; gap:18px; }
+  .risk-lane-head { display:grid; grid-template-columns:repeat(4,1fr); gap:12px; }
+	  .risk-lane-head .lane { padding:14px; border-radius:16px; background:rgba(251,191,36,.10); border:1px solid rgba(251,191,36,.24); }
+  .risk-lane-head b { color:#fbbf24; font-size:18px; }
+  .risk-lane-head span { display:block; margin-top:5px; color:#f8fafc; font-size:14px; line-height:1.3; }
+
+  .report-dashboard { position:absolute; inset:286px 112px 78px; display:grid; grid-template-columns:.44fr .56fr; gap:18px; }
+  .report-dashboard .visual-panel h3 { font-size:42px; }
+  .report-cards { display:grid; grid-template-columns:repeat(2,1fr); gap:13px; }
+  .report-cards .play-card { padding:15px; }
+  .report-cards .play-card h3 { font-size:23px; }
+  .report-cards .card-kv { padding:9px 10px; margin-top:7px; }
+  .report-cards .card-kv span { font-size:13.4px; line-height:1.28; }
+
+  .meeting-board { position:absolute; inset:284px 112px 78px; display:grid; grid-template-columns:.34fr .66fr; gap:18px; }
+  .meeting-board .visual-panel h3 { font-size:40px; }
+  .meeting-grid { display:grid; grid-template-columns:repeat(3,1fr); grid-template-rows:repeat(2,1fr); gap:12px; }
+  .meeting-card { padding:16px; min-height:0; }
+  .meeting-card .tl-date { font-size:14px; }
+  .meeting-card b { display:block; margin-top:8px; color:#fff; font-size:22px; line-height:1.18; }
+  .meeting-card p { margin-top:8px !important; color:#f8fafc !important; font-size:14.8px !important; line-height:1.35 !important; }
+
+	  .summary-system { position:absolute; inset:286px 112px 78px; display:grid; grid-template-columns:.42fr .58fr; gap:18px; }
+	  .summary-system .visual-panel h3 { font-size:42px; }
+	  .summary-system .visual-panel p { font-size:18px; }
+  .summary-steps { display:grid; grid-template-columns:repeat(3,1fr); grid-template-rows:repeat(2,1fr); gap:12px; }
+  .summary-step { padding:18px; border:1px solid rgba(255,255,255,.14); border-radius:16px; background:linear-gradient(145deg, rgba(251,191,36,.08), rgba(255,255,255,.035)); }
+  .summary-step b { display:block; color:#fbbf24; font-size:30px; line-height:1; }
+  .summary-step strong { display:block; margin-top:12px; color:#fff; font-size:22px; line-height:1.12; }
+  .summary-step span { display:block; margin-top:8px; color:#f8fafc; font-size:15.2px; line-height:1.35; }
+  .radar-stage { position:relative; height:100%; min-height:560px; }
+  .radar-ring { position:absolute; left:50%; top:50%; transform:translate(-50%,-50%); border:1px solid rgba(255,255,255,.12); border-radius:50%; }
+  .radar-ring.a { width:420px; height:420px; }.radar-ring.b { width:290px; height:290px; }.radar-ring.c { width:160px; height:160px; background:rgba(251,191,36,.12); }
+  .radar-sweep { position:absolute; left:50%; top:50%; width:210px; height:2px; transform-origin:left center; background:linear-gradient(90deg, rgba(251,191,36,.9), transparent); animation: sweep 5.5s linear infinite; }
+  @keyframes sweep { to { transform:rotate(360deg); } }
+  .risk-chip { position:absolute; padding:12px 14px; border:1px solid rgba(251,191,36,.32); border-radius:14px; background:rgba(8,13,22,.78); color:#fff; font-size:17px; font-weight:850; }
+  .method-loop { display:grid; grid-template-columns:repeat(6,1fr); gap:10px; margin-top:26px; }
+  .method-loop .loop-step { min-height:120px; padding:16px; border:1px solid var(--line-soft); border-radius:14px; background:rgba(255,255,255,.045); }
+  .method-loop b { display:block; color:var(--yellow); font-size:28px; line-height:1; }
+  .method-loop span { display:block; margin-top:12px; color:#fff; font-size:17px; line-height:1.25; }
+  .cover-hero {
+    background:
+      radial-gradient(110% 85% at 72% 22%, rgba(30,87,108,.60) 0%, transparent 55%),
+      radial-gradient(95% 85% at 22% 86%, rgba(65,38,82,.72) 0%, transparent 62%),
+      radial-gradient(circle at 50% 46%, #0b1422 0%, #070a12 56%, #050507 100%) !important;
+  }
+  .cover-hero .ascii-bg {
+    position:absolute; inset:0; width:100%; height:100%; z-index:1;
+    pointer-events:none; mix-blend-mode:screen; opacity:.78;
+  }
+  .cover-hero .particle-canvas { display:none !important; }
+  .cover-hero::after {
+    content:""; position:absolute; inset:56px; z-index:2; pointer-events:none;
+    border:1px solid rgba(255,255,255,.10);
+    box-shadow:inset 0 0 80px rgba(255,255,255,.025);
+  }
+  .cover-hero-veil {
+    z-index:2 !important;
+    background:
+      linear-gradient(90deg, rgba(5,7,11,.78) 0%, rgba(5,7,11,.50) 45%, rgba(5,7,11,.20) 100%),
+      radial-gradient(120% 120% at 50% 50%, transparent 36%, rgba(8,9,12,.62) 100%) !important;
+  }
+  .cover-swiss-frame {
+    position:absolute; inset:72px 96px 72px 96px; z-index:3; pointer-events:none;
+    display:grid; grid-template-rows:auto 1fr auto; gap:34px;
+  }
+  .cover-meta-row, .cover-bottom-row {
+    display:flex; justify-content:space-between; align-items:flex-start;
+    color:rgba(243,245,248,.62); font-size:14px; font-weight:800;
+    letter-spacing:.18em; text-transform:uppercase;
+  }
+  .cover-meta-row { opacity:0; animation:coverLineIn .65s .12s ease-out forwards; }
+  .cover-bottom-row {
+    align-items:end; padding-top:22px; border-top:1px solid rgba(255,255,255,.20);
+    opacity:0; animation:coverLineIn .75s .85s ease-out forwards;
+  }
+  .cover-bottom-row .cover-lead {
+    max-width:760px; color:rgba(243,245,248,.78); font-size:24px; line-height:1.48;
+    letter-spacing:0; text-transform:none; font-weight:600;
+  }
+  .cover-bottom-row .cover-hint { color:rgba(243,245,248,.55); font-size:14px; }
+  .cover-hero-content {
+    position:relative !important; left:auto !important; bottom:auto !important; z-index:3;
+    align-self:center; gap:22px !important;
+  }
+  .cover-hero-logo { width:352px !important; }
+  .cover-hero-title { font-size:104px !important; line-height:1.04 !important; max-width:1180px; }
+  .cover-hero-sub { font-size:24px !important; letter-spacing:.32em !important; }
+  @keyframes coverLineIn { from { opacity:0; transform:translateY(12px); } to { opacity:1; transform:translateY(0); } }
+</style>
+
+<section class="slide active cover-hero" data-slide-key="cover-hero" data-screen-label="01 封面">
+  <canvas class="particle-canvas" id="particleCanvas"></canvas>
+  <canvas class="ascii-bg" aria-hidden="true"></canvas>
+  <div class="cover-hero-veil"></div>
+  <div class="cover-swiss-frame">
+    <div class="cover-meta-row">
+      <span>Rolling AI · Methodology</span>
+      <span>AI Transformation · 01 / 34</span>
+    </div>
+    <div class="cover-hero-content">
+      <img class="cover-hero-logo" src="assets/rolling-ai-logo.svg" alt="Rolling AI">
+      <h1 class="cover-hero-title">企业的 AI 转型<br>与家庭教师的修养</h1>
+      <p class="cover-hero-sub">Rolling AI 企业 AI 转型方法论</p>
+    </div>
+    <div class="cover-bottom-row">
+      <div class="cover-lead">把 AI 项目从“买工具”重新看成一次组织学习：先看清谁需要老师，再判断学生状态，最后决定怎么教、怎么交付、怎么移交。</div>
+      <div class="cover-hint">→ swipe / arrow keys</div>
+    </div>
+  </div>
+</section>
+
+      <section class="slide" data-slide-key="core-thesis" data-screen-label="02 核心判断">
+  <div class="thesis-canvas">
+    <img class="bg" src="assets/photos/photo-cn-meeting.png" alt="中国企业 AI 转型会议">
+    <div class="thesis-layout">
+      <div class="thesis-title" data-anim="left">
+        <span class="kicker">00 · CORE THESIS</span>
+        <h2>AI 转型的核心变量<br>不是工具，<br>而是组织学习</h2>
+        <p>模型能力只是教材，真正决定成败的是：谁最需要老师、组织现在是什么基础、管理风格是什么，以及老师到底怎么交付。</p>
+        <div class="synth-band" style="margin-top:34px;font-size:22px;">一句话：<strong>AI 转型不是把工具塞进企业，而是训练一个组织学会新的工作方式。</strong></div>
+      </div>
+      <div class="thesis-route">
+        <div class="thesis-step" data-anim="right" data-anim-delay=".10"><div class="num">01</div><div><b>识别客户</b><span>先分清出钱、发起、学习、拍板和旁观影响者。</span></div></div>
+        <div class="thesis-step" data-anim="right" data-anim-delay=".20"><div class="num">02</div><div><b>诊断状态</b><span>企业基础和 CEO 管理风格，共同决定打法。</span></div></div>
+        <div class="thesis-step" data-anim="right" data-anim-delay=".30"><div class="num">03</div><div><b>定义工作</b><span>诊断、示范、陪跑、托管、鼓励、共建不能混着卖。</span></div></div>
+        <div class="thesis-step" data-anim="right" data-anim-delay=".40"><div class="num">04</div><div><b>管理关系</b><span>不同角色看不同进度，边界和移交从第一天设计。</span></div></div>
+      </div>
+    </div>
+  </div>
+</section>
+
+      <section class="slide" data-slide-key="map" data-screen-label="03 演讲地图">
+  <div class="section-head">
+    <div><span class="kicker">90 MIN · TALK MAP</span><h2>用一套判断框架<br>降低 AI 转型误配风险</h2></div>
+    <p class="copy">整场分享按家庭教师的职业技能展开：先看清家庭关系，再判断孩子状态，最后决定怎么教、怎么交付、怎么避坑。</p>
+  </div>
+  <div class="agenda-list">
+    <article class="agenda-item"><span class="agenda-no">01</span><div><b>先弄清谁最需要老师</b><p>谁掏钱、谁着急、谁学习、谁说了算。关系没有画明白，后面的方案就会失焦。</p></div></article>
+    <article class="agenda-item"><span class="agenda-no">02</span><div><b>判断孩子现在怎么样</b><p>企业基础是优秀、普通，还是已经很吃力。不同基础不能用同一种教法。</p></div></article>
+    <article class="agenda-item"><span class="agenda-no">03</span><div><b>看家长怎么管</b><p>强控制、长线陪伴，还是干脆外包。管理风格会直接决定转型节奏。</p></div></article>
+    <article class="agenda-item"><span class="agenda-no">04</span><div><b>说清这次到底怎么帮</b><p>教、做、陪、冲刺、鼓励、共建都不一样，每一种都要包装成明确 Offer。</p></div></article>
+    <article class="agenda-item"><span class="agenda-no">05</span><div><b>给不同的人看不同东西</b><p>高层看进展，一线看方法，IT 和财务看边界、风险和账。</p></div></article>
+    <article class="agenda-item"><span class="agenda-no">06</span><div><b>提前识别会带偏的人和事</b><p>旁观者、KPI、Demo 成瘾、安全后置，都会让 AI 转型走偏。</p></div></article>
+  </div>
+  <div class="map-route">
+    <div class="map-step"><span>START</span><b>画清关系</b></div>
+    <div class="map-step"><span>STATE</span><b>判断基础</b></div>
+    <div class="map-step"><span>STYLE</span><b>识别管法</b></div>
+    <div class="map-step"><span>OFFER</span><b>选择工作</b></div>
+    <div class="map-step"><span>REPORT</span><b>设计汇报</b></div>
+    <div class="map-step"><span>RISK</span><b>守住边界</b></div>
+  </div>
+</section>
+
+      <section class="slide" data-slide-key="chapter-client" data-screen-label="04 章节一 · 识别客户">
+  <div class="chapter-photo-break">
+    <img src="assets/photos/photo-cn-chapter.png" alt="企业会议中的客户关系讨论">
+    <div class="shade"></div>
+    <div class="chapter-photo-copy">
+      <div>
+        <span class="divider-eyebrow"><span class="divider-dot"></span>PART 01 · CUSTOMER MAP</span>
+        <h1 class="chapter-photo-title">先画清客户关系：<br><span class="tenx-mark">谁最需要老师？</span></h1>
+        <p class="divider-sub" style="font-size:30px;max-width:840px;">企业 AI 转型最危险的误判，是以为客户只有一个。事实上，购买、学习、验收和干预，经常分属于不同的人。</p>
+      </div>
+      <div class="chapter-photo-cards">
+        <div class="phase"><span>ROLE 01</span><b>出钱的人</b><small>预算、ROI、续费条件</small></div>
+        <div class="phase"><span>ROLE 02</span><b>发起的人</b><small>焦虑、承诺、面子</small></div>
+        <div class="phase"><span>ROLE 03</span><b>被辅导的人</b><small>真实任务、学习负担</small></div>
+        <div class="phase"><span>ROLE 04</span><b>影响判断的人</b><small>旁观意见、隐性阻力</small></div>
+      </div>
+    </div>
+  </div>
+</section>
+
+      <section class="slide" data-slide-key="stakeholder-map" data-screen-label="05 家庭关系图谱">
+  <div class="media-split">
+    <div>
+      <span class="kicker">01 · RELATIONSHIP MAP</span>
+      <h2>先画利益相关方地图<br>再谈 AI 方案</h2>
+      <p class="copy" style="margin-top:24px;font-size:25px;">这一页解决两个问题：谁出钱、谁发起、谁真正学习可能不是同一个人；旁边还有一群不负责交付、但会影响判断的人。</p>
+      <div class="scene-strip" style="grid-template-columns:repeat(2,1fr);margin-top:18px;">
+        <div class="scene-photo" style="min-height:104px;height:104px;"><img src="assets/photos/photo-cn-coaching.png" alt="一对一辅导"><b>一对一辅导</b></div>
+        <div class="scene-photo" style="min-height:104px;height:104px;"><img src="assets/photos/photo-cn-training.png" alt="成人课堂"><b>成人课堂</b></div>
+      </div>
+      <ul class="media-points">
+        <li><b>中间永远是被辅导的人。</b>所有预算、汇报和治理，最后都要回到一线真实任务。</li>
+        <li><b>外圈角色会改变项目方向。</b>出钱人看 ROI，发起人看证明，拍板人看下一步，边界方看风险。</li>
+        <li><b>旁观者和竞争者最容易带偏。</b>他们不承担交付后果，却会不断改变判断标准。</li>
+      </ul>
+    </div>
+    <div class="media-frame">
+      <img src="assets/family-map.svg" alt="家庭关系图谱">
+      <div class="media-caption"><b>先画关系，再讲方案。</b>否则所有 AI 能力都会被错误的角色关系消耗掉。</div>
+    </div>
+  </div>
+</section>
+
+      <section class="slide" data-slide-key="role-table" data-screen-label="06 四类角色确认">
+  <div class="section-head">
+    <div><span class="kicker">OPENING QUESTIONS</span><h2>四类角色问题<br>锁定真实客户和真实目标</h2></div>
+    <p class="copy">客户识别不是行政流程，而是把“谁要什么、怕什么、怎么验收”讲清楚。问清楚之后，后面的方案才不会漂。</p>
+  </div>
+  <div class="compare-grid">
+    <article class="compare-col bad">
+      <h3>问得太虚，项目会漂</h3>
+      <p class="cmp-sub">这些问题听起来专业，但得不到真实答案。</p>
+      <ul class="cmp-list">
+        <li>你们公司 AI 战略是什么？客户通常会讲愿景，不会讲真实阻力。</li>
+        <li>业务部门支持吗？会议里都会说支持，但行动里未必有人拿任务出来。</li>
+        <li>你们想做哪些场景？需求清单会很多，却没有 owner 和验收标准。</li>
+        <li>安全后面再看可以吗？后面再看，往往就是后面被叫停。</li>
+      </ul>
+    </article>
+    <div class="vs-badge">问</div>
+    <article class="compare-col good">
+      <h3>问得具体，关系才清楚</h3>
+      <p class="cmp-sub">Rolling AI 开局要把角色、目标和产物问出来。</p>
+      <ul class="cmp-list">
+        <li>出钱人最怕什么？确认预算来源、ROI 口径和续费条件。</li>
+        <li>发起人要证明什么？确认阶段成果、汇报节奏和关键承诺。</li>
+        <li>被辅导的人会不会更累？确认真实任务、学习时间和使用动机。</li>
+        <li>谁会插话但不担责？确认意见入口、决策权和升级机制。</li>
+      </ul>
+    </article>
+  </div>
+  <div class="synth-band">Rolling AI 开局要做的不是“展示能力”，而是把客户关系变成一张能管理的图。</div>
+</section>
+
+      <section class="slide" data-slide-key="role-risk-map" data-screen-label="07 角色风险">
+  <div class="section-head">
+    <div><span class="kicker">ROLE RISKS</span><h2>每类角色都可能<br>改变项目方向</h2></div>
+    <p class="copy">企业 AI 转型经常不是被核心用户拖垮，而是被外围意见、隐藏 KPI、非正式权力和比较心理拖偏。</p>
+  </div>
+  <div class="visual-page" style="top:280px;bottom:84px;grid-template-columns:.82fr 1.18fr;">
+    <article class="visual-panel">
+      <img class="panel-photo" src="assets/photos/photo-cn-workshop.png" alt="复杂关系工作坊">
+      <div class="visual-panel-content">
+        <div>
+          <span class="ai-mini-label">RELATIONSHIP RADAR</span>
+          <h3 style="margin-top:18px;">先识别<br>谁会带偏项目</h3>
+          <p style="margin-top:18px;">每个角色都可以帮项目前进，也可能制造反作用。关键是提前设计表达入口、决策权和升级机制。</p>
+        </div>
+        <div class="visual-stat-stack">
+          <div class="visual-stat"><b>Payer / Sponsor</b><span>最容易用短期成绩压过长期能力建设。</span></div>
+          <div class="visual-stat"><b>User / IT</b><span>最容易口头支持，真实任务和边界却没有准备好。</span></div>
+          <div class="visual-stat"><b>Noise / Rival</b><span>最容易不断插话，但不承担交付结果。</span></div>
+        </div>
+      </div>
+    </article>
+    <div class="playbook-grid" data-stagger="0.06" style="grid-template-columns:repeat(3,1fr);grid-template-rows:repeat(2,1fr);">
+      <article class="card coach-card" style="height:auto;min-height:0;padding:24px 24px;"><div style="display:flex;align-items:center;justify-content:space-between;gap:16px;"><span class="card-no">PAYER</span><span class="icon-badge fire"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 3v18h18"/><path d="m7 15 4-4 3 3 5-7"/></svg></span></div><h3 style="font-size:30px;line-height:1.14;margin-top:20px;">出钱人只看短账</h3><p style="font-size:21px;line-height:1.46;margin-top:14px;">只要本月 ROI，不愿意为组织学习付费。应对：同时汇报短期分数和能力资产。</p></article>
+      <article class="card coach-card" style="height:auto;min-height:0;padding:24px 24px;"><div style="display:flex;align-items:center;justify-content:space-between;gap:16px;"><span class="card-no">SPONSOR</span><span class="icon-badge blue"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 22V4"/><path d="M4 4h12l-1 4 1 4H4"/></svg></span></div><h3 style="font-size:30px;line-height:1.14;margin-top:20px;">发起人过度承诺</h3><p style="font-size:21px;line-height:1.46;margin-top:14px;">为了争取资源，把效果说得太满。应对：把承诺拆成阶段验收点。</p></article>
+      <article class="card coach-card" style="height:auto;min-height:0;padding:24px 24px;"><div style="display:flex;align-items:center;justify-content:space-between;gap:16px;"><span class="card-no">USER</span><span class="icon-badge green"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.9M16 3.1a4 4 0 0 1 0 7.8"/></svg></span></div><h3 style="font-size:30px;line-height:1.14;margin-top:20px;">被辅导者被动配合</h3><p style="font-size:21px;line-height:1.46;margin-top:14px;">口头支持，真实任务不拿出来练。应对：每周必须交付真实作业。</p></article>
+      <article class="card coach-card" style="height:auto;min-height:0;padding:24px 24px;"><div style="display:flex;align-items:center;justify-content:space-between;gap:16px;"><span class="card-no">IT</span><span class="icon-badge violet"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10Z"/><path d="m9 12 2 2 4-4"/></svg></span></div><h3 style="font-size:30px;line-height:1.14;margin-top:20px;">边界方后置出现</h3><p style="font-size:21px;line-height:1.46;margin-top:14px;">方案都做完了，安全和权限才开始拦。应对：第一周就拉 IT 入场。</p></article>
+      <article class="card coach-card" style="height:auto;min-height:0;padding:24px 24px;"><div style="display:flex;align-items:center;justify-content:space-between;gap:16px;"><span class="card-no">NOISE</span><span class="icon-badge fire"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M10.3 3.9 1.8 18a2 2 0 0 0 1.7 3h17a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0Z"/><path d="M12 9v4M12 17h.01"/></svg></span></div><h3 style="font-size:30px;line-height:1.14;margin-top:20px;">旁观者指点</h3><p style="font-size:21px;line-height:1.46;margin-top:14px;">不了解过程，却持续用别人的经验干预。应对：设意见入口和最终拍板人。</p></article>
+      <article class="card coach-card" style="height:auto;min-height:0;padding:24px 24px;"><div style="display:flex;align-items:center;justify-content:space-between;gap:16px;"><span class="card-no">RIVAL</span><span class="icon-badge blue"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="8"/><circle cx="12" cy="12" r="3"/><path d="M12 2v4M12 18v4M2 12h4M18 12h4"/></svg></span></div><h3 style="font-size:30px;line-height:1.14;margin-top:20px;">隐性竞争者拆台</h3><p style="font-size:21px;line-height:1.46;margin-top:14px;">原供应商、内部团队担心被替代，制造怀疑。应对：提前承认利益变化。</p></article>
+    </div>
+  </div>
+  <div class="synth-band" style="position:absolute;left:112px;right:112px;bottom:38px;">应对原则：<strong>让每个人有表达入口，但只有少数人拥有决策权。</strong></div>
+</section>
+
+      <section class="slide" data-slide-key="chapter-quadrant" data-screen-label="08 章节二 · 状态象限">
+  <div class="chapter-photo-break">
+    <img src="assets/photos/photo-cn-training.png" alt="08 章节二 · 状态象限">
+    <div class="shade"></div>
+    <div class="chapter-photo-copy">
+      <div>
+        <span class="divider-eyebrow"><span class="divider-dot"></span>PART 02 · DIAGNOSIS MATRIX</span>
+        <h1 class="chapter-photo-title">先判断客户状态：<br><span class="tenx-mark">企业基础 × 管理风格</span></h1>
+        <p class="divider-sub" style="font-size:30px;max-width:900px;">同样是补课，差生、普通生、尖子生的打法完全不同；同样是 AI 转型，企业基础和 CEO 管理风格会决定项目形态。</p>
+      </div>
+      <div class="chapter-photo-cards"><div class="phase"><span>STYLE 01</span><b>虎妈式强控制</b><small>压 KPI、要短期结果</small></div><div class="phase"><span>STYLE 02</span><b>长线陪伴式</b><small>愿意培养、愿意复盘</small></div><div class="phase"><span>STYLE 03</span><b>完全外包式</b><small>花钱买结果，不想学</small></div><div class="phase"><span>LEVEL</span><b>优秀 / 普通 / 特别差</b><small>九种定位</small></div></div>
+    </div>
+  </div>
+</section>
+
+      <section class="slide" data-slide-key="quadrant-matrix" data-screen-label="09 九宫格总览">
+  <div class="matrix-dashboard">
+    <div class="head" data-anim="rise">
+      <div><span class="kicker">3×3 MATRIX · BASE × STYLE</span><h2>用九宫格确定客户打法</h2></div>
+      <p class="copy">不要只判断客户“先进不先进”，还要判断 CEO 怎么管理 AI 转型：压指标、陪长线，还是直接外包。</p>
+    </div>
+    <div class="matrix-board" data-anim="scale">
+      <div></div>
+      <div class="matrix-axis"><b>虎妈式强控制</b><span>要短期分数、压进度、强验收</span></div>
+      <div class="matrix-axis"><b>长线可持续式</b><span>愿意培养习惯，接受复盘和试错</span></div>
+      <div class="matrix-axis"><b>完全外包式</b><span>想买结果，不想让内部花太多时间</span></div>
+      <div class="matrix-axis"><b>优秀</b><span>高手多，可做高阶教练</span></div>
+      <div class="matrix-cell hot"><span class="code">A1</span><h3>竞赛冲榜</h3><p>团队本来就强，老板还想冲更高指标。重点是高阶评测、效率上限和质量标准。</p></div>
+      <div class="matrix-cell"><span class="code">A2</span><h3>冠军体系</h3><p>有高手、有耐心，适合把最佳实践变成 Champion 机制、案例库和内部讲师。</p></div>
+      <div class="matrix-cell"><span class="code">A3</span><h3>高阶代工</h3><p>客户懂业务但不想做复杂交付。可以代工，但必须同步沉淀标准和移交包。</p></div>
+      <div class="matrix-axis"><b>普通</b><span>能启动，但缺习惯</span></div>
+      <div class="matrix-cell hot"><span class="code">B1</span><h3>冲刺提分</h3><p>基础一般但压力大，先用 4-6 周打一个指标，让管理层看到真实变化。</p></div>
+      <div class="matrix-cell"><span class="code">B2</span><h3>习惯养成</h3><p>把 AI 放进周会、复盘、材料、运营动作里，每周都有真实作品和复盘。</p></div>
+      <div class="matrix-cell"><span class="code">B3</span><h3>托管启动</h3><p>客户愿意买结果但承接弱，先做样板，同时绑定学习交接和验收。</p></div>
+      <div class="matrix-axis"><b>特别差</b><span>先止血，再补基础</span></div>
+      <div class="matrix-cell hot"><span class="code">C1</span><h3>高压救火</h3><p>老板急、一线怕、数据乱。先止血，不要上来承诺全面转型。</p></div>
+      <div class="matrix-cell"><span class="code">C2</span><h3>基础重建</h3><p>管理层愿意长期做，但流程和数据底子差。先补基本功，再谈高级 AI。</p></div>
+      <div class="matrix-cell"><span class="code">C3</span><h3>外包黑洞</h3><p>什么都想扔给外部，内部没人接。最先要设边界和退出路径。</p></div>
+    </div>
+  </div>
+</section>
+
+      <section class="slide position-page" data-slide-key="positions-c" data-screen-label="10 特别差基础">
+  <div class="section-head">
+    <div><span class="kicker">POSITIONING · C</span><h2>基础薄弱客户：先止血<br>再启动 AI 转型</h2></div>
+    <p class="copy">这类客户最大的问题不是不会用某个工具，而是流程、数据、责任和信心都不稳。Rolling AI 的工作不能一上来卖“高级玩法”。</p>
+  </div>
+  <div class="visual-page" style="top:285px;bottom:92px;grid-template-columns:.72fr 1.28fr;">
+    <article class="visual-panel">
+      <img class="panel-photo" src="assets/photos/photo-cn-workshop.png" alt="C · 特别差基础客户工作方式">
+      <div class="visual-panel-content">
+        <div>
+          <span class="ai-mini-label">MATRIX POSITION · C · 特别差基础</span>
+          <h3 style="margin-top:18px;">特别差这一行，不要急着卖系统</h3>
+          <p style="margin-top:18px;">先处理混乱、责任和信心。这里的第一价值不是炫技，而是让客户从“乱”变成“能开始”。</p>
+          <div class="matrix-marker"><span class="">A1</span><span class="">A2</span><span class="">A3</span><span class="">B1</span><span class="">B2</span><span class="">B3</span><span class="hot">C1</span><span class="hot">C2</span><span class="hot">C3</span></div>
+        </div>
+        <div class="visual-stat-stack">
+          <div class="visual-stat"><b>对方最关心</b><span>短期是否看得到改变，内部会不会更累，老板是否愿意继续投。</span></div>
+          <div class="visual-stat"><b>我们最关心</b><span>不能把错误的工作方式卖给错误的客户，否则越努力越失焦。</span></div>
+        </div>
+      </div>
+    </article>
+    <div class="playbook-grid" data-stagger="0.06">
+      
+      <article class="card play-card">
+        <h3><span class="icon-badge fire"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M10.3 3.9 1.8 18a2 2 0 0 0 1.7 3h17a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0Z"/><path d="M12 9v4M12 17h.01"/></svg></span>C1 · 高压救火</h3>
+        <p class="tagline">类型：特别差基础 × 虎妈式强控制</p>
+        <div class="card-kv"><b>核心痛点</b><span>老板急着要结果，一线怕背锅；数据、流程、责任都不清，AI 很容易变成新一轮救火。</span></div>
+        <div class="card-kv"><b>工作方式</b><span>先做 2 周急诊：访谈关键角色、画风险清单、选 1 个最小真实任务，把混乱压到可管理。</span></div>
+        <div class="card-kv"><b>最有价值的 Offer</b><span>AI 急救包：关系图、风险止血会、1 个最小可交付样板、下一步责任表。</span></div>
+      </article>
+
+      <article class="card play-card">
+        <h3><span class="icon-badge blue"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/><path d="M4 4.5A2.5 2.5 0 0 1 6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15Z"/></svg></span>C2 · 基础重建</h3>
+        <p class="tagline">类型：特别差基础 × 长线可持续式</p>
+        <div class="card-kv"><b>核心痛点</b><span>管理层愿意长期做，但流程、数据口径、owner 都散；不是不会用 AI，而是没有稳定作业本。</span></div>
+        <div class="card-kv"><b>工作方式</b><span>用 4-8 周补基本功：任务流、数据口径、周复盘、场景 owner 和第一批模板。</span></div>
+        <div class="card-kv"><b>最有价值的 Offer</b><span>AI 基础训练营：流程体检、数据口径表、场景任务卡、每周复盘机制。</span></div>
+      </article>
+
+      <article class="card play-card">
+        <h3><span class="icon-badge violet"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10Z"/><path d="m9 12 2 2 4-4"/></svg></span>C3 · 外包黑洞</h3>
+        <p class="tagline">类型：特别差基础 × 完全外包式</p>
+        <div class="card-kv"><b>核心痛点</b><span>客户想直接买结果，不想投入内部时间；需求会越滚越大，但内部没人接得住。</span></div>
+        <div class="card-kv"><b>工作方式</b><span>开局先定边界：哪些托管、哪些必须客户参与、什么时候反讲、什么时候移交。</span></div>
+        <div class="card-kv"><b>最有价值的 Offer</b><span>托管启动 + 移交包：样板交付、录屏拆解、模板清单、客户反讲和退出路径。</span></div>
+      </article>
+
+    </div>
+  </div>
+  <div class="synth-band" style="position:absolute;left:112px;right:112px;bottom:38px;">对 C 类客户，最值钱的不是酷炫 Demo，而是<strong>降低混乱、建立边界、做出第一个可信样板。</strong></div>
+</section>
+
+      <section class="slide position-page" data-slide-key="positions-b" data-screen-label="11 普通基础">
+  <div class="section-head">
+    <div><span class="kicker">POSITIONING · B</span><h2>普通基础客户：用一个战役<br>把 AI 放进日常</h2></div>
+    <p class="copy">普通基础的客户通常不是完全不会，而是用得零散、没有标准、没有复盘。最好的工作方式是让他们在真实任务里形成肌肉。</p>
+  </div>
+  <div class="visual-page" style="top:285px;bottom:92px;grid-template-columns:.72fr 1.28fr;">
+    <article class="visual-panel">
+      <img class="panel-photo" src="assets/photos/photo-cn-training.png" alt="B · 普通基础客户工作方式">
+      <div class="visual-panel-content">
+        <div>
+          <span class="ai-mini-label">MATRIX POSITION · B · 普通基础</span>
+          <h3 style="margin-top:18px;">普通这一行，重点是把 AI 变成肌肉</h3>
+          <p style="margin-top:18px;">客户已经能启动，但动作零散。我们要把一次成果变成可重复的节奏，让团队每周真的用起来。</p>
+          <div class="matrix-marker"><span class="">A1</span><span class="">A2</span><span class="">A3</span><span class="hot">B1</span><span class="hot">B2</span><span class="hot">B3</span><span class="">C1</span><span class="">C2</span><span class="">C3</span></div>
+        </div>
+        <div class="visual-stat-stack">
+          <div class="visual-stat"><b>对方最关心</b><span>短期是否看得到改变，内部会不会更累，老板是否愿意继续投。</span></div>
+          <div class="visual-stat"><b>我们最关心</b><span>不能把错误的工作方式卖给错误的客户，否则越努力越失焦。</span></div>
+        </div>
+      </div>
+    </article>
+    <div class="playbook-grid" data-stagger="0.06">
+      
+      <article class="card play-card">
+        <h3><span class="icon-badge fire"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 3v18h18"/><path d="m7 15 4-4 3 3 5-7"/></svg></span>B1 · 冲刺提分</h3>
+        <p class="tagline">类型：普通基础 × 虎妈式强控制</p>
+        <div class="card-kv"><b>核心痛点</b><span>管理层要快点看到变化，团队基础还可以，但需要一个明确战役证明 AI 真的能提效。</span></div>
+        <div class="card-kv"><b>工作方式</b><span>选一个高频流程，4-6 周只冲一个指标；每周交付作品，用数据和样板建立信任。</span></div>
+        <div class="card-kv"><b>最有价值的 Offer</b><span>AI 场景冲刺营：目标指标、样板流程、每周战报、复盘模板、下一阶段扩展建议。</span></div>
+      </article>
+
+      <article class="card play-card">
+        <h3><span class="icon-badge green"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9.5 2A3.5 3.5 0 0 0 6 5.5v.3A3.5 3.5 0 0 0 4 9v1a3.5 3.5 0 0 0 2 3.2V15a4 4 0 0 0 4 4h1V2H9.5ZM14.5 2A3.5 3.5 0 0 1 18 5.5v.3A3.5 3.5 0 0 1 20 9v1a3.5 3.5 0 0 1-2 3.2V15a4 4 0 0 1-4 4h-1V2h1.5Z"/></svg></span>B2 · 习惯养成</h3>
+        <p class="tagline">类型：普通基础 × 长线可持续式</p>
+        <div class="card-kv"><b>核心痛点</b><span>大家会试用，但不会坚持；AI 没有进入周会、复盘、写材料、做分析这些日常动作。</span></div>
+        <div class="card-kv"><b>工作方式</b><span>把 AI 固定嵌入 3-5 个高频工作流，每周陪练、每周复盘、每周沉淀模板。</span></div>
+        <div class="card-kv"><b>最有价值的 Offer</b><span>AI 工作习惯陪练：周陪练、错题本、模板库、作品墙、Champion 候选名单。</span></div>
+      </article>
+
+      <article class="card play-card">
+        <h3><span class="icon-badge blue"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="6" cy="19" r="3"/><circle cx="18" cy="5" r="3"/><path d="M9 19h3a4 4 0 0 0 4-4V8"/></svg></span>B3 · 托管启动</h3>
+        <p class="tagline">类型：普通基础 × 完全外包式</p>
+        <div class="card-kv"><b>核心痛点</b><span>客户愿意先买结果，但内部承接弱；如果只代劳，就会变成外部团队长期背项目。</span></div>
+        <div class="card-kv"><b>工作方式</b><span>先做一个业务样板，同时录屏、模板化、安排客户反讲，把代劳变成学习。</span></div>
+        <div class="card-kv"><b>最有价值的 Offer</b><span>样板流程托管：样板结果、过程拆解、可复用模板、交接清单和验收会。</span></div>
+      </article>
+
+    </div>
+  </div>
+  <div class="synth-band" style="position:absolute;left:112px;right:112px;bottom:38px;">对 B 类客户，重点是<strong>把一次成果变成一套可重复动作。</strong></div>
+</section>
+
+      <section class="slide position-page" data-slide-key="positions-a" data-screen-label="12 优秀基础">
+  <div class="section-head">
+    <div><span class="kicker">POSITIONING · A</span><h2>优秀基础客户：把高手经验<br>变成组织资产</h2></div>
+    <p class="copy">客户越优秀，越不能只讲基础工具。Rolling AI 的价值要升级到评测体系、组织扩散、高手方法沉淀。</p>
+  </div>
+  <div class="visual-page" style="top:285px;bottom:92px;grid-template-columns:.72fr 1.28fr;">
+    <article class="visual-panel">
+      <img class="panel-photo" src="assets/photos/photo-cn-meeting.png" alt="A · 优秀基础客户工作方式">
+      <div class="visual-panel-content">
+        <div>
+          <span class="ai-mini-label">MATRIX POSITION · A · 优秀基础</span>
+          <h3 style="margin-top:18px;">优秀这一行，别讲入门，讲上限</h3>
+          <p style="margin-top:18px;">客户已有能力，Rolling AI 要做的是高阶教练：评测标准、高手复盘、组织扩散和复杂样板。</p>
+          <div class="matrix-marker"><span class="hot">A1</span><span class="hot">A2</span><span class="hot">A3</span><span class="">B1</span><span class="">B2</span><span class="">B3</span><span class="">C1</span><span class="">C2</span><span class="">C3</span></div>
+        </div>
+        <div class="visual-stat-stack">
+          <div class="visual-stat"><b>对方最关心</b><span>短期是否看得到改变，内部会不会更累，老板是否愿意继续投。</span></div>
+          <div class="visual-stat"><b>我们最关心</b><span>不能把错误的工作方式卖给错误的客户，否则越努力越失焦。</span></div>
+        </div>
+      </div>
+    </article>
+    <div class="playbook-grid" data-stagger="0.06">
+      
+      <article class="card play-card">
+        <h3><span class="icon-badge fire"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m12 3 1.7 5.3L19 10l-5.3 1.7L12 17l-1.7-5.3L5 10l5.3-1.7L12 3Z"/><path d="M19 16v4M21 18h-4M5 4v3M6.5 5.5h-3"/></svg></span>A1 · 竞赛冲榜</h3>
+        <p class="tagline">类型：优秀基础 × 虎妈式强控制</p>
+        <div class="card-kv"><b>核心痛点</b><span>高手很多，但老板继续压更高指标；团队容易为了 KPI 做表面效率，创造力反而被压扁。</span></div>
+        <div class="card-kv"><b>工作方式</b><span>做高阶评测和 Benchmark：找出高手瓶颈、定义质量标准、复盘最强案例。</span></div>
+        <div class="card-kv"><b>最有价值的 Offer</b><span>AI 高阶教练：效率基准、质量评分表、高手案例评审、冲榜路线。</span></div>
+      </article>
+
+      <article class="card play-card">
+        <h3><span class="icon-badge green"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.9M16 3.1a4 4 0 0 1 0 7.8"/></svg></span>A2 · 冠军体系</h3>
+        <p class="tagline">类型：优秀基础 × 长线可持续式</p>
+        <div class="card-kv"><b>核心痛点</b><span>组织里有优秀个体，但经验只停留在个人脑子里，没有变成团队可学的方法。</span></div>
+        <div class="card-kv"><b>工作方式</b><span>选 Champion、拆解最佳实践、建立案例库，训练内部讲师把方法讲给别人。</span></div>
+        <div class="card-kv"><b>最有价值的 Offer</b><span>AI Champion 计划：Champion 选拔、案例库、内部讲师训练、扩散仪表盘。</span></div>
+      </article>
+
+      <article class="card play-card">
+        <h3><span class="icon-badge blue"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m7.5 4.3 9 5.2M21 8.2v7.6a2 2 0 0 1-1 1.7l-7 4a2 2 0 0 1-2 0l-7-4a2 2 0 0 1-1-1.7V8.2a2 2 0 0 1 1-1.7l7-4a2 2 0 0 1 2 0l7 4a2 2 0 0 1 1 1.7Z"/><path d="M3.3 7 12 12l8.7-5M12 22V12"/></svg></span>A3 · 高阶代工</h3>
+        <p class="tagline">类型：优秀基础 × 完全外包式</p>
+        <div class="card-kv"><b>核心痛点</b><span>客户很懂业务，但复杂 AI 交付太耗时间，希望外部先承担高难度样板。</span></div>
+        <div class="card-kv"><b>工作方式</b><span>承接复杂样板，同时同步规范、组件、评测和移交包，避免长期外包依赖。</span></div>
+        <div class="card-kv"><b>最有价值的 Offer</b><span>高阶样板共建：复杂场景交付、组件沉淀、标准文档和二次移交计划。</span></div>
+      </article>
+
+    </div>
+  </div>
+  <div class="synth-band" style="position:absolute;left:112px;right:112px;bottom:38px;">对 A 类客户，外部价值不再是“教会用”，而是<strong>把优秀经验变成组织资产。</strong></div>
+</section>
+
+      <section class="slide" data-slide-key="matrix-usage" data-screen-label="13 九宫格使用方法">
+  <div class="section-head">
+    <div><span class="kicker">HOW TO USE THE MATRIX</span><h2>九宫格的价值<br>是把诊断变成服务选择</h2></div>
+    <p class="copy">九宫格不是为了贴标签，而是为了减少误配：同一个 AI 能力，落到不同客户身上，应该卖成不同的 Offer。</p>
+  </div>
+  <div class="visual-page" style="top:285px;bottom:92px;grid-template-columns:.70fr 1.30fr;">
+    <article class="visual-panel">
+      <img class="panel-photo" src="assets/learning-system.svg" alt="组织学习闭环">
+      <div class="visual-panel-content">
+        <div>
+          <span class="ai-mini-label">DECISION ROUTE</span>
+        <h3 style="margin-top:18px;">从客户定位<br>推导交付模式</h3>
+          <p style="margin-top:18px;">每一步都必须有产物。否则九宫格只是好看的分析图，不会变成客户能购买、团队能执行的项目。</p>
+        </div>
+        <div class="visual-stat-stack">
+          <div class="visual-stat"><b>先定位</b><span>别急着卖方案，先判断客户是哪一格。</span></div>
+          <div class="visual-stat"><b>再选模式</b><span>把诊断结果翻译成诊断、示范、陪跑、托管或共建。</span></div>
+          <div class="visual-stat"><b>最后设边界</b><span>把参与人、验收、数据和退出路径写清楚。</span></div>
+        </div>
+      </div>
+    </article>
+    <div class="playbook-grid" data-stagger="0.08" style="grid-template-columns:repeat(3,1fr);">
+      <article class="card play-card">
+        <h3><span class="icon-badge fire"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="8"/><circle cx="12" cy="12" r="3"/><path d="M12 2v4M12 18v4M2 12h4M18 12h4"/></svg></span>01 · 先定位</h3>
+        <p class="tagline">先判断客户到底是哪一格</p>
+        <div class="card-kv"><b>基础判断</b><span>看流程、数据、AI 使用经验和一线任务成熟度，判断是优秀、普通还是特别差。</span></div>
+        <div class="card-kv"><b>风格判断</b><span>看 CEO 是压短期 KPI、愿意长线培养，还是倾向花钱外包买结果。</span></div>
+        <div class="card-kv"><b>产物</b><span>九宫格定位图、客户关系图、当前状态说明，以及建议先做和暂时不做的场景。</span></div>
+      </article>
+      <article class="card play-card">
+        <h3><span class="icon-badge blue"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="6" cy="19" r="3"/><circle cx="18" cy="5" r="3"/><path d="M9 19h3a4 4 0 0 0 4-4V8"/></svg></span>02 · 再选模式</h3>
+        <p class="tagline">把诊断结果翻译成服务 Offer</p>
+        <div class="card-kv"><b>匹配逻辑</b><span>C1 不卖系统，先卖急救；B2 不卖代工，先卖陪跑；A2 不卖入门培训，先卖 Champion。</span></div>
+	        <div class="card-kv"><b>模式选择</b><span>明确这次是企业诊断、样板示范、实战陪跑、托管冲刺、信心建设，还是系统共建。</span></div>
+        <div class="card-kv"><b>产物</b><span>工作模式选择表、阶段目标、交付清单、会议节奏和每两周可见成果。</span></div>
+      </article>
+      <article class="card play-card">
+        <h3><span class="icon-badge green"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10Z"/><path d="m9 12 2 2 4-4"/></svg></span>03 · 最后设边界</h3>
+        <p class="tagline">把能做和不能做都提前写清楚</p>
+        <div class="card-kv"><b>责任边界</b><span>谁必须参加，谁负责提供真实任务，谁负责验收，谁有最终决策权。</span></div>
+        <div class="card-kv"><b>成果边界</b><span>这次做到什么算成功，哪些需求不在本阶段范围内，什么时候开始移交。</span></div>
+        <div class="card-kv"><b>产物</b><span>验收表、风险清单、角色责任表、数据边界表和退出路径。</span></div>
+      </article>
+    </div>
+  </div>
+  <div class="synth-band" style="position:absolute;left:112px;right:112px;bottom:38px;">判断原则：<strong>高压客户先降焦虑，外包客户先设边界，长线客户先建节奏，优秀客户先搭扩散机制。</strong></div>
+</section>
+
+      <section class="slide" data-slide-key="chapter-work" data-screen-label="14 章节三 · 工作类型">
+  <div class="chapter-photo-break">
+    <img src="assets/photos/photo-cn-workshop.png" alt="14 章节三 · 工作类型">
+    <div class="shade"></div>
+    <div class="chapter-photo-copy">
+      <div>
+        <span class="divider-eyebrow"><span class="divider-dot"></span>PART 03 · WORK MODE</span>
+        <h1 class="chapter-photo-title">先定义交付模式：<br><span class="tenx-mark">这次到底怎么帮？</span></h1>
+        <p class="divider-sub" style="font-size:30px;max-width:900px;">家庭教师不能只会讲课，也不能永远替孩子写作业。AI 转型服务必须提前定义交付边界。</p>
+      </div>
+      <div class="chapter-photo-cards"><div class="phase"><span>MODE 01</span><b>企业诊断</b><small>找准问题</small></div><div class="phase"><span>MODE 02</span><b>样板示范</b><small>看见标准</small></div><div class="phase"><span>MODE 03</span><b>实战陪跑</b><small>改掉习惯</small></div><div class="phase"><span>MODE 04</span><b>托管 / 共建</b><small>先结果再移交</small></div></div>
+    </div>
+  </div>
+</section>
+
+      <section class="slide" data-slide-key="work-map" data-screen-label="15 工作模式总览">
+  <div class="media-split">
+    <div>
+      <span class="kicker">WORK MODE LIBRARY</span>
+	      <h2>六类服务模式<br>对应六种交付承诺</h2>
+      <p class="copy" style="margin-top:24px;font-size:25px;">每一种服务模式都要讲清楚：核心工作、目标、方法、适合时间段和最大风险。这样客户才知道自己买的不是一堆顾问小时。</p>
+      <ul class="media-points">
+        <li><b>诊断和示范</b>解决“我到底该从哪里开始”和“好作业长什么样”。</li>
+        <li><b>陪跑和托管</b>解决“我短期要结果，但不能长期依赖外部”。</li>
+        <li><b>情绪支持和共建系统</b>解决“团队敢不敢学，以及方法能不能留下来”。</li>
+      </ul>
+      <div class="scene-strip" style="grid-template-columns:repeat(2,1fr);margin-top:18px;">
+        <div class="scene-photo" style="min-height:112px;height:112px;"><img src="assets/photos/photo-cn-workshop.png" alt="工作坊共创"><b>工作坊共创</b></div>
+        <div class="scene-photo" style="min-height:112px;height:112px;"><img src="assets/photos/photo-cn-meeting.png" alt="高层对齐"><b>高层对齐</b></div>
+      </div>
+      <div class="synth-band" style="margin-top:28px;">原来的“教方法 vs 代劳”被拆进每个模式：每页都写清适合时间段和最大风险。</div>
+    </div>
+    <div class="media-frame" style="height:620px;">
+      <img src="assets/work-modes.svg" alt="六种工作方式">
+    </div>
+  </div>
+</section>
+
+      <section class="slide" data-slide-key="mode-diagnosis" data-screen-label="16 企业诊断">
+  <div class="section-head">
+    <div><span class="kicker">WORK MODE · 01</span><h2>企业诊断<br><span style="color:#ffb25b;">先把问题看清楚</span></h2></div>
+    <p class="copy">这一页把服务模式讲成可以卖、可以交付、可以验收的 Offer，而不是一句抽象的“我们帮你做 AI”。</p>
+  </div>
+  <div class="mode-panel-grid">
+    <article class="card mode-visual photo-mode">
+      <img class="mode-photo-bg" src="assets/photos/photo-cn-workshop.png" alt="像工作坊一样把问题贴出来">
+      <span class="icon-badge fire"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="8"/><circle cx="12" cy="12" r="3"/><path d="M12 2v4M12 18v4M2 12h4M18 12h4"/></svg></span>
+      <h3>诊断先行</h3>
+      <p>把模糊需求翻译成可执行地图</p>
+      <div class="mode-giant">01</div>
+      <div class="mode-photo-label"><span>真实场景</span><strong>像工作坊一样把问题贴出来</strong></div>
+    </article>
+    <div class="mode-info-grid">
+      <article class="card mode-info-card"><h3><span class="icon-badge blue"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="8"/><circle cx="12" cy="12" r="3"/><path d="M12 2v4M12 18v4M2 12h4M18 12h4"/></svg></span>核心工作</h3><p>访谈出钱人、发起人、一线、IT 安全；画关系图；做九宫格定位；选出 3 个最值得做的真实场景。</p><div class="detail-section" style="grid-template-columns:42px 1fr;"><span class="mini-ico"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg></span><div><b>适合时间段</b><p style="font-size:16px;line-height:1.42;">第 0-2 周，或客户刚表达“想做 AI 但不知道从哪开始”时。</p></div></div></article>
+      <article class="card mode-info-card"><h3><span class="icon-badge green"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 3v18h18"/><path d="m7 15 4-4 3 3 5-7"/></svg></span>目标和目的</h3><p>让客户知道“我们不是缺一个 AI 工具，而是要先选对场景、选对人、选对节奏”。</p><div class="detail-section" style="grid-template-columns:42px 1fr;"><span class="mini-ico"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M10.3 3.9 1.8 18a2 2 0 0 0 1.7 3h17a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0Z"/><path d="M12 9v4M12 17h.01"/></svg></span><div><b>最大风险</b><p style="font-size:16px;line-height:1.42;">只交一份厚报告，没有马上进入行动，客户会觉得不值。</p></div></div></article>
+      <article class="card mode-info-card full"><h3><span class="icon-badge fire"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m7.5 4.3 9 5.2M21 8.2v7.6a2 2 0 0 1-1 1.7l-7 4a2 2 0 0 1-2 0l-7-4a2 2 0 0 1-1-1.7V8.2a2 2 0 0 1 1-1.7l7-4a2 2 0 0 1 2 0l7 4a2 2 0 0 1 1 1.7Z"/><path d="M3.3 7 12 12l8.7-5M12 22V12"/></svg></span>方法与 Offer</h3><p>用访谈、流程走查、样本文档评审、数据边界检查，把模糊需求变成可执行清单。</p><div class="detail-section" style="grid-template-columns:42px 1fr;"><span class="mini-ico"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m7.5 4.3 9 5.2M21 8.2v7.6a2 2 0 0 1-1 1.7l-7 4a2 2 0 0 1-2 0l-7-4a2 2 0 0 1-1-1.7V8.2a2 2 0 0 1 1-1.7l7-4a2 2 0 0 1 2 0l7 4a2 2 0 0 1 1 1.7Z"/><path d="M3.3 7 12 12l8.7-5M12 22V12"/></svg></span><div><b>最有价值的包装</b><p style="font-size:17px;line-height:1.42;">AI 转型体检包：关系图 + 九宫格定位 + 场景优先级 + 90 天路线。</p></div></div></article>
+    </div>
+  </div>
+</section>
+
+      <section class="slide" data-slide-key="mode-demo" data-screen-label="17 样板示范">
+  <div class="section-head">
+    <div><span class="kicker">WORK MODE · 02</span><h2>样板示范<br><span style="color:#ffb25b;">做给客户看标准</span></h2></div>
+    <p class="copy">这一页把服务模式讲成可以卖、可以交付、可以验收的 Offer，而不是一句抽象的“我们帮你做 AI”。</p>
+  </div>
+  <div class="mode-panel-grid">
+    <article class="card mode-visual photo-mode">
+      <img class="mode-photo-bg" src="assets/photos/photo-cn-training.png" alt="先示范一遍什么叫标准答案">
+      <span class="icon-badge blue"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m12 3 1.7 5.3L19 10l-5.3 1.7L12 17l-1.7-5.3L5 10l5.3-1.7L12 3Z"/><path d="M19 16v4M21 18h-4M5 4v3M6.5 5.5h-3"/></svg></span>
+      <h3>样板可见</h3>
+      <p>让客户看到好作业的标准</p>
+      <div class="mode-giant">02</div>
+      <div class="mode-photo-label"><span>真实场景</span><strong>先示范一遍什么叫标准答案</strong></div>
+    </article>
+    <div class="mode-info-grid">
+      <article class="card mode-info-card"><h3><span class="icon-badge blue"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="8"/><circle cx="12" cy="12" r="3"/><path d="M12 2v4M12 18v4M2 12h4M18 12h4"/></svg></span>核心工作</h3><p>选择一个真实任务，由 Rolling AI 做出高质量样板，并把过程、提示词、判断标准拆给客户看。</p><div class="detail-section" style="grid-template-columns:42px 1fr;"><span class="mini-ico"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg></span><div><b>适合时间段</b><p style="font-size:16px;line-height:1.42;">第 2-4 周，尤其适合客户怀疑 AI 价值、需要可见成果时。</p></div></div></article>
+      <article class="card mode-info-card"><h3><span class="icon-badge green"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 3v18h18"/><path d="m7 15 4-4 3 3 5-7"/></svg></span>目标和目的</h3><p>让客户第一次看到“好作业长什么样”，建立质量标准和信任。</p><div class="detail-section" style="grid-template-columns:42px 1fr;"><span class="mini-ico"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M10.3 3.9 1.8 18a2 2 0 0 0 1.7 3h17a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0Z"/><path d="M12 9v4M12 17h.01"/></svg></span><div><b>最大风险</b><p style="font-size:16px;line-height:1.42;">客户只记住“外部老师很厉害”，没有学会怎么做。</p></div></div></article>
+      <article class="card mode-info-card full"><h3><span class="icon-badge fire"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m7.5 4.3 9 5.2M21 8.2v7.6a2 2 0 0 1-1 1.7l-7 4a2 2 0 0 1-2 0l-7-4a2 2 0 0 1-1-1.7V8.2a2 2 0 0 1 1-1.7l7-4a2 2 0 0 1 2 0l7 4a2 2 0 0 1 1 1.7Z"/><path d="M3.3 7 12 12l8.7-5M12 22V12"/></svg></span>方法与 Offer</h3><p>样板交付 + 过程录屏 + 评分表 + 反讲会，让客户不只是看结果，而是理解方法。</p><div class="detail-section" style="grid-template-columns:42px 1fr;"><span class="mini-ico"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m7.5 4.3 9 5.2M21 8.2v7.6a2 2 0 0 1-1 1.7l-7 4a2 2 0 0 1-2 0l-7-4a2 2 0 0 1-1-1.7V8.2a2 2 0 0 1 1-1.7l7-4a2 2 0 0 1 2 0l7 4a2 2 0 0 1 1 1.7Z"/><path d="M3.3 7 12 12l8.7-5M12 22V12"/></svg></span><div><b>最有价值的包装</b><p style="font-size:17px;line-height:1.42;">AI 样板示范包：1 个真实场景样板 + 方法拆解 + 复用模板。</p></div></div></article>
+    </div>
+  </div>
+</section>
+
+      <section class="slide" data-slide-key="mode-coach" data-screen-label="18 实战陪跑">
+  <div class="section-head">
+    <div><span class="kicker">WORK MODE · 03</span><h2>实战陪跑<br><span style="color:#ffb25b;">陪客户把习惯练出来</span></h2></div>
+    <p class="copy">这一页把服务模式讲成可以卖、可以交付、可以验收的 Offer，而不是一句抽象的“我们帮你做 AI”。</p>
+  </div>
+  <div class="mode-panel-grid">
+    <article class="card mode-visual photo-mode">
+      <img class="mode-photo-bg" src="assets/photos/photo-cn-training.png" alt="陪着团队在真实任务里练">
+      <span class="icon-badge green"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.9M16 3.1a4 4 0 0 1 0 7.8"/></svg></span>
+      <h3>实战陪跑</h3>
+      <p>把 AI 放进每周真实任务</p>
+      <div class="mode-giant">03</div>
+      <div class="mode-photo-label"><span>真实场景</span><strong>陪着团队在真实任务里练</strong></div>
+    </article>
+    <div class="mode-info-grid">
+      <article class="card mode-info-card"><h3><span class="icon-badge blue"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="8"/><circle cx="12" cy="12" r="3"/><path d="M12 2v4M12 18v4M2 12h4M18 12h4"/></svg></span>核心工作</h3><p>拿客户每周真实任务一起做：写材料、做分析、建流程、复盘会议，让 AI 进入日常工作。</p><div class="detail-section" style="grid-template-columns:42px 1fr;"><span class="mini-ico"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg></span><div><b>适合时间段</b><p style="font-size:16px;line-height:1.42;">第 4-8 周，适合普通基础、长线培养型客户。</p></div></div></article>
+      <article class="card mode-info-card"><h3><span class="icon-badge green"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 3v18h18"/><path d="m7 15 4-4 3 3 5-7"/></svg></span>目标和目的</h3><p>让团队从“会试用”变成“会持续使用”，形成稳定工作肌肉。</p><div class="detail-section" style="grid-template-columns:42px 1fr;"><span class="mini-ico"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M10.3 3.9 1.8 18a2 2 0 0 0 1.7 3h17a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0Z"/><path d="M12 9v4M12 17h.01"/></svg></span><div><b>最大风险</b><p style="font-size:16px;line-height:1.42;">陪跑变成随叫随到答疑，问题越来越碎，无法沉淀。</p></div></div></article>
+      <article class="card mode-info-card full"><h3><span class="icon-badge fire"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m7.5 4.3 9 5.2M21 8.2v7.6a2 2 0 0 1-1 1.7l-7 4a2 2 0 0 1-2 0l-7-4a2 2 0 0 1-1-1.7V8.2a2 2 0 0 1 1-1.7l7-4a2 2 0 0 1 2 0l7 4a2 2 0 0 1 1 1.7Z"/><path d="M3.3 7 12 12l8.7-5M12 22V12"/></svg></span>方法与 Offer</h3><p>固定陪练时段、错题本、模板库、每周作品墙、问题分级处理。</p><div class="detail-section" style="grid-template-columns:42px 1fr;"><span class="mini-ico"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m7.5 4.3 9 5.2M21 8.2v7.6a2 2 0 0 1-1 1.7l-7 4a2 2 0 0 1-2 0l-7-4a2 2 0 0 1-1-1.7V8.2a2 2 0 0 1 1-1.7l7-4a2 2 0 0 1 2 0l7 4a2 2 0 0 1 1 1.7Z"/><path d="M3.3 7 12 12l8.7-5M12 22V12"/></svg></span><div><b>最有价值的包装</b><p style="font-size:17px;line-height:1.42;">AI 工作习惯陪跑：周度共创 + 错题本 + 模板迭代 + 作品复盘。</p></div></div></article>
+    </div>
+  </div>
+</section>
+
+      <section class="slide" data-slide-key="mode-sprint" data-screen-label="19 托管冲刺">
+  <div class="section-head">
+    <div><span class="kicker">WORK MODE · 04</span><h2>托管冲刺<br><span style="color:#ffb25b;">先出结果，但同步移交</span></h2></div>
+    <p class="copy">这一页把服务模式讲成可以卖、可以交付、可以验收的 Offer，而不是一句抽象的“我们帮你做 AI”。</p>
+  </div>
+  <div class="mode-panel-grid">
+    <article class="card mode-visual photo-mode">
+      <img class="mode-photo-bg" src="assets/photos/photo-cn-meeting.png" alt="先把关键结果交出来">
+      <span class="icon-badge violet"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m7.5 4.3 9 5.2M21 8.2v7.6a2 2 0 0 1-1 1.7l-7 4a2 2 0 0 1-2 0l-7-4a2 2 0 0 1-1-1.7V8.2a2 2 0 0 1 1-1.7l7-4a2 2 0 0 1 2 0l7 4a2 2 0 0 1 1 1.7Z"/><path d="M3.3 7 12 12l8.7-5M12 22V12"/></svg></span>
+      <h3>交付托管</h3>
+      <p>先出结果，再把能力交回去</p>
+      <div class="mode-giant">04</div>
+      <div class="mode-photo-label"><span>真实场景</span><strong>先把关键结果交出来</strong></div>
+    </article>
+    <div class="mode-info-grid">
+      <article class="card mode-info-card"><h3><span class="icon-badge blue"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="8"/><circle cx="12" cy="12" r="3"/><path d="M12 2v4M12 18v4M2 12h4M18 12h4"/></svg></span>核心工作</h3><p>Rolling AI 先接手一个关键窗口任务：汇报材料、投标方案、运营流程、知识库搭建，并设计交接。</p><div class="detail-section" style="grid-template-columns:42px 1fr;"><span class="mini-ico"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg></span><div><b>适合时间段</b><p style="font-size:16px;line-height:1.42;">客户有紧急节点、重要汇报、短期 KPI，或 B3/C3 外包倾向明显时。</p></div></div></article>
+      <article class="card mode-info-card"><h3><span class="icon-badge green"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 3v18h18"/><path d="m7 15 4-4 3 3 5-7"/></svg></span>目标和目的</h3><p>用看得见的业务成果换取组织信任，同时避免客户长期依赖外部。</p><div class="detail-section" style="grid-template-columns:42px 1fr;"><span class="mini-ico"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M10.3 3.9 1.8 18a2 2 0 0 0 1.7 3h17a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0Z"/><path d="M12 9v4M12 17h.01"/></svg></span><div><b>最大风险</b><p style="font-size:16px;line-height:1.42;">越做越像外包，客户能力没有增长，需求边界不断扩大。</p></div></div></article>
+      <article class="card mode-info-card full"><h3><span class="icon-badge fire"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m7.5 4.3 9 5.2M21 8.2v7.6a2 2 0 0 1-1 1.7l-7 4a2 2 0 0 1-2 0l-7-4a2 2 0 0 1-1-1.7V8.2a2 2 0 0 1 1-1.7l7-4a2 2 0 0 1 2 0l7 4a2 2 0 0 1 1 1.7Z"/><path d="M3.3 7 12 12l8.7-5M12 22V12"/></svg></span>方法与 Offer</h3><p>托管交付 + 录屏 + 模板 + 反讲 + 交接清单。每次代劳都要有能力回流动作。</p><div class="detail-section" style="grid-template-columns:42px 1fr;"><span class="mini-ico"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m7.5 4.3 9 5.2M21 8.2v7.6a2 2 0 0 1-1 1.7l-7 4a2 2 0 0 1-2 0l-7-4a2 2 0 0 1-1-1.7V8.2a2 2 0 0 1 1-1.7l7-4a2 2 0 0 1 2 0l7 4a2 2 0 0 1 1 1.7Z"/><path d="M3.3 7 12 12l8.7-5M12 22V12"/></svg></span><div><b>最有价值的包装</b><p style="font-size:17px;line-height:1.42;">托管冲刺包：关键成果交付 + 能力移交包 + 下一阶段共建建议。</p></div></div></article>
+    </div>
+  </div>
+</section>
+
+      <section class="slide" data-slide-key="mode-care" data-screen-label="20 组织信心建设">
+  <div class="section-head">
+    <div><span class="kicker">WORK MODE · 05</span><h2>组织信心建设<br><span style="color:#ffb25b;">先让团队敢学敢试</span></h2></div>
+    <p class="copy">这一页把服务模式讲成可以卖、可以交付、可以验收的 Offer，而不是一句抽象的“我们帮你做 AI”。</p>
+  </div>
+  <div class="mode-panel-grid">
+    <article class="card mode-visual photo-mode">
+      <img class="mode-photo-bg" src="assets/photos/photo-cn-coaching.png" alt="先让学习者敢开口求助">
+      <span class="icon-badge fire"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9.5 2A3.5 3.5 0 0 0 6 5.5v.3A3.5 3.5 0 0 0 4 9v1a3.5 3.5 0 0 0 2 3.2V15a4 4 0 0 0 4 4h1V2H9.5ZM14.5 2A3.5 3.5 0 0 1 18 5.5v.3A3.5 3.5 0 0 1 20 9v1a3.5 3.5 0 0 1-2 3.2V15a4 4 0 0 1-4 4h-1V2h1.5Z"/></svg></span>
+      <h3>信心恢复</h3>
+      <p>降低焦虑，让团队敢学敢试</p>
+      <div class="mode-giant">05</div>
+      <div class="mode-photo-label"><span>真实场景</span><strong>先让学习者敢开口求助</strong></div>
+    </article>
+    <div class="mode-info-grid">
+      <article class="card mode-info-card"><h3><span class="icon-badge blue"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="8"/><circle cx="12" cy="12" r="3"/><path d="M12 2v4M12 18v4M2 12h4M18 12h4"/></svg></span>核心工作</h3><p>处理一线焦虑、替代恐惧、试错压力和管理层过高期待，设计低风险练习和小胜利。</p><div class="detail-section" style="grid-template-columns:42px 1fr;"><span class="mini-ico"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg></span><div><b>适合时间段</b><p style="font-size:16px;line-height:1.42;">转型初期、团队抵触期、样板失败后，或者强控制客户压力过大时。</p></div></div></article>
+      <article class="card mode-info-card"><h3><span class="icon-badge green"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 3v18h18"/><path d="m7 15 4-4 3 3 5-7"/></svg></span>目标和目的</h3><p>让团队愿意拿真实任务出来，不再把 AI 当成考核压力或替代威胁。</p><div class="detail-section" style="grid-template-columns:42px 1fr;"><span class="mini-ico"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M10.3 3.9 1.8 18a2 2 0 0 0 1.7 3h17a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0Z"/><path d="M12 9v4M12 17h.01"/></svg></span><div><b>最大风险</b><p style="font-size:16px;line-height:1.42;">只做气氛安抚，没有任务推进，项目变成心理按摩。</p></div></div></article>
+      <article class="card mode-info-card full"><h3><span class="icon-badge fire"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m7.5 4.3 9 5.2M21 8.2v7.6a2 2 0 0 1-1 1.7l-7 4a2 2 0 0 1-2 0l-7-4a2 2 0 0 1-1-1.7V8.2a2 2 0 0 1 1-1.7l7-4a2 2 0 0 1 2 0l7 4a2 2 0 0 1 1 1.7Z"/><path d="M3.3 7 12 12l8.7-5M12 22V12"/></svg></span>方法与 Offer</h3><p>低风险任务、公开表扬、失败复盘、角色保护、管理层预期校准。</p><div class="detail-section" style="grid-template-columns:42px 1fr;"><span class="mini-ico"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m7.5 4.3 9 5.2M21 8.2v7.6a2 2 0 0 1-1 1.7l-7 4a2 2 0 0 1-2 0l-7-4a2 2 0 0 1-1-1.7V8.2a2 2 0 0 1 1-1.7l7-4a2 2 0 0 1 2 0l7 4a2 2 0 0 1 1 1.7Z"/><path d="M3.3 7 12 12l8.7-5M12 22V12"/></svg></span><div><b>最有价值的包装</b><p style="font-size:17px;line-height:1.42;">AI 信心恢复包：小胜利任务 + 团队门诊 + Sponsor 沟通脚本。</p></div></div></article>
+    </div>
+  </div>
+</section>
+
+      <section class="slide" data-slide-key="mode-system" data-screen-label="21 能力系统共建">
+  <div class="section-head">
+    <div><span class="kicker">WORK MODE · 06</span><h2>能力系统共建<br><span style="color:#ffb25b;">把方法变成组织系统</span></h2></div>
+    <p class="copy">这一页把服务模式讲成可以卖、可以交付、可以验收的 Offer，而不是一句抽象的“我们帮你做 AI”。</p>
+  </div>
+  <div class="mode-panel-grid">
+    <article class="card mode-visual photo-mode">
+      <img class="mode-photo-bg" src="assets/photos/photo-cn-workshop.png" alt="把零散经验沉淀成系统">
+      <span class="icon-badge blue"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/><path d="M4 4.5A2.5 2.5 0 0 1 6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15Z"/></svg></span>
+      <h3>系统沉淀</h3>
+      <p>把方法做成模板、评测和治理</p>
+      <div class="mode-giant">06</div>
+      <div class="mode-photo-label"><span>真实场景</span><strong>把零散经验沉淀成系统</strong></div>
+    </article>
+    <div class="mode-info-grid">
+      <article class="card mode-info-card"><h3><span class="icon-badge blue"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="8"/><circle cx="12" cy="12" r="3"/><path d="M12 2v4M12 18v4M2 12h4M18 12h4"/></svg></span>核心工作</h3><p>共建模板库、场景库、评分标准、Champion 机制、治理节奏和内部讲师训练。</p><div class="detail-section" style="grid-template-columns:42px 1fr;"><span class="mini-ico"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg></span><div><b>适合时间段</b><p style="font-size:16px;line-height:1.42;">已经有 2-3 个样板，管理层愿意长期投入，内部有 Champion 候选人时。</p></div></div></article>
+      <article class="card mode-info-card"><h3><span class="icon-badge green"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 3v18h18"/><path d="m7 15 4-4 3 3 5-7"/></svg></span>目标和目的</h3><p>让客户不只完成几个样板，而是具备持续识别、复盘、扩散 AI 的能力。</p><div class="detail-section" style="grid-template-columns:42px 1fr;"><span class="mini-ico"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M10.3 3.9 1.8 18a2 2 0 0 0 1.7 3h17a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0Z"/><path d="M12 9v4M12 17h.01"/></svg></span><div><b>最大风险</b><p style="font-size:16px;line-height:1.42;">系统做得太重，一线觉得又多了一套管理负担。</p></div></div></article>
+      <article class="card mode-info-card full"><h3><span class="icon-badge fire"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m7.5 4.3 9 5.2M21 8.2v7.6a2 2 0 0 1-1 1.7l-7 4a2 2 0 0 1-2 0l-7-4a2 2 0 0 1-1-1.7V8.2a2 2 0 0 1 1-1.7l7-4a2 2 0 0 1 2 0l7 4a2 2 0 0 1 1 1.7Z"/><path d="M3.3 7 12 12l8.7-5M12 22V12"/></svg></span>方法与 Offer</h3><p>组件库、评测表、案例复盘会、内部讲师认证、治理看板。</p><div class="detail-section" style="grid-template-columns:42px 1fr;"><span class="mini-ico"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m7.5 4.3 9 5.2M21 8.2v7.6a2 2 0 0 1-1 1.7l-7 4a2 2 0 0 1-2 0l-7-4a2 2 0 0 1-1-1.7V8.2a2 2 0 0 1 1-1.7l7-4a2 2 0 0 1 2 0l7 4a2 2 0 0 1 1 1.7Z"/><path d="M3.3 7 12 12l8.7-5M12 22V12"/></svg></span><div><b>最有价值的包装</b><p style="font-size:17px;line-height:1.42;">AI 学习系统共建：模板库 + 评测体系 + Champion 训练 + 治理节奏。</p></div></div></article>
+    </div>
+  </div>
+</section>
+
+      <section class="slide" data-slide-key="handoff-path" data-screen-label="22 能力移交路径">
+  <div class="section-head">
+    <div><span class="kicker">HANDOFF PATH</span><h2>能力移交要设计成路径<br>不能只交付任务清单</h2></div>
+    <p class="copy">健康路径不是“老师一直做”，而是从示范到共做，再到客户独立完成，最后内部可以教别人。</p>
+  </div>
+  <div class="timeline">
+    <div class="timeline-line"></div>
+    <div class="timeline-nodes" style="grid-template-columns:repeat(4,1fr);">
+      <div class="timeline-node"><div class="card tl-card"><span class="tl-date">STEP 01</span><b>我做给你看</b><p>示范高质量样板，让客户先看到标准和可能性。同步展示提示词、判断过程和评分口径，建立第一轮信任。</p></div></div>
+      <div class="timeline-node"><div class="card tl-card"><span class="tl-date">STEP 02</span><b>我们一起做</b><p>拿真实任务陪跑，一起改材料、改流程、改交付物。客户要理解方法，而不是只看外部老师表演。</p></div></div>
+      <div class="timeline-node"><div class="card tl-card"><span class="tl-date">STEP 03</span><b>你做我旁听</b><p>客户自己做，Rolling AI 只做反馈和纠偏。模板、检查表、错题本开始成型，外部依赖开始下降。</p></div></div>
+      <div class="timeline-node"><div class="card tl-card"><span class="tl-date">STEP 04</span><b>你教给别人</b><p>学生成为老师，优秀案例进入内部扩散。项目从“交付一个结果”变成“组织掌握一种学习方式”。</p></div></div>
+    </div>
+  </div>
+  <div class="cadence-note"><strong>真正的转型成果：</strong>客户能自己识别场景、使用工具、评估质量、扩散案例。</div>
+</section>
+
+      <section class="slide" data-slide-key="chapter-presentation" data-screen-label="23 章节四 · 呈现方式">
+  <div class="chapter-photo-break">
+    <img src="assets/photos/photo-cn-governance.png" alt="23 章节四 · 呈现方式">
+    <div class="shade"></div>
+    <div class="chapter-photo-copy">
+      <div>
+        <span class="divider-eyebrow"><span class="divider-dot"></span>PART 04 · PRESENTATION LAYER</span>
+        <h1 class="chapter-photo-title">同一份成果：<br><span class="tenx-mark">给不同角色不同语言</span></h1>
+        <p class="divider-sub" style="font-size:30px;max-width:900px;">家长要看到进展、风险和确定性；孩子要看到方法、信心和下一步。企业 AI 成果也必须被翻译给不同对象。</p>
+      </div>
+      <div class="chapter-photo-cards"><div class="phase"><span>PARENT</span><b>给高层看</b><small>进展与决策</small></div><div class="phase"><span>CHILD</span><b>给一线看</b><small>方法与信心</small></div><div class="phase"><span>IT</span><b>给边界方看</b><small>权限与风险</small></div><div class="phase"><span>FINANCE</span><b>给财务看</b><small>口径与收益</small></div></div>
+    </div>
+  </div>
+</section>
+
+      <section class="slide" data-slide-key="presentation-translation" data-screen-label="24 汇报语言翻译">
+  <div class="section-head">
+    <div><span class="kicker">TRANSLATION TABLE</span><h2>同一个成果<br>要翻译成不同决策语言</h2></div>
+    <p class="copy">CEO、业务负责人、一线、IT、安全、财务看到的是同一个项目，但他们要判断的问题完全不同。</p>
+  </div>
+  <div class="visual-page" style="top:292px;bottom:88px;grid-template-columns:.64fr 1.36fr;">
+    <article class="visual-panel">
+      <img class="panel-photo" src="assets/photos/photo-cn-governance.png" alt="汇报会议">
+      <div class="visual-panel-content">
+        <div>
+          <span class="ai-mini-label">REPORTING LENS</span>
+          <h3 style="margin-top:18px;">同一件事<br>三套语言</h3>
+          <p style="margin-top:18px;">不是所有人都需要看全部过程。好的汇报像翻译器：把同一个成果翻成不同角色能决策的语言。</p>
+        </div>
+        <div class="visual-stat"><b>汇报原则</b><span>高层看是否继续投，一线看明天怎么做，边界方看风险和账能不能算清。</span></div>
+      </div>
+    </article>
+    <div class="lens-row" data-stagger="0.08" style="grid-template-columns:repeat(3,1fr);">
+      <article class="card play-card"><h3><span class="icon-badge fire"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 3v18h18"/><path d="m7 15 4-4 3 3 5-7"/></svg></span>CEO · 战略进展</h3><p class="tagline">判断值不值得继续加码</p><div class="card-kv"><b>组织信号</b><span>哪些部门主动拿真实任务试 AI？是否出现 Champion？是否有人复用模板？</span></div><div class="card-kv"><b>投入产出</b><span>节省了哪些时间、减少了哪些返工、提升了哪些交付质量，下一阶段收益在哪里。</span></div><div class="card-kv"><b>下一步决策</b><span>是否扩到更多业务线？谁做 owner？要不要给预算、权限或跨部门资源？</span></div></article>
+      <article class="card play-card"><h3><span class="icon-badge green"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.9M16 3.1a4 4 0 0 1 0 7.8"/></svg></span>TEAM · 具体方法</h3><p class="tagline">让一线知道明天怎么做</p><div class="card-kv"><b>可执行模板</b><span>给输入材料、提示词、检查表和样板结果，让他们照着做一遍就能开始。</span></div><div class="card-kv"><b>练习任务</b><span>用本周真实任务练，每次练习都留下作品和复盘，不拿虚构案例消耗时间。</span></div><div class="card-kv"><b>信心建设</b><span>让他们看到自己能完成，而不是只有外部老师能完成。</span></div></article>
+      <article class="card play-card"><h3><span class="icon-badge blue"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10Z"/><path d="m9 12 2 2 4-4"/></svg></span>IT / FIN · 风险和账</h3><p class="tagline">确认可控、可算、可持续</p><div class="card-kv"><b>数据边界</b><span>哪些数据能进 AI，哪些不能碰；账号权限、日志、审批是否留痕。</span></div><div class="card-kv"><b>成本口径</b><span>模型费、账号费、维护人力、顾问投入分别怎么算，和节省时间如何对应。</span></div><div class="card-kv"><b>治理机制</b><span>上线前怎么评测，出问题怎么回滚，谁负责持续维护和审批。</span></div></article>
+    </div>
+  </div>
+  <div class="synth-band" style="position:absolute;left:112px;right:112px;bottom:38px;">高层汇报像家长报告：<strong>少讲做了多少题，多讲孩子哪里进步、哪里还危险、下一步需要什么配合。</strong></div>
+</section>
+
+      <section class="slide" data-slide-key="parent-report" data-screen-label="25 家长报告样式">
+  <div class="section-head">
+    <div><span class="kicker">PARENT REPORT</span><h2>高层汇报要少讲过程<br>多讲可见进步和下一步决策</h2></div>
+    <p class="copy">不要只汇报“做了培训、做了工具、做了 demo”，而要汇报组织是否真的开始会学。</p>
+  </div>
+  <div class="report-dashboard" data-anim="rise">
+    <article class="visual-panel">
+      <img class="panel-photo" src="assets/photos/photo-cn-coaching.png" alt="家教反馈进展">
+      <div class="visual-panel-content">
+        <div>
+          <span class="ai-mini-label">EXECUTIVE SNAPSHOT</span>
+          <h3 style="margin-top:18px;">高层要看<br>四种进步</h3>
+          <p style="margin-top:18px;">这页像“家长报告”：不堆过程，把进步、能力、影响和风险翻译成下一步决策。</p>
+        </div>
+        <div class="visual-stat"><b>一句话汇报</b><span>孩子不仅做了题，而且开始知道怎么学习；企业不仅做了 Demo，而且开始会复用 AI。</span></div>
+      </div>
+    </article>
+    <div class="report-cards">
+      <article class="card play-card"><h3><span class="icon-badge blue"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="6" cy="19" r="3"/><circle cx="18" cy="5" r="3"/><path d="M9 19h3a4 4 0 0 0 4-4V8"/></svg></span>真实任务覆盖</h3><p class="tagline">项目有没有从演示走到日常</p><div class="card-kv"><b>覆盖范围</b><span>哪些业务线拿真实任务练，哪些只是参加培训但还没动手。</span></div><div class="card-kv"><b>任务深度</b><span>哪些任务进入周会、复盘、材料、运营动作，哪些还停在 Demo。</span></div><div class="card-kv"><b>下一步</b><span>新增哪两个真实场景，谁负责把任务拿出来。</span></div></article>
+      <article class="card play-card"><h3><span class="icon-badge green"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9.5 2A3.5 3.5 0 0 0 6 5.5v.3A3.5 3.5 0 0 0 4 9v1a3.5 3.5 0 0 0 2 3.2V15a4 4 0 0 0 4 4h1V2H9.5ZM14.5 2A3.5 3.5 0 0 1 18 5.5v.3A3.5 3.5 0 0 1 20 9v1a3.5 3.5 0 0 1-2 3.2V15a4 4 0 0 1-4 4h-1V2h1.5Z"/></svg></span>一线复用能力</h3><p class="tagline">团队是不是开始自己会做</p><div class="card-kv"><b>独立产出</b><span>谁已经能独立完成一次 AI 辅助交付，质量是否稳定。</span></div><div class="card-kv"><b>内部教学</b><span>谁能把方法讲给别人听，谁有潜力成为 Champion。</span></div><div class="card-kv"><b>模板复用</b><span>哪些模板被反复使用，哪些没人用，需要淘汰。</span></div></article>
+      <article class="card play-card"><h3><span class="icon-badge fire"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 3v18h18"/><path d="m7 15 4-4 3 3 5-7"/></svg></span>流程效率改善</h3><p class="tagline">结果是不是让业务更快更稳</p><div class="card-kv"><b>效率变化</b><span>哪个流程耗时下降，下降多少，计算口径是什么。</span></div><div class="card-kv"><b>质量变化</b><span>返工是否减少，错误是否下降，交付稳定性是否提升。</span></div><div class="card-kv"><b>管理价值</b><span>这件事是否让管理层更容易看见过程和结果。</span></div></article>
+      <article class="card play-card"><h3><span class="icon-badge violet"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10Z"/><path d="m9 12 2 2 4-4"/></svg></span>边界与下一步</h3><p class="tagline">下一阶段要什么配合</p><div class="card-kv"><b>资源风险</b><span>权限、数据、预算、owner 是否齐全，缺哪一个会卡住。</span></div><div class="card-kv"><b>组织风险</b><span>谁可能反对，谁可能拖延，谁需要被提前对齐。</span></div><div class="card-kv"><b>决策请求</b><span>高层要决定扩范围、加预算、定 owner，还是开治理会。</span></div></article>
+    </div>
+  </div>
+</section>
+
+      <section class="slide" data-slide-key="reporting-cadence" data-screen-label="26 汇报进度设计">
+  <div class="section-head">
+    <div><span class="kicker">REPORTING CADENCE</span><h2 style="font-size:56px;line-height:1.08;">用固定会议节奏<br>持续降低客户不确定性</h2></div>
+    <p class="copy">每个节点都要有会议名字、参会对象和汇报内容。这样客户知道项目走到哪里，也知道自己什么时候要参与。</p>
+  </div>
+  <div class="meeting-board" data-anim="rise">
+    <article class="visual-panel">
+      <img class="panel-photo" src="assets/photos/photo-cn-workshop.png" alt="项目节奏板">
+      <div class="visual-panel-content">
+        <div>
+          <span class="ai-mini-label">MEETING SYSTEM</span>
+          <h3 style="margin-top:18px;">每次汇报<br>都要让客户更安心</h3>
+          <p style="margin-top:18px;">汇报不是念进度，而是持续回答三个问题：走到哪里、谁要参与、下一步如何决策。</p>
+        </div>
+        <div class="visual-stat-stack">
+          <div class="visual-stat"><b><span class="mini-ico"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="8"/><circle cx="12" cy="12" r="3"/><path d="M12 2v4M12 18v4M2 12h4M18 12h4"/></svg></span>会议名称</b><span>让客户知道这次会解决什么。</span></div>
+          <div class="visual-stat"><b><span class="mini-ico"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.9M16 3.1a4 4 0 0 1 0 7.8"/></svg></span>给谁看</b><span>让正确的人在正确时间出现。</span></div>
+          <div class="visual-stat"><b><span class="mini-ico"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m7.5 4.3 9 5.2M21 8.2v7.6a2 2 0 0 1-1 1.7l-7 4a2 2 0 0 1-2 0l-7-4a2 2 0 0 1-1-1.7V8.2a2 2 0 0 1 1-1.7l7-4a2 2 0 0 1 2 0l7 4a2 2 0 0 1 1 1.7Z"/><path d="M3.3 7 12 12l8.7-5M12 22V12"/></svg></span>汇报什么</b><span>每次会议都留下可执行产物。</span></div>
+        </div>
+      </div>
+    </article>
+    <div class="meeting-grid">
+      <article class="card meeting-card"><span class="tl-date">W1</span><b>开局对齐会</b><p><strong>给谁看：</strong>Sponsor、决策层、IT。<br><strong>汇报：</strong>为什么做、谁负责、什么算成功。<br><strong>产物：</strong>关系图、目标表、边界表。</p></article>
+      <article class="card meeting-card"><span class="tl-date">W1-W2</span><b>诊断评审会</b><p><strong>给谁看：</strong>业务 owner、一线骨干。<br><strong>汇报：</strong>真实痛点、流程卡点、数据红线。<br><strong>产物：</strong>九宫格定位、风险清单。</p></article>
+      <article class="card meeting-card"><span class="tl-date">W2</span><b>场景排序会</b><p><strong>给谁看：</strong>业务、IT、安全。<br><strong>汇报：</strong>先做哪 3 个场景，为什么先做。<br><strong>产物：</strong>场景优先级、样板任务卡。</p></article>
+      <article class="card meeting-card"><span class="tl-date">W4</span><b>样板评审会</b><p><strong>给谁看：</strong>高层、Sponsor、一线。<br><strong>汇报：</strong>样板成果、效率变化、质量标准。<br><strong>产物：</strong>示范样板、评分表。</p></article>
+      <article class="card meeting-card"><span class="tl-date">W6-W8</span><b>习惯复盘会</b><p><strong>给谁看：</strong>一线团队、Champion。<br><strong>汇报：</strong>错题本、复用模板、阻力变化。<br><strong>产物：</strong>模板库、作品墙。</p></article>
+      <article class="card meeting-card"><span class="tl-date">W12</span><b>移交共创会</b><p><strong>给谁看：</strong>管理层、owner、IT。<br><strong>汇报：</strong>能力移交、治理机制、下一阶段路线。<br><strong>产物：</strong>移交包、路线图。</p></article>
+    </div>
+  </div>
+</section>
+
+      <section class="slide" data-slide-key="chapter-risks" data-screen-label="27 章节五 · 坑点">
+  <div class="chapter-photo-break">
+    <img src="assets/photos/photo-cn-governance.png" alt="27 章节五 · 坑点">
+    <div class="shade"></div>
+    <div class="chapter-photo-copy">
+      <div>
+        <span class="divider-eyebrow"><span class="divider-dot"></span>PART 05 · PITFALL RADAR</span>
+        <h1 class="chapter-photo-title">提前管理风险：<br><span class="tenx-mark">角色、目标、交付都会带偏项目</span></h1>
+        <p class="divider-sub" style="font-size:30px;max-width:900px;">很多 AI 转型不是失败在能力不够，而是失败在角色关系、边界和节奏。</p>
+      </div>
+      <div class="chapter-photo-cards"><div class="phase"><span>RISK 01</span><b>错认客户</b><small>关系失焦</small></div><div class="phase"><span>RISK 02</span><b>KPI 陷阱</b><small>短期失真</small></div><div class="phase"><span>RISK 03</span><b>替写作业</b><small>能力不转移</small></div><div class="phase"><span>RISK 04</span><b>安全后置</b><small>后期返工</small></div></div>
+    </div>
+  </div>
+</section>
+
+      <section class="slide" data-slide-key="pitfall-radar" data-screen-label="28 坑点矩阵">
+  <div class="risk-command">
+    <article class="risk-hero" data-anim="left">
+      <img src="assets/photos/photo-cn-governance.png" alt="风险讨论会议">
+      <div class="risk-hero-content">
+        <div>
+          <span class="kicker">RISK COMMAND CENTER</span>
+          <h2>风险管理不能靠复盘<br>要靠提前预警</h2>
+          <p>读法很简单：先看风险属于哪一类，再看早期信号、后果和提前动作。不要等项目翻车才复盘。</p>
+        </div>
+        <div class="radar-stage" style="min-height:310px;">
+          <div class="radar-ring a"></div><div class="radar-ring b"></div><div class="radar-ring c"></div><div class="radar-sweep"></div>
+          <span class="risk-chip" style="left:6%;top:14%;">错认客户</span>
+          <span class="risk-chip" style="right:4%;top:18%;">KPI 陷阱</span>
+          <span class="risk-chip" style="left:10%;bottom:25%;">替写作业</span>
+          <span class="risk-chip" style="right:8%;bottom:18%;">安全后置</span>
+          <span class="risk-chip" style="left:38%;top:2%;">Demo 成瘾</span>
+          <span class="risk-chip" style="left:34%;bottom:4%;">退出缺失</span>
+        </div>
+      </div>
+    </article>
+    <div class="risk-lanes" data-anim="right">
+      <div class="risk-lane-head">
+        <div class="lane"><b>关系风险</b><span>错认客户 / 旁观干预</span></div>
+        <div class="lane"><b>目标风险</b><span>KPI 陷阱 / 标准缺失</span></div>
+        <div class="lane"><b>交付风险</b><span>替写作业 / Demo 成瘾</span></div>
+        <div class="lane"><b>治理风险</b><span>安全后置 / 退出缺失</span></div>
+      </div>
+      <div class="risk-list">
+        <article class="risk-item"><b>R01 错认客户</b><span>信号：最热情的人没有预算。后果：后期被拍板人否掉。处理：先画关系图和决策链。</span></article>
+        <article class="risk-item"><b>R02 KPI 陷阱</b><span>信号：只问几天见效。后果：短期漂亮，长期断层。处理：设“分数 + 能力”双指标。</span></article>
+        <article class="risk-item"><b>R03 散养无承诺</b><span>信号：客户说先试试看。后果：没有 owner，也没有验收。处理：设置两周验收点。</span></article>
+        <article class="risk-item"><b>R04 替写作业</b><span>信号：成果都由外部完成。后果：客户只记住老师会做。处理：录屏、模板、反讲、交接。</span></article>
+        <article class="risk-item"><b>R05 Demo 成瘾</b><span>信号：每周都要新奇效果。后果：业务流程没有吸收。处理：Demo 后必须进真实任务。</span></article>
+        <article class="risk-item"><b>R06 安全后置</b><span>信号：数据权限说以后再谈。后果：方案做完才发现不能上线。处理：第一周拉 IT 入场。</span></article>
+        <article class="risk-item"><b>R07 旁观干预</b><span>信号：外圈人不断给建议。后果：方向反复变，团队疲惫。处理：设意见入口和拍板权。</span></article>
+        <article class="risk-item"><b>R08 场景太散</b><span>信号：十几个需求同时启动。后果：没有样板和记忆点。处理：聚焦三类高频任务。</span></article>
+        <article class="risk-item"><b>R09 标准缺失</b><span>信号：只说好不好看。后果：无法判断质量是否进步。处理：建立评分表和样板标准。</span></article>
+        <article class="risk-item"><b>R10 退出缺失</b><span>信号：顾问一直在线兜底。后果：越成功越依赖外部。处理：第一天设计移交和反讲。</span></article>
+      </div>
+    </div>
+  </div>
+</section>
+
+      <section class="slide" data-slide-key="preflight-questions" data-screen-label="29 开项问题">
+  <div style="position:absolute;left:112px;right:112px;top:82px;display:grid;grid-template-columns:.95fr 1.05fr;gap:62px;align-items:end;">
+    <div><span class="kicker">PREFLIGHT CHECKLIST</span><h2 style="font-size:58px;line-height:1.08;margin-top:18px;">开项前，不要问<br>你想做什么 AI</h2></div>
+    <p class="copy" style="font-size:22px;line-height:1.55;">问题越具体，客户越容易暴露真实目标、真实阻力和真实边界。</p>
+  </div>
+  <div style="position:absolute;left:112px;right:112px;top:330px;bottom:110px;display:grid;grid-template-columns:repeat(3,minmax(0,1fr));grid-template-rows:repeat(2,minmax(0,1fr));gap:16px;">
+    <article class="card coach-card" style="height:auto;min-height:0;padding:19px 20px;"><div style="display:flex;align-items:flex-start;gap:14px;"><span class="icon-badge"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m12 3 1.7 5.3L19 10l-5.3 1.7L12 17l-1.7-5.3L5 10l5.3-1.7L12 3Z"/><path d="M19 16v4M21 18h-4M5 4v3M6.5 5.5h-3"/></svg></span><div><span class="card-no">01</span><h3 style="font-size:22px;line-height:1.12;">谁会因成功获益？</h3><p style="font-size:15px;line-height:1.35;color:#ffcf6f;margin-top:8px;">找出真正会推动项目的人</p></div></div><div class="detail-section"><span class="mini-ico"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="6" cy="19" r="3"/><circle cx="18" cy="5" r="3"/><path d="M9 19h3a4 4 0 0 0 4-4V8"/></svg></span><div><b>怎么问</b><p style="font-size:13.6px;line-height:1.42;">如果这个项目三个月后成功了，谁的工作会更轻松，谁的汇报会更好看？</p></div></div><div class="detail-section"><span class="mini-ico"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m12 3 1.7 5.3L19 10l-5.3 1.7L12 17l-1.7-5.3L5 10l5.3-1.7L12 3Z"/><path d="M19 16v4M21 18h-4M5 4v3M6.5 5.5h-3"/></svg></span><div><b>看什么</b><p style="font-size:13.6px;line-height:1.42;">不要接受“公司整体受益”，要落到具体岗位、具体人和具体指标。</p></div></div></article>
+    <article class="card coach-card" style="height:auto;min-height:0;padding:19px 20px;"><div style="display:flex;align-items:flex-start;gap:14px;"><span class="icon-badge"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m12 3 1.7 5.3L19 10l-5.3 1.7L12 17l-1.7-5.3L5 10l5.3-1.7L12 3Z"/><path d="M19 16v4M21 18h-4M5 4v3M6.5 5.5h-3"/></svg></span><div><span class="card-no">02</span><h3 style="font-size:22px;line-height:1.12;">谁会因此不舒服？</h3><p style="font-size:15px;line-height:1.35;color:#ffcf6f;margin-top:8px;">提前看到阻力来源</p></div></div><div class="detail-section"><span class="mini-ico"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="6" cy="19" r="3"/><circle cx="18" cy="5" r="3"/><path d="M9 19h3a4 4 0 0 0 4-4V8"/></svg></span><div><b>怎么问</b><p style="font-size:13.6px;line-height:1.42;">如果 AI 真的进入流程，哪个岗位会觉得自己被替代、被监督，或者工作变多？</p></div></div><div class="detail-section"><span class="mini-ico"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m12 3 1.7 5.3L19 10l-5.3 1.7L12 17l-1.7-5.3L5 10l5.3-1.7L12 3Z"/><path d="M19 16v4M21 18h-4M5 4v3M6.5 5.5h-3"/></svg></span><div><b>看什么</b><p style="font-size:13.6px;line-height:1.42;">中层失控感、一线额外工作量、原供应商被替代感，都是阻力。</p></div></div></article>
+    <article class="card coach-card" style="height:auto;min-height:0;padding:19px 20px;"><div style="display:flex;align-items:flex-start;gap:14px;"><span class="icon-badge"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m12 3 1.7 5.3L19 10l-5.3 1.7L12 17l-1.7-5.3L5 10l5.3-1.7L12 3Z"/><path d="M19 16v4M21 18h-4M5 4v3M6.5 5.5h-3"/></svg></span><div><span class="card-no">03</span><h3 style="font-size:22px;line-height:1.12;">短期分数是什么？</h3><p style="font-size:15px;line-height:1.35;color:#ffcf6f;margin-top:8px;">防止家长自己定义成绩</p></div></div><div class="detail-section"><span class="mini-ico"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="6" cy="19" r="3"/><circle cx="18" cy="5" r="3"/><path d="M9 19h3a4 4 0 0 0 4-4V8"/></svg></span><div><b>怎么问</b><p style="font-size:13.6px;line-height:1.42;">四周后要看到什么，老板才会觉得不是空转？</p></div></div><div class="detail-section"><span class="mini-ico"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m12 3 1.7 5.3L19 10l-5.3 1.7L12 17l-1.7-5.3L5 10l5.3-1.7L12 3Z"/><path d="M19 16v4M21 18h-4M5 4v3M6.5 5.5h-3"/></svg></span><div><b>看什么</b><p style="font-size:13.6px;line-height:1.42;">最好是一个真实流程的时间、质量、返工率或交付稳定性。</p></div></div></article>
+    <article class="card coach-card" style="height:auto;min-height:0;padding:19px 20px;"><div style="display:flex;align-items:flex-start;gap:14px;"><span class="icon-badge"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9.5 2A3.5 3.5 0 0 0 6 5.5v.3A3.5 3.5 0 0 0 4 9v1a3.5 3.5 0 0 0 2 3.2V15a4 4 0 0 0 4 4h1V2H9.5ZM14.5 2A3.5 3.5 0 0 1 18 5.5v.3A3.5 3.5 0 0 1 20 9v1a3.5 3.5 0 0 1-2 3.2V15a4 4 0 0 1-4 4h-1V2h1.5Z"/></svg></span><div><span class="card-no">04</span><h3 style="font-size:22px;line-height:1.12;">长期能力是什么？</h3><p style="font-size:15px;line-height:1.35;color:#ffcf6f;margin-top:8px;">防止项目停在代劳</p></div></div><div class="detail-section"><span class="mini-ico"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="6" cy="19" r="3"/><circle cx="18" cy="5" r="3"/><path d="M9 19h3a4 4 0 0 0 4-4V8"/></svg></span><div><b>怎么问</b><p style="font-size:13.6px;line-height:1.42;">十二周后，客户团队应该能独立完成哪类任务？</p></div></div><div class="detail-section"><span class="mini-ico"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m12 3 1.7 5.3L19 10l-5.3 1.7L12 17l-1.7-5.3L5 10l5.3-1.7L12 3Z"/><path d="M19 16v4M21 18h-4M5 4v3M6.5 5.5h-3"/></svg></span><div><b>看什么</b><p style="font-size:13.6px;line-height:1.42;">独立产出、模板复用、内部讲师、案例库，而不只是外部交付物。</p></div></div></article>
+    <article class="card coach-card" style="height:auto;min-height:0;padding:19px 20px;"><div style="display:flex;align-items:flex-start;gap:14px;"><span class="icon-badge"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10Z"/><path d="m9 12 2 2 4-4"/></svg></span><div><span class="card-no">05</span><h3 style="font-size:22px;line-height:1.12;">数据边界在哪里？</h3><p style="font-size:15px;line-height:1.35;color:#ffcf6f;margin-top:8px;">第一天就把红线放进设计</p></div></div><div class="detail-section"><span class="mini-ico"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="6" cy="19" r="3"/><circle cx="18" cy="5" r="3"/><path d="M9 19h3a4 4 0 0 0 4-4V8"/></svg></span><div><b>怎么问</b><p style="font-size:13.6px;line-height:1.42;">哪些数据一旦进入 AI，就会被安全或法务叫停？</p></div></div><div class="detail-section"><span class="mini-ico"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m12 3 1.7 5.3L19 10l-5.3 1.7L12 17l-1.7-5.3L5 10l5.3-1.7L12 3Z"/><path d="M19 16v4M21 18h-4M5 4v3M6.5 5.5h-3"/></svg></span><div><b>看什么</b><p style="font-size:13.6px;line-height:1.42;">账号权限、客户隐私、合同数据、财务数据和日志留存。</p></div></div></article>
+    <article class="card coach-card" style="height:auto;min-height:0;padding:19px 20px;"><div style="display:flex;align-items:flex-start;gap:14px;"><span class="icon-badge"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m12 3 1.7 5.3L19 10l-5.3 1.7L12 17l-1.7-5.3L5 10l5.3-1.7L12 3Z"/><path d="M19 16v4M21 18h-4M5 4v3M6.5 5.5h-3"/></svg></span><div><span class="card-no">06</span><h3 style="font-size:22px;line-height:1.12;">谁带进日常？</h3><p style="font-size:15px;line-height:1.35;color:#ffcf6f;margin-top:8px;">没有 owner 就没有转型</p></div></div><div class="detail-section"><span class="mini-ico"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="6" cy="19" r="3"/><circle cx="18" cy="5" r="3"/><path d="M9 19h3a4 4 0 0 0 4-4V8"/></svg></span><div><b>怎么问</b><p style="font-size:13.6px;line-height:1.42;">这个场景最后进入哪一个会议、哪一个流程、哪一个岗位的日常？</p></div></div><div class="detail-section"><span class="mini-ico"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m12 3 1.7 5.3L19 10l-5.3 1.7L12 17l-1.7-5.3L5 10l5.3-1.7L12 3Z"/><path d="M19 16v4M21 18h-4M5 4v3M6.5 5.5h-3"/></svg></span><div><b>看什么</b><p style="font-size:13.6px;line-height:1.42;">如果没有明确 owner，AI 场景大概率只是展品。</p></div></div></article>
+  </div>
+  
+</section>
+
+      <section class="slide" data-slide-key="question-playbook" data-screen-label="30 提问方式">
+  <div class="section-head">
+    <div><span class="kicker">QUESTION PLAYBOOK</span><h2>好问题能逼近真实需求<br>也能暴露真实阻力</h2></div>
+    <p class="copy">不要审问客户，要像好老师一样，把问题问到客户愿意说实话、敢拿真实作业出来。</p>
+  </div>
+  <div class="visual-page" style="top:292px;bottom:82px;grid-template-columns:.48fr 1.52fr;">
+    <article class="visual-panel">
+      <img class="panel-photo" src="assets/photos/photo-cn-training.png" alt="提问与共创课堂">
+      <div class="visual-panel-content">
+        <div>
+          <span class="ai-mini-label">BETTER QUESTIONS</span>
+          <h3 style="margin-top:18px;">好问题<br>让客户拿出真作业</h3>
+          <p style="margin-top:18px;">问法越具体，越能暴露真实目标、真实阻力和真实边界。</p>
+        </div>
+        <div class="visual-stat"><b>提问姿态</b><span>少问“你想要什么 AI”，多问“哪个真实任务本周就要交付”。</span></div>
+      </div>
+    </article>
+    <div class="playbook-grid" data-stagger="0.06" style="grid-template-columns:repeat(3,1fr);grid-template-rows:repeat(2,minmax(0,1fr));gap:14px;">
+      <article class="card play-card"><h3><span class="icon-badge fire"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="8"/><circle cx="12" cy="12" r="3"/><path d="M12 2v4M12 18v4M2 12h4M18 12h4"/></svg></span>目标</h3><p class="tagline">确认成功标准</p><div class="card-kv"><b>不要问</b><span>你们想做什么 AI？</span></div><div class="card-kv"><b>可以这样问</b><span>三个月后老板看到什么，会觉得这笔钱值得？</span></div><div class="card-kv"><b>想得到</b><span>验收口径、老板语言和第一阶段必须拿到的分数。</span></div></article>
+      <article class="card play-card"><h3><span class="icon-badge fire"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M10.3 3.9 1.8 18a2 2 0 0 0 1.7 3h17a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0Z"/><path d="M12 9v4M12 17h.01"/></svg></span>阻力</h3><p class="tagline">确认真实风险</p><div class="card-kv"><b>不要问</b><span>你们团队支持吗？</span></div><div class="card-kv"><b>可以这样问</b><span>如果推进不下去，最可能卡在哪个岗位？</span></div><div class="card-kv"><b>想得到</b><span>反对者、隐性竞争者、额外工作量和失控感来源。</span></div></article>
+      <article class="card play-card"><h3><span class="icon-badge blue"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/><path d="M4 4.5A2.5 2.5 0 0 1 6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15Z"/></svg></span>任务</h3><p class="tagline">确认真实作业</p><div class="card-kv"><b>不要问</b><span>有没有需求清单？</span></div><div class="card-kv"><b>可以这样问</b><span>拿一个本周真实要交付的任务，我们一起拆一下。</span></div><div class="card-kv"><b>想得到</b><span>能练、能交付、能复盘的真实任务，而不是抽象需求。</span></div></article>
+      <article class="card play-card"><h3><span class="icon-badge green"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10Z"/><path d="m9 12 2 2 4-4"/></svg></span>边界</h3><p class="tagline">确认不可碰区域</p><div class="card-kv"><b>不要问</b><span>安全有要求吗？</span></div><div class="card-kv"><b>可以这样问</b><span>哪些数据一旦进入 AI，就一定会被内部叫停？</span></div><div class="card-kv"><b>想得到</b><span>数据、权限、账号、日志、审批和上线边界。</span></div></article>
+      <article class="card play-card"><h3><span class="icon-badge violet"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.9M16 3.1a4 4 0 0 1 0 7.8"/></svg></span>移交</h3><p class="tagline">确认内部老师</p><div class="card-kv"><b>不要问</b><span>你们要培训吗？</span></div><div class="card-kv"><b>可以这样问</b><span>最后谁要能独立讲给其他同事听？</span></div><div class="card-kv"><b>想得到</b><span>Champion 候选人，提前设计移交和内部扩散。</span></div></article>
+    </div>
+  </div>
+</section>
+
+      <section class="slide" data-slide-key="method-summary" data-screen-label="31 方法论总结">
+  <div class="section-head">
+    <div><span class="kicker">METHOD SUMMARY</span><h2>这套方法论可以压缩成<br>六个管理动作</h2></div>
+    <p class="copy">这不是一个卖工具的方法，而是一套帮助企业形成 AI 学习能力的顾问方法。</p>
+  </div>
+  <div class="summary-system" data-anim="rise">
+    <article class="visual-panel">
+      <img class="panel-photo" src="assets/photos/photo-cn-workshop.png" alt="组织学习系统">
+      <div class="visual-panel-content">
+        <div>
+          <span class="ai-mini-label">TRANSFER LOOP</span>
+          <h3 style="margin-top:18px;">最终目标<br>是让客户会学习</h3>
+          <p style="margin-top:18px;">好的 AI 转型顾问，最后不是让客户离不开你，而是让客户知道如何持续识别场景、使用工具、评估质量和扩散案例。</p>
+        </div>
+        <div class="visual-stat"><b>总结句</b><span>从关系识别，到状态诊断，到 Offer 选择，到汇报翻译，到能力移交，最后沉淀为组织学习系统。</span></div>
+      </div>
+    </article>
+    <div class="summary-steps">
+      <div class="summary-step"><b>01</b><strong>画清关系</strong><span>把出钱、发起、学习、拍板、边界和旁观影响者画成一张关系图。</span></div>
+      <div class="summary-step"><b>02</b><strong>判断状态</strong><span>用企业基础和管理风格定位九宫格，明确客户不是同一种客户。</span></div>
+      <div class="summary-step"><b>03</b><strong>选择 Offer</strong><span>把诊断、示范、陪跑、托管、信心建设、系统共建讲成不同服务。</span></div>
+      <div class="summary-step"><b>04</b><strong>翻译汇报</strong><span>CEO 看决策，一线看方法，IT 和财务看边界、风险和账。</span></div>
+      <div class="summary-step"><b>05</b><strong>提前移交</strong><span>每次代劳都要配录屏、模板、反讲和交接，避免客户长期依赖。</span></div>
+      <div class="summary-step"><b>06</b><strong>形成系统</strong><span>最终留下模板库、评分表、案例库、Champion 机制和治理节奏。</span></div>
+    </div>
+  </div>
+</section>
+
+      <section class="slide" data-slide-key="roadmap" data-screen-label="32 12 周路径">
+  <div class="section-head">
+    <div><span class="kicker">12-WEEK PROGRAM</span><h2>标准 AI 转型项目<br>可以按 12 周推进</h2></div>
+    <p class="copy">不同象限会调整节奏，但默认路径必须包含诊断、示范、共做、验收和移交。</p>
+  </div>
+  <div class="timeline">
+    <div class="timeline-line"></div>
+    <div class="timeline-nodes" style="grid-template-columns:repeat(4,1fr);">
+      <div class="timeline-node"><div class="card tl-card"><span class="tl-date">W1-W2</span><b>识别客户</b><p>输出关系图和状态象限，确认谁出钱、谁学习、谁验收，先把项目边界定住。</p></div></div>
+      <div class="timeline-node"><div class="card tl-card"><span class="tl-date">W3-W4</span><b>示范样板</b><p>选择 2-3 个真实场景做给客户看，用样板流程建立第一批信任。</p></div></div>
+      <div class="timeline-node"><div class="card tl-card"><span class="tl-date">W5-W8</span><b>陪跑冲刺</b><p>共做、复盘、模板化，把成果转向方法，沉淀可复用资产。</p></div></div>
+      <div class="timeline-node"><div class="card tl-card"><span class="tl-date">W9-W12</span><b>验收移交</b><p>用家长报告翻译成果，用学生练习册训练内部讲师，完成移交包。</p></div></div>
+    </div>
+  </div>
+  <div class="cadence-note"><strong>关键节奏：</strong>每两周必须有一个看得见的变化，每四周必须有一次方法沉淀。</div>
+</section>
+
+      <section class="slide" data-slide-key="closing" data-screen-label="33 结束语">
+  <div class="media-split">
+    <div>
+      <span class="kicker">CLOSING</span>
+      <h2 style="font-size:62px;line-height:1.1;">最好的 AI 转型服务<br>会让客户形成自我学习能力</h2>
+      <p class="copy" style="margin-top:24px;font-size:25px;">家庭教师最好的结局，不是孩子永远离不开老师，而是孩子知道如何学习、如何求助、如何复盘。</p>
+      <ul class="media-points">
+        <li><b>先问谁最需要老师。</b>不要急着讲方案，先拆购买、发起、学习、验收和影响关系。</li>
+        <li><b>再看企业状态。</b>用九宫格判断企业基础和管理风格，避免把所有客户当成一种客户。</li>
+        <li><b>最终让客户会学习。</b>代劳可以，但每次都必须配录屏、模板、反讲和移交。</li>
+      </ul>
+      <div class="synth-band" style="margin-top:28px;">Rolling AI 的真正价值：<strong>把企业训练成会使用 AI、会复盘 AI、会扩散 AI 的学习型组织。</strong></div>
+    </div>
+    <div class="media-frame">
+      <img src="assets/learning-system.svg" alt="组织学习闭环">
+    </div>
+  </div>
+</section>
+
+      <section class="slide" data-slide-key="opportunity-map" data-screen-label="34 机会发现">
+  <div class="section-head">
+    <div><span class="kicker">OPPORTUNITY MAP</span><h2>AI 转型的机会<br>来自重建企业学习系统</h2></div>
+    <p class="copy">如果 AI 转型是一次剧烈的能力跃迁，那么家庭教师只是其中一种角色。商业机会来自把人的时间沉淀成课程、工具、评测、平台和社区。</p>
+  </div>
+  <div class="chart-grid">
+	    <div class="business-ladder opportunity-visual-frame" aria-label="商业模式复制性阶梯">
+	      <article class="ladder-node n1"><div class="tag">01 SERVICE</div><b>一对一家教</b><span>专家深度陪跑，高客单、高信任，但复制性最弱。</span></article>
+	      <article class="ladder-node n2"><div class="tag">02 CLASS</div><b>训练营 / Workshop</b><span>内容可复用，交付仍需要老师和助教管理现场。</span></article>
+	      <article class="ladder-node n3"><div class="tag">03 IP ASSET</div><b>教研与模板库</b><span>把经验沉淀成 Playbook、模板、案例和授权。</span></article>
+	      <article class="ladder-node n4"><div class="tag">04 STANDARD</div><b>评测与认证</b><span>标准一旦建立，就可以持续评估和重复销售。</span></article>
+	      <article class="ladder-node n5"><div class="tag">05 PLATFORM</div><b>教务系统 SaaS</b><span>任务追踪、作品库、复盘看板，边际成本最低。</span></article>
+	      <div class="ladder-axis"><span>低复制：专家小时</span><span>高复制：标准与平台</span></div>
+	    </div>
+    <article class="chart-card">
+      <h3>从专家时间，到可复制资产</h3>
+      <p class="chart-sub">越往右，越少依赖一对一专家时间，越能形成标准化收费。</p>
+      <div class="chart-kpis">
+        <div class="mini-kpi"><b>低复制</b><span>一对一家教、深度诊断、陪跑。收费高，但强依赖专家。</span></div>
+        <div class="mini-kpi"><b>中复制</b><span>在线家教、训练营、Workshop。交付仍有人，但内容可复用。</span></div>
+        <div class="mini-kpi"><b>高复制</b><span>教研模板、评测认证、行业 Playbook。标准建立后可反复销售。</span></div>
+        <div class="mini-kpi"><b>平台化</b><span>教务系统、任务追踪、作品库、复盘看板。软件边际成本最低。</span></div>
+      </div>
+      <div class="synth-band" style="margin-top:20px;font-size:20px;">机会判断：<strong>越能从专家时间转成标准、工具、数据、社区，商业模式越容易复制。</strong></div>
+    </article>
+  </div>
+</section>
+      <!-- Controls -->
+      <div class="deck-progress"><span id="progressBar"></span></div>
+      <div class="deck-controls" aria-label="演示控制">
+        <button type="button" id="prevBtn" aria-label="上一页">↑</button>
+        <span class="page-no" id="pageNo">01 / 16</span>
+        <button type="button" id="nextBtn" aria-label="下一页">↓</button>
+        <button type="button" id="fullscreenBtn" aria-label="全屏">⛶</button>
+      </div>
+      <div class="vertical-pager" aria-label="分页">
+        <button type="button" id="upBtn" aria-label="往上翻页">↑</button>
+        <button type="button" id="downBtn" aria-label="往下翻页">↓</button>
+      </div>
+      <button type="button" class="confirm-toggle" id="confirmToggle" aria-label="功能区"><span>⚙</span></button>
+      <aside class="confirm-panel" id="confirmPanel" aria-label="功能区">
+        <div class="confirm-header"><h3>功能区</h3><button type="button" class="confirm-close" id="confirmClose" aria-label="关闭">×</button></div>
+
+        <div class="fn-section-title">模式</div>
+        <div class="mode-switch" id="modeSwitch">
+          <button type="button" class="mode-btn active" data-mode="present">演示模式</button>
+          <button type="button" class="mode-btn" data-mode="edit">编辑模式</button>
+        </div>
+        <p class="confirm-sub" id="modeHint">演示模式下内容锁定，不可修改。</p>
+
+        <div class="edit-tools" id="editTools" hidden>
+          <button type="button" class="fn-action fn-confirm" id="confirmEdit">✓ 完成编辑</button>
+          <button type="button" class="fn-action" id="exportPdf">导出 PDF</button>
+        </div>
+
+        <div class="fn-section-title">会后待确认事项 <b id="confirmCount">0 / 6</b></div>
+        <p class="confirm-sub">逐项勾选，状态自动保存；编辑模式下可改文字。</p>
+        <div class="confirm-list" id="confirmList"></div>
+        <div class="confirm-meter"><span id="confirmMeter"></span></div>
+      </aside>
+      <div class="edit-badge">✎ 编辑模式 · 点击页面文字即可修改</div>
+    </main>
+  </div>
+
+  <script>
+    const deck = document.getElementById("deck");
+    const slides = [...document.querySelectorAll(".slide")];
+    // wrap each content slide so it can be auto-scaled to fit the safe area
+    slides.forEach(sl => {
+      if (sl.classList.contains("cover-hero")) return;
+      const inner = document.createElement("div");
+      inner.className = "slide-fit";
+      while (sl.firstChild) inner.appendChild(sl.firstChild);
+      sl.appendChild(inner);
+    });
+    const fitSlide = sl => {
+      if (!sl) return;
+      const inner = sl.querySelector(".slide-fit");
+      if (!inner) return;
+      inner.style.transform = "none";
+      const cs = getComputedStyle(sl);
+      const avail = sl.clientHeight - parseFloat(cs.paddingTop) - parseFloat(cs.paddingBottom);
+      const h = inner.scrollHeight;
+      const sc = h > avail ? Math.max(0.7, avail / h) : 1;
+      inner.style.transform = sc < 1 ? `scale(${sc})` : "none";
+    };
+    const pageNo = document.getElementById("pageNo");
+    const progressBar = document.getElementById("progressBar");
+    const confirmPanel = document.getElementById("confirmPanel");
+    const confirmList = document.getElementById("confirmList");
+    const confirmCount = document.getElementById("confirmCount");
+    const confirmMeter = document.getElementById("confirmMeter");
+    const editTools = document.getElementById("editTools");
+    const modeHint = document.getElementById("modeHint");
+    const defaultConfirmItems = [
+      "待确认事项示例一（生成时替换为本次议题）",
+      "待确认事项示例二",
+      "待确认事项示例三"
+    ];
+    const itemsKey = "10x-confirm-items";
+    let confirmItems = (() => { try { const v = JSON.parse(localStorage.getItem(itemsKey)); return Array.isArray(v) && v.length ? v : defaultConfirmItems.slice(); } catch { return defaultConfirmItems.slice(); } })();
+    const saveItems = () => localStorage.setItem(itemsKey, JSON.stringify(confirmItems));
+    let mode = "present";
+    const storageKey = "10x-transformation-confirmations";
+    let index = 0;
+
+    // ── editable content (edit mode) — covers every text node incl. cover ──
+    const EDIT_SEL = "h1,h2,h3,h4,h5,h6,p,li,td,th,span,b,strong,small,em,"
+      + ".copy,.kicker,.deck-label,.cover-lead,.cover-note,.ol-body,.ac-sub,.track-sub,"
+      + ".stat-num,.cc-num,.tenx-mega,.goal-note,.goal-tag,.exit";
+    const editKey = "10x-edits-v2";
+    const editStore = (() => { try { return JSON.parse(localStorage.getItem(editKey)) || {}; } catch { return {}; } })();
+    const saveEdits = () => localStorage.setItem(editKey, JSON.stringify(editStore));
+    const editEls = [];
+    slides.forEach(sl => {
+      const sk = sl.dataset.slideKey || "s";
+      let n = 0;
+      sl.querySelectorAll(EDIT_SEL).forEach(el => {
+        // let the outermost text block own the edit; skip nested + empty/icon nodes
+        if (el.parentElement && el.parentElement.closest("[data-edit-key]")) return;
+        if (!el.textContent.trim()) return;
+        const k = sk + ":" + (n++);
+        el.dataset.editKey = k;
+        if (editStore[k] != null) el.innerHTML = editStore[k];
+        el.addEventListener("input", () => { editStore[k] = el.innerHTML; saveEdits(); fitSlide(slides[index]); });
+        editEls.push(el);
+      });
+    });
+    const setMode = m => {
+      mode = m;
+      document.body.classList.toggle("edit-mode", m === "edit");
+      document.querySelectorAll("#modeSwitch .mode-btn").forEach(b => b.classList.toggle("active", b.dataset.mode === m));
+      if (editTools) editTools.hidden = m !== "edit";
+      if (modeHint) modeHint.textContent = m === "edit"
+        ? "编辑模式：点击页面任意文字即可修改，自动保存。"
+        : "演示模式下内容锁定，不可修改。";
+      editEls.forEach(el => { el.contentEditable = m === "edit" ? "true" : "false"; });
+      renderChecks();
+    };
+
+    const pad = v => String(v).padStart(2, "0");
+    const resize = () => {
+      const scale = Math.min(window.innerWidth / 1920, window.innerHeight / 1080);
+      document.documentElement.style.setProperty("--scale", scale.toFixed(4));
+    };
+    const show = next => {
+      index = (next + slides.length) % slides.length;
+      slides.forEach((s, i) => s.classList.toggle("active", i === index));
+      pageNo.textContent = `${pad(index + 1)} / ${pad(slides.length)}`;
+      progressBar.style.width = `${((index + 1) / slides.length) * 100}%`;
+      const onCover = slides[index]?.classList.contains("cover-hero");
+      document.body.classList.toggle("on-cover", onCover);
+      if (window.__particles) window.__particles.setActive(onCover);
+      fitSlide(slides[index]);
+    };
+    const next = () => show(index + 1);
+    const prev = () => show(index - 1);
+
+    const toggleFullscreen = async () => {
+      const button = document.getElementById("fullscreenBtn");
+      const toggleFallback = () => {
+        document.body.classList.toggle("fullscreen-fallback");
+        button.classList.toggle("active", document.body.classList.contains("fullscreen-fallback"));
+      };
+      if (document.body.classList.contains("fullscreen-fallback")) { toggleFallback(); return; }
+      if (document.documentElement.requestFullscreen && document.exitFullscreen) {
+        try {
+          if (!document.fullscreenElement) {
+            await document.documentElement.requestFullscreen();
+            if (!document.fullscreenElement) toggleFallback();
+          } else { await document.exitFullscreen(); }
+        } catch { toggleFallback(); }
+        return;
+      }
+      toggleFallback();
+    };
+
+    const loadChecks = () => { try { return JSON.parse(localStorage.getItem(storageKey)) || []; } catch { return []; } };
+    const saveChecks = v => localStorage.setItem(storageKey, JSON.stringify(v));
+    const renderChecks = () => {
+      const values = loadChecks();
+      confirmList.innerHTML = "";
+      confirmItems.forEach((item, i) => {
+        const label = document.createElement("label");
+        label.className = "confirm-item";
+        const input = document.createElement("input");
+        input.type = "checkbox";
+        input.checked = Boolean(values[i]);
+        input.addEventListener("change", () => {
+          const cur = loadChecks();
+          cur[i] = input.checked;
+          saveChecks(cur);
+          renderChecks();
+        });
+        const span = document.createElement("span");
+        span.textContent = item;
+        if (mode === "edit") {
+          span.contentEditable = "true";
+          span.addEventListener("input", () => { confirmItems[i] = span.textContent; saveItems(); });
+          span.addEventListener("keydown", ev => { if (ev.key === "Enter") { ev.preventDefault(); span.blur(); } });
+        }
+        label.append(input, span);
+        confirmList.append(label);
+      });
+      const done = values.filter(Boolean).length;
+      confirmCount.textContent = `${done} / ${confirmItems.length}`;
+      confirmMeter.style.width = `${(done / confirmItems.length) * 100}%`;
+    };
+
+    document.getElementById("prevBtn").addEventListener("click", prev);
+    document.getElementById("nextBtn").addEventListener("click", next);
+    document.getElementById("upBtn").addEventListener("click", prev);
+    document.getElementById("downBtn").addEventListener("click", next);
+    document.getElementById("fullscreenBtn").addEventListener("click", toggleFullscreen);
+
+    document.addEventListener("keydown", e => {
+      // don't hijack keys while editing text
+      if (mode === "edit" || e.target.isContentEditable || /^(INPUT|TEXTAREA)$/.test(e.target.tagName)) return;
+      if (e.key === "ArrowDown" || e.key === "ArrowRight") next();
+      else if (e.key === "ArrowUp" || e.key === "ArrowLeft") prev();
+      else if (e.key === "f" || e.key === "F") toggleFullscreen();
+    });
+
+    document.getElementById("confirmToggle").addEventListener("click", () => {
+      confirmPanel.classList.toggle("open");
+      if (confirmPanel.classList.contains("open")) renderChecks();
+    });
+    document.getElementById("confirmClose").addEventListener("click", () => confirmPanel.classList.remove("open"));
+
+    // mode switch + export
+    document.querySelectorAll("#modeSwitch .mode-btn").forEach(b =>
+      b.addEventListener("click", () => setMode(b.dataset.mode)));
+    document.getElementById("exportPdf").addEventListener("click", () => {
+      confirmPanel.classList.remove("open");
+      setTimeout(() => window.print(), 80);
+    });
+    document.getElementById("confirmEdit").addEventListener("click", () => {
+      setMode("present");                    // confirm edits → back to the finished presentation
+      confirmPanel.classList.remove("open");
+    });
+
+    /* ════════════════════════════════════════════════
+       Particle globe (cover) — drag to spin, move to magnify
+    ════════════════════════════════════════════════ */
+    (function initGlobe() {
+      const canvas = document.getElementById("particleCanvas");
+      if (!canvas) return;
+      const ctx = canvas.getContext("2d");
+      let W = 0, H = 0, dpr = Math.min(window.devicePixelRatio || 1, 2);
+      let running = false, raf = 0, t = 0;
+      const DEG = 57.29578;
+
+      const CONT = [
+        [58, -100, 20, 33], [40, -98, 15, 22], [63, -150, 11, 20], [24, -103, 10, 9],
+        [9, -80, 7, 9], [-12, -60, 25, 16], [-40, -66, 12, 7], [54, 20, 11, 20],
+        [8, 20, 24, 20], [27, 15, 11, 21], [55, 95, 22, 52], [33, 108, 13, 21],
+        [22, 78, 11, 12], [2, 112, 9, 17], [-25, 134, 11, 17], [72, -42, 9, 15]
+      ];
+      const wrap = d => ((d + 540) % 360) - 180;
+      function isLand(lat, lon) {
+        for (let k = 0; k < CONT.length; k++) {
+          const c = CONT[k];
+          const a = (lat - c[0]) / c[2], b = wrap(lon - c[1]) / c[3];
+          const wob = 0.8 + 0.34 * Math.sin(lat * 0.5 + lon * 0.4) * Math.cos(lon * 0.33 - lat * 0.21);
+          if (a * a + b * b < wob) return true;
+        }
+        return lat < -62;
+      }
+
+      const pts = [];
+      const CAND = 15000, GOLDEN = Math.PI * (3 - Math.sqrt(5));
+      for (let i = 0; i < CAND; i++) {
+        const y = 1 - (i / (CAND - 1)) * 2;
+        const r = Math.sqrt(Math.max(0, 1 - y * y));
+        const th = GOLDEN * i;
+        const x = Math.cos(th) * r, z = Math.sin(th) * r;
+        const lat = Math.asin(y) * DEG, lon = Math.atan2(z, x) * DEG;
+        const land = isLand(lat, lon);
+        if (land ? Math.random() < 0.62 : Math.random() < 0.07) {
+          pts.push({
+            x, y, z, land,
+            mix: Math.min(1, Math.max(0, (lat + 90) / 180 + (Math.random() - 0.5) * 0.18)),
+            sz: land ? (0.7 + Math.random() * 1.9) : (0.45 + Math.random() * 0.85),
+            tw: Math.random() * 6.283
+          });
+        }
+      }
+
+      const stars = [];
+      for (let i = 0; i < 240; i++) {
+        const tone = Math.random();
+        stars.push({
+          fx: Math.random(), fy: Math.random(), r: Math.random() * 1.3 + 0.2, tw: Math.random() * 6.283,
+          c: tone < 0.18 ? [255, 234, 176] : (tone < 0.45 ? [176, 206, 255] : [228, 233, 245])
+        });
+      }
+      const orbits = [
+        { rx: 1.55, ry: 0.5, tilt: -0.34, sp: 0.12, ph: 0.0, col: "130,180,230" },
+        { rx: 2.05, ry: 0.78, tilt: 0.20, sp: -0.07, ph: 2.2, col: "208,182,138" },
+        { rx: 1.18, ry: 1.12, tilt: 0.05, sp: 0.16, ph: 4.0, col: "150,222,200" }
+      ];
+
+      // ── ejected particles: spurt outward from the surface, fading as they fly ──
+      const jets = [];
+      const spawnJet = () => {
+        const a = Math.random() * 6.283, u = 2 * Math.random() - 1, sn = Math.sqrt(1 - u * u);
+        const dx = sn * Math.cos(a), dy = u, dz = sn * Math.sin(a);
+        const sp = 0.006 + Math.random() * 0.012;
+        jets.push({ x: dx, y: dy, z: dz, vx: dx * sp, vy: dy * sp, vz: dz * sp, life: 0, max: 55 + Math.random() * 75, mix: Math.random() });
+      };
+
+      const CY = [34, 211, 238], LM = [163, 230, 53];
+      let rotX = -0.18, rotY = 2.1, velX = 0, velY = 0;
+      const AUTO = 0.0016;
+      let dragging = false, lastX = 0, lastY = 0;
+      const mouse = { x: -1e9, y: -1e9, on: false };
+      let R0 = 300, R = 300, zoom = 1, cx = 0, cy = 0;
+
+      const sizeCanvas = () => {
+        const r = canvas.getBoundingClientRect();
+        W = Math.max(1, r.width); H = Math.max(1, r.height);
+        canvas.width = Math.round(W * dpr); canvas.height = Math.round(H * dpr);
+        ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+        R0 = Math.min(W, H) * 0.33; cx = W * 0.5; cy = H * 0.46;
+      };
+
+      const frame = () => {
+        if (!running) return;
+        t += 0.016;
+        if (!dragging) { rotY += AUTO + velY; rotX += velX; velY *= 0.95; velX *= 0.9; }
+        rotX = Math.max(-1.2, Math.min(1.2, rotX));
+        R = R0 * zoom;
+
+        ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+        ctx.clearRect(0, 0, W, H);
+
+        for (const st of stars) {
+          const a = (0.35 + 0.4 * Math.sin(t * 1.5 + st.tw)) * 0.7;
+          ctx.beginPath();
+          ctx.arc(st.fx * W, st.fy * H, st.r, 0, 6.283);
+          ctx.fillStyle = `rgba(${st.c[0]},${st.c[1]},${st.c[2]},${a})`;
+          ctx.fill();
+        }
+        for (const o of orbits) {
+          const A = R0 * o.rx, B = R0 * o.ry;
+          ctx.save();
+          ctx.translate(cx, cy); ctx.rotate(o.tilt);
+          ctx.beginPath();
+          for (let k = 0; k <= 72; k++) { const a = k / 72 * 6.283, x = Math.cos(a) * A, y = Math.sin(a) * B; k ? ctx.lineTo(x, y) : ctx.moveTo(x, y); }
+          ctx.strokeStyle = `rgba(${o.col},0.085)`; ctx.lineWidth = 1; ctx.stroke();
+          const pa = t * o.sp + o.ph, px = Math.cos(pa) * A, py = Math.sin(pa) * B;
+          const g = ctx.createRadialGradient(px, py, 0, px, py, 7);
+          g.addColorStop(0, `rgba(${o.col},0.95)`); g.addColorStop(1, `rgba(${o.col},0)`);
+          ctx.fillStyle = g; ctx.beginPath(); ctx.arc(px, py, 7, 0, 6.283); ctx.fill();
+          ctx.fillStyle = `rgba(${o.col},1)`; ctx.beginPath(); ctx.arc(px, py, 2, 0, 6.283); ctx.fill();
+          ctx.restore();
+        }
+
+        const cosX = Math.cos(rotX), sinX = Math.sin(rotX), cosY = Math.cos(rotY), sinY = Math.sin(rotY), focal = 2.6;
+        const list = [];
+        for (let i = 0; i < pts.length; i++) {
+          const p = pts[i];
+          const x1 = p.x * cosY - p.z * sinY, z1 = p.x * sinY + p.z * cosY;
+          const y2 = p.y * cosX - z1 * sinX, z2 = p.y * sinX + z1 * cosX;
+          const persp = focal / (focal - z2);
+          list.push({ sx: cx + x1 * R * persp, sy: cy - y2 * R * persp, z2, persp, p });
+        }
+        list.sort((a, b) => a.z2 - b.z2);
+        for (const q of list) {
+          const depth = (q.z2 + 1) / 2;
+          let size = q.p.sz * q.persp * (0.5 + depth * 0.8);
+          let alpha = (q.p.land ? 0.9 : 0.5) * (0.14 + depth * 0.95);
+          if (mouse.on) {
+            const d = Math.hypot(q.sx - mouse.x, q.sy - mouse.y);
+            if (d < 130) { const b = 1 - d / 130; size *= 1 + b * 1.0; alpha = Math.min(1, alpha + b * 0.3); }
+          }
+          size *= 0.82 + 0.18 * Math.sin(t * 2 + q.p.tw);
+          if (size <= 0.25) continue;
+          const m = q.p.mix;
+          const cr = (CY[0] + (LM[0] - CY[0]) * m) | 0, cg = (CY[1] + (LM[1] - CY[1]) * m) | 0, cb = (CY[2] + (LM[2] - CY[2]) * m) | 0;
+          ctx.beginPath();
+          ctx.arc(q.sx, q.sy, size, 0, 6.283);
+          ctx.fillStyle = `rgba(${cr},${cg},${cb},${alpha})`;
+          ctx.fill();
+        }
+
+        // ── ejected particles ──
+        if (jets.length < 150 && Math.random() < 0.7) { spawnJet(); if (Math.random() < 0.5) spawnJet(); }
+        for (let i = jets.length - 1; i >= 0; i--) {
+          const jp = jets[i];
+          jp.x += jp.vx; jp.y += jp.vy; jp.z += jp.vz;
+          jp.vx *= 0.985; jp.vy *= 0.985; jp.vz *= 0.985;
+          jp.life++;
+          const rr = Math.sqrt(jp.x * jp.x + jp.y * jp.y + jp.z * jp.z);
+          if (jp.life > jp.max || rr > 2.0) { jets.splice(i, 1); continue; }
+          const x1 = jp.x * cosY - jp.z * sinY, z1 = jp.x * sinY + jp.z * cosY;
+          const y2 = jp.y * cosX - z1 * sinX, z2 = jp.y * sinX + z1 * cosX;
+          const persp = focal / (focal - z2);
+          if (persp <= 0) continue;
+          const sx = cx + x1 * R * persp, sy = cy - y2 * R * persp;
+          const k = jp.life / jp.max;
+          const alpha = Math.sin(k * Math.PI) * 0.85 * (z2 > 0 ? 1 : 0.45);
+          const size = (1.6 - k * 1.0) * persp;
+          if (size <= 0.2 || alpha <= 0.01) continue;
+          const m = jp.mix;
+          const cr = (CY[0] + (LM[0] - CY[0]) * m) | 0, cg = (CY[1] + (LM[1] - CY[1]) * m) | 0, cb = (CY[2] + (LM[2] - CY[2]) * m) | 0;
+          ctx.beginPath();
+          ctx.arc(sx, sy, size, 0, 6.283);
+          ctx.fillStyle = `rgba(${cr},${cg},${cb},${alpha})`;
+          ctx.fill();
+        }
+
+        raf = requestAnimationFrame(frame);
+      };
+
+      const start = () => { if (running) return; running = true; sizeCanvas(); raf = requestAnimationFrame(frame); };
+      const stop = () => { running = false; cancelAnimationFrame(raf); };
+      const toLocal = e => { const r = canvas.getBoundingClientRect(); return { x: (e.clientX - r.left) * (W / r.width), y: (e.clientY - r.top) * (H / r.height) }; };
+
+      canvas.addEventListener("pointermove", e => {
+        const m = toLocal(e); mouse.x = m.x; mouse.y = m.y; mouse.on = true;
+        if (dragging) {
+          const dx = e.clientX - lastX, dy = e.clientY - lastY;
+          rotY += dx * 0.006; rotX += dy * 0.006;
+          velY = dx * 0.006; velX = dy * 0.006;
+          lastX = e.clientX; lastY = e.clientY;
+        }
+      });
+      canvas.addEventListener("pointerdown", e => {
+        dragging = true; lastX = e.clientX; lastY = e.clientY; velX = velY = 0;
+        if (canvas.setPointerCapture) { try { canvas.setPointerCapture(e.pointerId); } catch (_) {} }
+      });
+      canvas.addEventListener("pointerup", () => { dragging = false; });
+      canvas.addEventListener("pointerleave", () => { mouse.on = false; dragging = false; });
+      canvas.addEventListener("wheel", e => {
+        e.preventDefault();
+        zoom *= Math.exp(-e.deltaY * 0.0012);
+        zoom = Math.max(0.55, Math.min(3.2, zoom));
+      }, { passive: false });
+      window.addEventListener("resize", () => { dpr = Math.min(window.devicePixelRatio || 1, 2); if (running) sizeCanvas(); });
+
+      window.__particles = { setActive(on) { if (on) start(); else stop(); } };
+      start();
+    })();
+
+    window.addEventListener("resize", resize);
+    resize();
+    show(0);
+  </script>
+<!-- rolling-slide-anim:start -->
+<script src="assets/slide-anim/gsap-3.13.0.min.js"></script>
+<script src="assets/slide-anim/gsap-splittext-3.13.0.min.js"></script>
+<script src="assets/slide-anim/gsap-textplugin-3.13.0.min.js"></script>
+<script src="assets/slide-anim/slide-anim.js"></script>
+<script>
+  (function () {
+    function bootRollingSlideAnim() {
+      if (!window.RollingSlideAnim) return;
+      window.RollingSlideAnim.autoHook({
+        groupSel: '.cards-2, .cards-3, .cards-4, .cards-6, .hero-stats, .ceo-grid, .goals-grid, .agenda-list, .media-grid, .timeline-nodes, .team-grid, .logo-wall, .chart-kpis, .org-stack, .phase-strip, .incub-milestones, .video-side, .divider-strip, .map-route, .scene-strip, .mode-panel-grid, .mode-info-grid, .compare-grid, .role-orbit, .photo-band',
+        bandSel: '.synth-band, .cadence-note, .ceo-core, .coach-band, .goals-foot, .cover-note, .band, .end-contact, .media-caption'
+      });
+    }
+	    if (document.readyState === "loading") {
+	      document.addEventListener("DOMContentLoaded", bootRollingSlideAnim);
+	    } else {
+	      bootRollingSlideAnim();
+	    }
+	  })();
+	</script>
+	<script>
+	  (function () {
+	    function mountVerticalPageNumber() {
+	      const pager = document.querySelector(".vertical-pager");
+	      const pageNo = document.getElementById("pageNo");
+	      const down = document.getElementById("downBtn");
+	      if (!pager || !pageNo || !down || pageNo.parentElement === pager) return;
+	      pager.insertBefore(pageNo, down);
+	    }
+	    if (document.readyState === "loading") {
+	      document.addEventListener("DOMContentLoaded", mountVerticalPageNumber);
+	    } else {
+	      mountVerticalPageNumber();
+	    }
+	  })();
+	</script>
+	
+<script>
+/* RollingAI cover ASCII field, adapted from the AgentDeck reference cover. */
+(function () {
+  const canvases = Array.from(document.querySelectorAll("canvas.ascii-bg"));
+  if (!canvases.length) return;
+
+  const PALETTE = "   ...:::---+++***oo**++##";
+  const CELL = 16;
+  const FONT_SIZE = 13;
+
+  function setup(c) {
+    const dpr = Math.min(window.devicePixelRatio || 1, 2);
+    const rect = c.getBoundingClientRect();
+    if (rect.width < 4 || rect.height < 4) return false;
+    c.width = Math.round(rect.width * dpr);
+    c.height = Math.round(rect.height * dpr);
+    c.__dpr = dpr;
+    c.__w = rect.width;
+    c.__h = rect.height;
+    const ctx = c.getContext("2d");
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    ctx.font = `500 ${FONT_SIZE}px ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace`;
+    ctx.textBaseline = "top";
+    c.__ctx = ctx;
+    return true;
+  }
+
+  function draw(c, t) {
+    if (!c.__ctx) return;
+    const slide = c.closest(".slide");
+    if (slide && !slide.classList.contains("active")) return;
+    const ctx = c.__ctx;
+    const w = c.__w;
+    const h = c.__h;
+    ctx.clearRect(0, 0, w, h);
+    const cols = Math.ceil(w / CELL);
+    const rows = Math.ceil(h / CELL);
+    const cx = cols * 0.55;
+    const cy = rows * 0.46;
+    for (let r = 0; r < rows; r += 1) {
+      for (let col = 0; col < cols; col += 1) {
+        const radial = Math.hypot(col - cx, r - cy);
+        const n = (
+          Math.sin(col * 0.18 + t) +
+          Math.sin(r * 0.24 - t * 0.7) +
+          Math.sin((col + r) * 0.12 + t * 0.45) +
+          Math.sin(radial * 0.17 - t * 0.55)
+        ) / 4;
+        const v = (n + 1) / 2;
+        if (v < 0.23) continue;
+        const ch = PALETTE[Math.min(PALETTE.length - 1, Math.floor(v * PALETTE.length))];
+        if (ch === " ") continue;
+        const focus = Math.max(0, 1 - radial / Math.max(cols, rows) * 1.5);
+        const alpha = 0.08 + (v - 0.23) * 0.44 + focus * 0.18;
+        const warm = Math.max(0, Math.sin(col * 0.06 + t * 0.5));
+        const rch = Math.round(170 + warm * 65);
+        const gch = Math.round(205 + warm * 28);
+        const bch = Math.round(255 - warm * 18);
+        ctx.fillStyle = `rgba(${rch},${gch},${bch},${Math.min(alpha, 0.72).toFixed(3)})`;
+        ctx.fillText(ch, col * CELL, r * CELL);
+      }
+    }
+  }
+
+  let pending = 0;
+  function resizeAll() {
+    canvases.forEach(setup);
+  }
+  window.addEventListener("resize", () => {
+    if (pending) cancelAnimationFrame(pending);
+    pending = requestAnimationFrame(() => {
+      pending = 0;
+      resizeAll();
+    });
+  }, { passive: true });
+
+  let raf = 0;
+  let running = false;
+  let t0 = performance.now();
+  function tick(now) {
+    if (!running) return;
+    const t = (now - t0) / 1000 * 0.55;
+    canvases.forEach(c => draw(c, t));
+    raf = requestAnimationFrame(tick);
+  }
+  function start() {
+    if (running) return;
+    resizeAll();
+    t0 = performance.now();
+    running = true;
+    raf = requestAnimationFrame(tick);
+  }
+  function stop() {
+    running = false;
+    if (raf) cancelAnimationFrame(raf);
+    raf = 0;
+  }
+  window.RollingCoverAscii = { start, stop, resize: resizeAll };
+  start();
+})();
+</script>
+
+	<!-- rolling-slide-anim:end -->
+</body>
+</html>

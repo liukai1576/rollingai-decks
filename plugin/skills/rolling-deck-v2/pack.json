@@ -1,0 +1,19 @@
+{
+  "$comment":     "Layout pack manifest. See plugin/_player/README.md.",
+  "id":           "rolling-deck-v2",
+  "display_name": "RollingAI 影像玻璃 H5（粒子地球 · 实景影像 · 磨砂玻璃）",
+  "version":      "1.0",
+
+  "$comment_render_entry": "Same engine as rolling-deck (particle globe / glass / fit-to-stage), different component library: a consulting/methodology vocabulary (thesis route, 3x3 matrix dashboard, position-group playbooks, service-mode panels, reporting boards, risk command center, business-model ladder). Splices deck.json slides[].data.html into the template's <main class=\"deck\">. Each slide is layout=raw. Authoring is conversational (copy template.html, hand-fill sections); render.py lets the dispatcher render an existing deck.json into the v2 shell.",
+  "render_entry": "render.py",
+
+  "shell": {
+    "html_lang":    "zh-CN",
+    "title_suffix": ""
+  },
+
+  "$comment_layouts": "rolling-deck-v2 uses raw HTML sections, not structured layouts. Each <section class=\"slide\"> is layout=raw with data.html holding the full section markup. reference.md is the authoring vocabulary (matrix-dashboard, risk-command, business-ladder, etc.) — CSS classes, not deck.json layouts.",
+  "layouts": [
+    {"name": "raw"}
+  ]
+}
