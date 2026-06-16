@@ -1,14 +1,22 @@
 # RollingAI DeckBuilder
 
-把 Keynote / PDF / 文案变成 1920×1080 的 HTML deck，按"小故事"为单位入库、检索、合并、再生。
+做 deck（PPT / 演示 / pitch / 汇报）的工作台。把 Keynote / PDF / 一段文案变成
+**1920×1080 的单文件 HTML deck**，再按"页 / 小故事"为单位**入库、检索、拼接、再生**。
 
-仓库目录：
+> **不会用？只记一句话就够：** 在 Claude Code 里直接说人话——"帮我做个 pitch deck"、
+> "把这个 Keynote 转成网页"、"把立白那几页搬过来"。Claude 会自动走对应 skill，
+> 不用你记命令。具体见下面 [§2 上手场景](#2-上手从你的场景出发新人从这里开始)。
 
-| 目录 | 是什么 |
-|---|---|
-| [`plugin/`](plugin/) | Claude Code 插件 + Skill。生成 / 导入 / 校验 deck 的所有脚本 |
-| [`library/`](library/) | 故事库（纯文件系统，无数据库）。每个 `stories/<id>/` 是一个 4-5 页的小故事 |
-| [`platform/`](platform/) | 管理平台 Web App（Vite + React，纯静态）。左侧标签/搜索，右侧 block view 多选 |
+项目由这几部分组成：
+
+| 目录 | 是什么 | 给谁用 |
+|---|---|---|
+| [`plugin/`](plugin/)（构建器） | 16 个 skill + 渲染器：生成 / 导入 / 拼接 / 校验 deck | 做 deck 的人（在 Claude Code 里） |
+| [`platform/admin/`](platform/admin/)（管理端） | slides.db 的 Web 控制台：检索、改标签、购物车拼 deck、入库 | 找素材 / 管资产的人（浏览器里） |
+| [`library/`](library/)（资产库） | slides.db（SQLite + 全文搜）+ 入库 / 缩略图 / 查重 / 标签工具 | 底座，构建器和管理端都连它 |
+
+它们通过一个中间格式 **`deck.json`** 串起来——构建器生产它，资产库消费它，
+管理端展示它。**彼此在运行时不硬依赖。**
 
 ---
 
@@ -34,241 +42,178 @@
 
 ---
 
-## 2. 版本迭代日志
+## 2. 上手：从你的场景出发（新人从这里开始）
 
-完整 changelog 见 [`plugin/CHANGELOG.md`](plugin/CHANGELOG.md)。本节做高维度回顾——**只记录 skill / 渲染器代码变更，不记录单个 deck 的内容微调**。
+绝大多数情况，**在 Claude Code 里直接说人话**就行，Claude 自动走对应 skill；
+也可以打 `/deck-` 开头的 slash 命令。按你要做的事对号入座：
 
-### v0.16 · 当前 — 架构拆分 + 多媒体 / 多版式文字
-- **Plugin 拆分为 4 个解耦 skill**（见下文）。中间格式统一为 `deck.json`
-- Keynote `.key`（Keynote 14.5+ 的 zip 单文件格式）原生支持，UTF-8 文件名修复
-- 多 run 文字提取（同一 text box 内多字体 / 字号 / 颜色）
-- Lazy-video + 自动 poster + 用户首次交互后自动 unmute
-- AppleScript 通过 `--doc-name` 精准定位文档（之前会撞到 front document）
+| 我想…… | 说这句话 / 命令 | 背后是 |
+|---|---|---|
+| **做一个新 deck** | "帮我做份 pitch deck 讲 X" · `/deck-new` | 先选模板（rolling-deck / feishu），再填内容 |
+| **改一个已有的 deck** | "重新设计第 24 页" · "把这页改成…" | slide-redesign |
+| **从 Keynote 导入 deck** | "把这个 .key 转成网页" · `/deck-keynote` | keynote-to-html |
+| **管理 / 入库 / 搜索 deck** | "把这份 deck 入库" · `/deck-ingest`，或开管理端浏览器搜 | deck-ingest + admin（:8123） |
+| **复用历史 deck 的某几页** | "把立白那 6 张搬过来" · `/deck-splice` | deck-splice |
+| **让 deck 动起来** | "给这页加数字滚动 / 逐字浮现" · `/deck-animate` | slide-anim |
+| **不知道系统能干啥** | "这套系统都能干啥" · `/deck-help` | — |
 
-### v0.13 – v0.15 · 重设计系统 + 完整 62 页跑通
-- 引入 `redesigns/slide-NN.html` 机制：不修改抽取脚本，用纯 HTML 替换坏页
-- 强制 verbatim 规则：redesign 文案必须从源 Keynote 逐字搬运
-- IWA 解析器：通过 keynote-parser 反查每个素材的真实尺寸 / 位置（绕开 AppleScript 不准的 bbox）
+> ⚠️ **做新 deck 的第一步永远是选模板**（两种风格，见 [§3 构建器](#3-构建器plugin)）。
+> Claude 会列选项让你选，默认 **rolling-deck**（粒子地球那套）。
 
-### v0.10 – v0.12 · CRITICAL FIX
-- **opacity bug 根因定位**：feishu-deck-h5 的 stagger-reveal CSS 用 `animation` 强制 `opacity: 1`，静默覆盖所有 inline 透明度。修复后 22% / 30% 半透明叠层终于正常显示
-- 容器型 shape（banner / pill / card 底框）保留为默认半透圆角
-- `other:line`（Keynote 分隔线）保底渲染成 2px 细线
+三个入口，按习惯挑：
 
-### v0.6 – v0.9 · 母版 / 透明度 / 形状
-- 抽取 master / base-layout 子项并先于 slide 自身渲染（模板背景、页脚）
-- opacity 从 Keynote 抽出，正确反映到 CSS
-- shape + image 同 bbox 自动识别，合并为单一光栅 crop（恢复 Keynote 的"风格化图片占位符"视觉）
-
-### v0.3 – v0.5 · 字体 / 形状 / 命中
-- font-weight / font-style 从字体名后缀解析（`-Bold`, `-Black`, `-Light`, `_SC_Black`...）
-- **CRITICAL FIX**：font-family stack 用单引号包裹（v0.4 用双引号导致样式属性被浏览器在第一个内嵌双引号处截断，丢字号 / 字重）
-- 形状渲染 fill + border-radius + rotation
-
-### v0.1 – v0.2 · 雏形
-- AppleScript 遍历 iWork 元素，TSV 输出
-- `build.py` 组合绝对定位 HTML
-- PNG raster 兜底（处理 AppleScript 不支持的渐变 / 复杂填充）
+- **Claude Code 里说人话**（最常用）—— 上表所有事都能这么触发。
+- **管理端浏览器**（找素材 / 拼 deck）—— `python3 platform/admin/server.py` →
+  http://127.0.0.1:8123 ，按标签 / 全文搜、预览每页、勾选 slide → 购物车拼进某份 deck。
+- **命令行 CLI**（跑脚本 / 接 CI）—— 每个 skill 的 `assets/` 都能独立跑，例如入库三连：
+  ```bash
+  python3 library/db/ingest_deck.py <deck-id> imports/<deck-id>/render-output-full/deck.json
+  python3 library/db/gen_thumbnails.py --deck <deck-id>
+  # admin UI 自动发现 imports/ 下的 deck，无需注册
+  ```
 
 ---
 
-## 3. 用户手册：有哪些 Skill 可以用
+## 3. 构建器（`plugin/`）
 
-四个 skill 全部解耦，通过 `deck.json` 串联。安装：
-
-```bash
-bash plugin/install.sh   # 符号链接到 ~/.claude/plugins/
-```
-
-### 3.1 `keynote-to-html` — Keynote 导入
-
-把 `.key` 文件转成 `deck.json`（每个非跳过的 slide 一条 `raw` 记录）+ 一份可直接打开的 `index.html`。
+Claude Code 插件，也是一套独立 CLI 工具集。安装（开发模式，符号链接到 `~/.claude/`）：
 
 ```bash
-bash plugin/skills/keynote-to-html/assets/run.sh \
-  customer-pitch.key out/ \
-  [--limit 10] \
-  [--rasters-dir DIR] \
-  [--pdf PATH]
+bash plugin/install.sh
 ```
 
-| 参数 | 说明 |
+### 3.1 两种 deck 风格（layout pack）——做新 deck 先选这个
+
+| pack | 长什么样 | 什么时候用 |
+|---|---|---|
+| **rolling-deck**（默认推荐） | RollingAI 风格单文件 H5：粒子地球封面、磨砂玻璃、29 页版式库、内置 GSAP 动画 | 对客 pitch / 高质感交付 |
+| **feishu-deck-h5** | `deck.json` 结构化渲染，10+ 种 layout 词汇表 | Keynote / PDF 导入产物 |
+
+> 🛑 **红线**：rolling-deck 模板的 `<style>` / `<script>` **绝不能改**——那是模板的全部价值。
+> 只复制 `template.html` 换内容，做完跑 check-fill 自检。
+
+### 3.2 全部 skill（按"你想干嘛"分组）
+
+| 想干嘛 | skill | 干啥的 |
+|---|---|---|
+| **导入** | `keynote-to-html` | `.key` → `deck.json` + 可直接开的 HTML（AppleScript + IWA 解析） |
+| **新建** | `slide-design` | 从零写新 slide / 新 deck（scaffold，发展中） |
+| **拼接** | `deck-splice` | 把旧 deck 的页整段搬进新 deck（真实 DOM，视频可播、文字可选、APFS 零额外磁盘） |
+| **改单页** | `slide-redesign` | 指定页用手写 HTML 替换（文案必须逐字搬，不准编造） |
+| **加动画** | `slide-anim` | 数字滚动 + 逐字浮现 + 卡片错落（GSAP） |
+| **渲染** | `feishu-deck-h5` | `deck.json` → 自包含 HTML（其它 skill 自动调它） |
+| **入库** | `deck-ingest` | ingest → 自动标签 → 缩略图 三连 |
+| **缩略图** | `thumb-gen` | 用 Chrome 给每页出缩略图 |
+| **标签** | `tag-refine` | 标签精修 / 归一 |
+| **瘦身** | `slim-deck` | 给 deck 减肥（去冗余素材） |
+| **查重** | `dedup-probe` / `slide-fingerprint` / `asset-fingerprint` | 跨册查重、页 / 素材指纹 |
+
+> 拿不准走哪条？跑 `python3 plugin/skills/registry.py` 看全部 skill 清单，
+> 不要自己发明流程。
+
+### 3.3 渲染器内核
+
+`plugin/_player/`（渲染调度 `render.py`）+ `_lib/` + `_spec/`。`deck.json` →
+`index.html`（内联全部 slide）+ `_renderer/`（present-mode chrome / 键盘导航 /
+lazy-video）+ `assets/`（原始素材）。手动渲染：
+
+```bash
+python3 plugin/skills/feishu-deck-h5/deck-json/render-deck.py out/deck.json out/
+```
+
+---
+
+## 4. 管理端（`platform/admin/`）
+
+FastAPI（:8123）+ 单文件 Alpine 前端，给 `library/db/data/slides.db` 当控制台。
+**这是日常找素材 / 拼 deck 的主入口。**
+
+```bash
+pip install -r platform/admin/requirements.txt
+python3 platform/admin/server.py        # → http://127.0.0.1:8123
+```
+
+能干啥：
+
+- **左栏过滤 + 顶部全文搜**：类型 / 客户 / 媒体 / needs-review 一点即筛；FTS5 搜标题 + 正文
+- **点 slide → 抽屉**：iframe 预览实际渲染 + 标签 inline 编辑保存
+- **购物车拼 deck**：勾若干 slide → 加入某份 deck（后台调 `deck-splice` 的 `insert.py`，
+  自动处理类名隔离 / 素材拷贝 / 视频物化 / 重新入库）
+- **任务队列**：拼接 / 重入库走后台 worker，`/api/tasks` 看进度
+- **deck 文件代理**：`/decks/<id>/*` 只读服务渲染产物给预览 iframe
+
+> 另有一个更轻的 [`platform/web/`](platform/web/)（早期 React 只读浏览器，:5174，
+> 基于 `library/index.json` 纯静态）——只读浏览 stories 用。日常管理用 **admin** 那个。
+
+---
+
+## 5. 资产库（`library/`）
+
+整套系统的底座，构建器和管理端都连它。
+
+| 路径 | 是什么 |
 |---|---|
-| `--limit N` | 只跑前 N 页（debug 用） |
-| `--rasters-dir` | 给 `build.py` 提供 PNG raster 兜底目录（处理无法用 CSS 还原的渐变形状） |
-| `--pdf` | 提供与 `.key` 同源的 PDF，用作 verbatim 校对 |
+| `library/db/data/slides.db` | SQLite + FTS5 全文索引。每张 slide 一行：标题 / 正文 / 标签 / 媒体类型（**gitignore**，客户内容） |
+| `library/db/ingest_deck.py` | 把 `deck.json` 入库（默认保留人工标签，`--retag` 才强制重打） |
+| `library/db/gen_thumbnails.py` | 驱动 Chrome 给每页出缩略图 |
+| `library/db/{schema.sql,deck_mounts.py,refine_tags.py,…}` | 表结构 / deck 挂载发现 / 标签工具 / 查重探针 |
+| `library/stories/` | 每个 `<id>/` 是一个 4-5 页的小故事（复用粒度 = 叙事单位）（**gitignore**） |
+| `library/shared-assets/` | 跨 deck 共享素材 |
 
-**触发词**："把这个 Keynote 转成 HTML" / "import .key 文件"
-
-### 3.2 `slide-redesign` — 选择性重绘
-
-对 `deck.json` 中指定的 slide，用手写 HTML 替换。适用于：dashboards / 复杂卡片网格 / 自定义 hero 页 / Keynote 难以还原的版式。
-
-```bash
-bash plugin/skills/slide-redesign/assets/apply.sh \
-  out/deck.json out/redesigns/ [out/new-deck.json]
-```
-
-文件命名约定：
-
-- `redesigns/slide-NN.html` — `NN` 是 1-based PDF 页码
-- `redesigns/slide-NNN.html` — `NNN` 是 zero-padded slide key（如 `slide-024`）
-
-**铁律**（见 [`slide-redesign/SKILL.md`](plugin/skills/slide-redesign/SKILL.md)）：
-
-1. 文字必须从源 Keynote **逐字搬运**，不准编辑 / 总结 / 编造
-2. 不准凭空发明 icon / emoji / 箭头
-3. CSS 用 `data-slide-key="slide-NNN"` 精确 scope
-4. 排版 / 配色 / 字体可以自由设计
-5. **必须有 PPT 感**：title ≥ 56-88px，正文铺满 ≥ 80% 宽 + ≥ 70% 高
-
-**触发词**："改 deck 第 24 页" / "重设计这张"
-
-### 3.3 `feishu-deck-h5` — 渲染器（很少直接调用）
-
-`deck.json` → 完整自包含的 HTML deck。其他 skill 默认自动调它，但你也可以手动：
-
-```bash
-python3 plugin/skills/feishu-deck-h5/deck-json/render-deck.py \
-  out/deck.json out/
-open out/index.html
-```
-
-产物：
-
-- `index.html` — 内联所有 slide HTML
-- `_renderer/` — 拷贝过来的 CSS + JS（present-mode chrome / 键盘导航 / lazy-video）
-- `assets/` — 原始素材（由 `keynote-to-html` 写入）
-
-### 3.4 `slide-design` — 新 slide 创作（scaffold）
-
-为 deck 添加全新的 slide（不来自 Keynote）。**当前是占位 scaffold**，pipeline 脚本未实现；架构上保留位置。
-
-### 典型工作流
-
-```bash
-# 1. 导入 Keynote
-bash plugin/skills/keynote-to-html/assets/run.sh \
-  customer-pitch.key out/
-
-# 2. 识别坏页，手写 HTML
-$EDITOR out/redesigns/slide-24.html
-$EDITOR out/redesigns/slide-40.html
-
-# 3. 应用重设计（覆盖 out/deck.json，留 .bak 备份）
-bash plugin/skills/slide-redesign/assets/apply.sh \
-  out/deck.json out/redesigns/
-
-# 4. 重新渲染
-python3 plugin/skills/feishu-deck-h5/deck-json/render-deck.py \
-  out/deck.json out/
-
-# 5. 启动本地服务器看效果
-bash out/serve.sh   # 默认 http://localhost:8765
-```
+deck 在磁盘上的约定位置：`imports/<deck-id>/render-output-full/`，目录名即
+`deck_id`，admin 会自动发现（`deck_mounts.py`）。
 
 ---
 
-## 4. 智能体架构
-
-`deck.json` 是核心枢纽——所有 skill 要么生产它，要么消费它，**没有任何 skill 在运行时依赖另一个 skill**。
-
-### 4.1 数据流图
+## 6. 架构枢纽：`deck.json`
 
 ```
                     ┌────────────────────────────┐
-                    │   feishu-deck-h5          │  ← 渲染器 + 设计系统
-                    │   deck.json → index.html   │     （fork 自 feishu-deck-h5）
+                    │   feishu-deck-h5 / 渲染器  │  ← 渲染 + 设计系统
+                    │   deck.json → index.html   │
                     └─────────────▲──────────────┘
                                   │ deck.json
-        ┌─────────────────────────┼─────────────────────────┐
-        │ deck.json               │ deck.json               │ deck.json
-        │                         │                         │
-   ┌────┴──────────┐    ┌─────────┴────────┐    ┌───────────┴────────┐
-   │ keynote-to-   │    │  slide-design    │    │  slide-redesign    │
-   │ html          │    │  (scaffold)      │    │                    │
-   ├───────────────┤    ├──────────────────┤    ├────────────────────┤
-   │ .key → deck   │    │  user prompt →   │    │  deck.json +       │
-   │ .json (1:1    │    │  new slide entry │    │  redesigns/*.html  │
-   │ 抽取)         │    │  appended to     │    │  → deck.json       │
-   │               │    │  deck.json       │    │  (指定 slide 替换) │
-   └───────┬───────┘    └──────────────────┘    └──────────┬─────────┘
-           ▲                                                ▲
-           │                                                │
-        .key 文件                                       手写 HTML 文件
-   (AppleScript + IWA 解析)                         (人工设计判断)
+        ┌──────────────┬──────────┼──────────┬──────────────┐
+        │              │          │          │              │
+  keynote-to-html  slide-design  deck-     slide-       deck-ingest
+  .key → deck.json  新 slide      splice    redesign     → slides.db
+                                 旧页搬运    改单页        → 缩略图
 ```
-
-### 4.2 设计原则
 
 | 原则 | 意思 |
 |---|---|
-| **单一可信源 = `deck.json`** | 所有 skill 读 / 写它；renderer 是最终消费者 |
-| **运行时零耦合** | 每个 skill 自带 assets 和脚本，只通过磁盘上的 `deck.json` 通信 |
-| **renderer 是 flag，不是硬依赖** | `keynote-to-html --renderer <path>` 默认指向 `feishu-deck-h5`，但任何兼容的渲染器都能换 |
-| **Redesign 是内容 / 排版覆盖，不是 extractor 补丁** | 如果 Keynote 导入结果难看，去写 `slide-NN.html`（设计工作），而不是改 `keynote-to-html` 的 Python（工程工作）。这条边界让导入器保持简洁，让设计判断留在 HTML/CSS 里 |
-| **AI 辅助 + 人工拍板** | 导入后 Claude 提建议，UI 上人工确认；不做端到端自动化 |
-| **小故事 = 4-5 页** | 复用粒度是叙事单位，不是版面单位 |
-
-### 4.3 Skill 与 Agent 的关系
-
-```
-       ┌────────────────────────────────────┐
-       │  Claude Code (Anthropic Agent SDK) │
-       └──────────────┬─────────────────────┘
-                      │ 触发词识别
-                      ▼
-       ┌──────────────────────────────┐
-       │  SKILL.md (per-skill prompt) │  ← Claude 读这个文件来决定
-       │  - 触发词                    │     何时调用、调用什么
-       │  - 调用范例                  │
-       │  - 输出契约                  │
-       │  - 边界规则                  │
-       └──────────────┬───────────────┘
-                      │ Bash tool
-                      ▼
-       ┌──────────────────────────────┐
-       │  assets/run.sh / apply.sh    │  ← 真正干活的脚本
-       │  + Python / AppleScript      │     纯命令行，可独立运行
-       └──────────────┬───────────────┘
-                      │ 写 deck.json
-                      ▼
-       ┌──────────────────────────────┐
-       │  下游 skill 或 renderer      │
-       └──────────────────────────────┘
-```
-
-每个 skill 都是"一份 `SKILL.md` + 一坨脚本"：
-
-- `SKILL.md` 是 Claude 读的"使用说明"——什么时候调它、调用边界、输出格式
-- `assets/` 是真正的脚本——脱离 Claude 也能独立跑（CI / 别人 fork 后 cron）
-
-所以这个仓库既是 **Claude Code 插件**（在对话中通过自然语言触发），也是 **独立 CLI 工具集**（命令行直接用）。
+| **单一可信源 = `deck.json`** | 所有 skill 读 / 写它；渲染器是最终消费者 |
+| **运行时零耦合** | 每个 skill 自带 assets，只通过磁盘上的 `deck.json` 通信，可独立 CLI 运行 |
+| **AI 辅助 + 人工拍板** | 导入后 Claude 提建议，UI 上人工确认；不做端到端全自动 |
+| **小故事 = 4-5 页** | 复用粒度是叙事单位，不是单张版面 |
 
 ---
 
-## 快速开始
+## 7. 目录地图（速查）
 
-```bash
-# 1. 安装插件到 Claude Code（开发模式，符号链接到本地）
-bash plugin/install.sh
+| 路径 | 是什么 |
+|---|---|
+| `plugin/skills/<name>/SKILL.md` | 每个 skill 的操作手册（做事前先读对应这份） |
+| `plugin/skills/registry.py` | skill 清单 / 校验 |
+| `plugin/_player/render.py` | 渲染调度入口 |
+| `plugin/CHANGELOG.md` | 完整版本日志 |
+| `imports/<deck-id>/render-output-full/` | 每份 deck 的成品（**gitignore**，客户内容） |
+| `library/db/` | slides.db + 入库 / 缩略图 / 查重工具 |
+| `platform/admin/` | 管理后台（FastAPI :8123 + Alpine） |
+| `platform/web/` | 早期只读浏览器（React :5174） |
+| `.claude/commands/` | `/deck-*` slash 命令 |
+| `CLAUDE.md` | 给 Claude 的项目级路由规则 |
 
-# 2. 启动管理平台（开发模式）
-cd platform/web && npm install && npm run dev
+---
 
-# 3. 在 Claude Code 里用 skill（自然语言触发）
-# 「把 ~/Decks/customer.key 转成 HTML」
-# 「改 deck 第 24 页」
-```
+## 8. 红线
 
-## 状态
+- **不要把 `imports/`、`library/db/data/`、`library/stories/` 的内容提交进 git**（客户机密，已 gitignore）
+- **不要修改 rolling-deck 模板的 `<style>` / `<script>`**（模板的全部价值）
+- 重新入库不会洗掉人工标签（`ingest_deck.py` 默认保留 tags）；想强制重打用 `--retag`
+- splice 旧 slide 用 `deck-splice`，不要手工拷 HTML（类名隔离 / 素材路径 / 视频它都替你处理了）
 
-- ✅ `keynote-to-html` — 在 60+ 页的实际 deck 上跑通
-- ✅ `slide-redesign` — 已重绘十几页
-- ✅ `feishu-deck-h5` — 渲染器稳定
-- 🚧 `slide-design` — scaffold，pipeline 待实现
-- 🚧 `library/` — 入库格式已定，搜索 / 合并 UI 开发中
-- 🚧 `platform/` — 基础 React app 已起，多选合并触发再生待接入
+完整版本迭代历史见 [`plugin/CHANGELOG.md`](plugin/CHANGELOG.md)。
 
 ## License
 
