@@ -84,30 +84,33 @@ bash plugin/install.sh
 
 ### 3.1 三种 deck 风格（layout pack）——做新 deck 先选这个
 
-| pack | 作者 | 视觉 | 适用场景 |
+| pack | 作者 | 大概长什么样 | 适合做什么 |
 |---|---|---|---|
-| **rolling-deck**（默认推荐） | ganyifan | RollingAI 风格单文件 H5：粒子地球封面、磨砂玻璃、29 页版式库、内置 GSAP 动画 | 对客 pitch / 高质感交付 |
-| **rolling-deck-v2**（影像玻璃） | ganyifan | 同一引擎，页面以大幅实景照片叠加磨砂玻璃，偏电影质感 | 需要实景照片质感的 deck |
-| **feishu-deck-h5** | 杰森 | `deck.json` 结构化渲染，10+ 种 layout 词汇表 | Keynote / PDF 导入产物 |
+| **rolling-deck**（默认推荐） | ganyifan | 深色磨砂玻璃质感，封面是一颗会转的粒子地球，自带 29 种现成版式和动画 | 给客户的正式 pitch、追求质感的交付物 |
+| **rolling-deck-v2**（影像玻璃） | ganyifan | 同款风格，但页面大量用实景照片叠在玻璃上，更有电影感 | 想用照片、要画面感的 deck |
+| **feishu-deck-h5** | 杰森 | 更规整、偏商务的排版风格 | 从 Keynote / PDF 导入进来的内容 |
 
-> 🛑 **红线**：rolling-deck 模板的 `<style>` / `<script>` 不可修改——那是模板的全部价值。
-> 仅复制 `template.html` 替换内容，完成后运行 check-fill 自检。
+> 🛑 **注意**：rolling-deck 模板里那套样式和交互代码不要改动——它正是模板的价值所在。
+> 做新 deck 时只替换内容即可，完成后跑一下自检脚本看排版有没有撑满。
 
 ### 3.2 全部 skill（按用途分组）
 
-| 用途 | skill | 作者 | 说明 |
+> skill 就是这套系统能帮你做的一件件事。下面按"你想干什么"列出来，
+> 平时在 Claude Code 里用自然语言说一声，对应的 skill 就会自动跑起来。
+
+| 用途 | skill | 作者 | 它帮你做什么 |
 |---|---|---|---|
-| **导入** | `keynote-to-html` | liukai | `.key` → `deck.json` + 可直接打开的 HTML（AppleScript + IWA 解析） |
-| **新建** | `slide-design` | liukai | 从零撰写新 slide / 新 deck（scaffold，开发中） |
-| **拼接** | `deck-splice` | liukai | 将旧 deck 的页整段并入新 deck（真实 DOM，视频可播、文字可选、APFS 零额外磁盘） |
-| **改单页** | `slide-redesign` | liukai | 指定页以手写 HTML 替换（文案须逐字搬运，不得编造） |
-| **加动画** | `slide-anim` | ganyifan | 数字滚动 + 逐字浮现 + 卡片错落（GSAP） |
-| **渲染** | `feishu-deck-h5` | 杰森 | `deck.json` → 自包含 HTML（其它 skill 自动调用） |
-| **入库** | `deck-ingest` | liukai | ingest → 自动标签 → 缩略图 三连 |
-| **缩略图** | `thumb-gen` | liukai | 通过 Chrome 为每页生成缩略图 |
-| **标签** | `tag-refine` | liukai | 标签精修 / 归一 |
-| **瘦身** | `slim-deck` | liukai | 为 deck 瘦身（去除冗余素材） |
-| **查重** | `dedup-probe` / `slide-fingerprint` / `asset-fingerprint` | liukai | 跨册查重、页 / 素材指纹 |
+| **导入** | `keynote-to-html` | liukai | 把 Keynote（`.key`）文件转成能在浏览器直接打开的网页 deck，保留原来的排版 |
+| **新建** | `slide-design` | liukai | 从一句话或一份大纲，生成全新的页面 / 整份 deck（开发中） |
+| **拼接** | `deck-splice` | liukai | 把以前做过的 deck 里某几页，原样搬进新 deck——图片、视频都跟着过来 |
+| **改单页** | `slide-redesign` | liukai | 把某一页重新排版设计（文字照搬原稿，不改写内容） |
+| **加动画** | `slide-anim` | ganyifan | 给页面加动效：数字滚动、文字逐字浮现、卡片依次出现 |
+| **渲染** | `feishu-deck-h5` | 杰森 | 把内容生成最终的网页 deck（多数时候别的功能会自动用到它，不用手动碰） |
+| **入库** | `deck-ingest` | liukai | 把做好的 deck 收进资料库：自动打标签、出预览图，之后能搜索、能复用 |
+| **缩略图** | `thumb-gen` | liukai | 为每一页生成预览小图，方便在管理端翻看 |
+| **标签** | `tag-refine` | liukai | 整理、统一资料库里的标签 |
+| **瘦身** | `slim-deck` | liukai | 压缩 deck 体积、去掉用不到的图片视频，方便发送和保存 |
+| **查重** | `dedup-probe` / `slide-fingerprint` / `asset-fingerprint` | liukai | 找出不同 deck 里重复或雷同的页面和素材 |
 
 > 不确定用哪个，运行 `python3 plugin/skills/registry.py` 查看完整 skill 清单，避免自行发明流程。
 
