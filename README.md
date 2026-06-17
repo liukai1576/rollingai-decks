@@ -3,9 +3,9 @@
 做 deck（PPT / 演示 / pitch / 汇报）的工作台。把 Keynote / PDF / 一段文案变成
 **1920×1080 的单文件 HTML deck**，再按"页 / 小故事"为单位**入库、检索、拼接、再生**。
 
-> **不会用？只记一句话就够：** 在 Claude Code 里直接说人话——"帮我做个 pitch deck"、
-> "把这个 Keynote 转成网页"、"把立白那几页搬过来"。Claude 会自动走对应 skill，
-> 不用你记命令。具体见下面 [§2 上手场景](#2-上手从你的场景出发新人从这里开始)。
+> **最简单的用法：** 在 Claude Code 里用自然语言描述需求——"帮我做个 pitch deck"、
+> "把这个 Keynote 转成网页"、"把立白那几页搬过来"，Claude 会自动调用对应 skill，
+> 无需记忆命令。详见 [§2 上手场景](#2-上手从你的场景出发新人从这里开始)。
 
 项目由这几部分组成：
 
@@ -44,8 +44,8 @@
 
 ## 2. 上手：从你的场景出发（新人从这里开始）
 
-绝大多数情况，**在 Claude Code 里直接说人话**就行，Claude 自动走对应 skill；
-也可以打 `/deck-` 开头的 slash 命令。按你要做的事对号入座：
+绝大多数情况，**在 Claude Code 里用自然语言描述需求**即可，Claude 会自动调用对应
+skill；也可以使用 `/deck-` 开头的 slash 命令。按你要做的事对号入座：
 
 | 我想…… | 说这句话 / 命令 | 背后是 |
 |---|---|---|
@@ -55,14 +55,14 @@
 | **管理 / 入库 / 搜索 deck** | "把这份 deck 入库" · `/deck-ingest`，或开管理端浏览器搜 | deck-ingest + admin（:8123） |
 | **复用历史 deck 的某几页** | "把立白那 6 张搬过来" · `/deck-splice` | deck-splice |
 | **让 deck 动起来** | "给这页加数字滚动 / 逐字浮现" · `/deck-animate` | slide-anim |
-| **不知道系统能干啥** | "这套系统都能干啥" · `/deck-help` | — |
+| **了解系统能力** | "这套系统都能做什么" · `/deck-help` | — |
 
-> ⚠️ **做新 deck 的第一步永远是选模板**（两种风格，见 [§3 构建器](#3-构建器plugin)）。
+> ⚠️ **做新 deck 的第一步永远是选模板**（三种风格，见 [§3 构建器](#3-构建器plugin)）。
 > Claude 会列选项让你选，默认 **rolling-deck**（粒子地球那套）。
 
-三个入口，按习惯挑：
+三个入口，按使用习惯选择：
 
-- **Claude Code 里说人话**（最常用）—— 上表所有事都能这么触发。
+- **Claude Code 自然语言**（最常用）—— 上表所有操作都可由此触发。
 - **管理端浏览器**（找素材 / 拼 deck）—— `python3 platform/admin/server.py` →
   http://127.0.0.1:8123 ，按标签 / 全文搜、预览每页、勾选 slide → 购物车拼进某份 deck。
 - **命令行 CLI**（跑脚本 / 接 CI）—— 每个 skill 的 `assets/` 都能独立跑，例如入库三连：
@@ -82,34 +82,34 @@ Claude Code 插件，也是一套独立 CLI 工具集。安装（开发模式，
 bash plugin/install.sh
 ```
 
-### 3.1 两种 deck 风格（layout pack）——做新 deck 先选这个
+### 3.1 三种 deck 风格（layout pack）——做新 deck 先选这个
 
-| pack | 长什么样 | 什么时候用 |
-|---|---|---|
-| **rolling-deck**（默认推荐） | RollingAI 风格单文件 H5：粒子地球封面、磨砂玻璃、29 页版式库、内置 GSAP 动画 | 对客 pitch / 高质感交付 |
-| **feishu-deck-h5** | `deck.json` 结构化渲染，10+ 种 layout 词汇表 | Keynote / PDF 导入产物 |
+| pack | 作者 | 视觉 | 适用场景 |
+|---|---|---|---|
+| **rolling-deck**（默认推荐） | ganyifan | RollingAI 风格单文件 H5：粒子地球封面、磨砂玻璃、29 页版式库、内置 GSAP 动画 | 对客 pitch / 高质感交付 |
+| **rolling-deck-v2**（影像玻璃） | ganyifan | 同一引擎，页面以大幅实景照片叠加磨砂玻璃，偏电影质感 | 需要实景照片质感的 deck |
+| **feishu-deck-h5** | 杰森 | `deck.json` 结构化渲染，10+ 种 layout 词汇表 | Keynote / PDF 导入产物 |
 
-> 🛑 **红线**：rolling-deck 模板的 `<style>` / `<script>` **绝不能改**——那是模板的全部价值。
-> 只复制 `template.html` 换内容，做完跑 check-fill 自检。
+> 🛑 **红线**：rolling-deck 模板的 `<style>` / `<script>` 不可修改——那是模板的全部价值。
+> 仅复制 `template.html` 替换内容，完成后运行 check-fill 自检。
 
-### 3.2 全部 skill（按"你想干嘛"分组）
+### 3.2 全部 skill（按用途分组）
 
-| 想干嘛 | skill | 干啥的 |
-|---|---|---|
-| **导入** | `keynote-to-html` | `.key` → `deck.json` + 可直接开的 HTML（AppleScript + IWA 解析） |
-| **新建** | `slide-design` | 从零写新 slide / 新 deck（scaffold，发展中） |
-| **拼接** | `deck-splice` | 把旧 deck 的页整段搬进新 deck（真实 DOM，视频可播、文字可选、APFS 零额外磁盘） |
-| **改单页** | `slide-redesign` | 指定页用手写 HTML 替换（文案必须逐字搬，不准编造） |
-| **加动画** | `slide-anim` | 数字滚动 + 逐字浮现 + 卡片错落（GSAP） |
-| **渲染** | `feishu-deck-h5` | `deck.json` → 自包含 HTML（其它 skill 自动调它） |
-| **入库** | `deck-ingest` | ingest → 自动标签 → 缩略图 三连 |
-| **缩略图** | `thumb-gen` | 用 Chrome 给每页出缩略图 |
-| **标签** | `tag-refine` | 标签精修 / 归一 |
-| **瘦身** | `slim-deck` | 给 deck 减肥（去冗余素材） |
-| **查重** | `dedup-probe` / `slide-fingerprint` / `asset-fingerprint` | 跨册查重、页 / 素材指纹 |
+| 用途 | skill | 作者 | 说明 |
+|---|---|---|---|
+| **导入** | `keynote-to-html` | liukai | `.key` → `deck.json` + 可直接打开的 HTML（AppleScript + IWA 解析） |
+| **新建** | `slide-design` | liukai | 从零撰写新 slide / 新 deck（scaffold，开发中） |
+| **拼接** | `deck-splice` | liukai | 将旧 deck 的页整段并入新 deck（真实 DOM，视频可播、文字可选、APFS 零额外磁盘） |
+| **改单页** | `slide-redesign` | liukai | 指定页以手写 HTML 替换（文案须逐字搬运，不得编造） |
+| **加动画** | `slide-anim` | ganyifan | 数字滚动 + 逐字浮现 + 卡片错落（GSAP） |
+| **渲染** | `feishu-deck-h5` | 杰森 | `deck.json` → 自包含 HTML（其它 skill 自动调用） |
+| **入库** | `deck-ingest` | liukai | ingest → 自动标签 → 缩略图 三连 |
+| **缩略图** | `thumb-gen` | liukai | 通过 Chrome 为每页生成缩略图 |
+| **标签** | `tag-refine` | liukai | 标签精修 / 归一 |
+| **瘦身** | `slim-deck` | liukai | 为 deck 瘦身（去除冗余素材） |
+| **查重** | `dedup-probe` / `slide-fingerprint` / `asset-fingerprint` | liukai | 跨册查重、页 / 素材指纹 |
 
-> 拿不准走哪条？跑 `python3 plugin/skills/registry.py` 看全部 skill 清单，
-> 不要自己发明流程。
+> 不确定用哪个，运行 `python3 plugin/skills/registry.py` 查看完整 skill 清单，避免自行发明流程。
 
 ### 3.3 渲染器内核
 
@@ -125,7 +125,7 @@ python3 plugin/skills/feishu-deck-h5/deck-json/render-deck.py out/deck.json out/
 
 ## 4. 管理端（`platform/admin/`）
 
-FastAPI（:8123）+ 单文件 Alpine 前端，给 `library/db/data/slides.db` 当控制台。
+FastAPI（:8123）+ 单文件 Alpine 前端，作为 `library/db/data/slides.db` 的控制台。
 **这是日常找素材 / 拼 deck 的主入口。**
 
 ```bash
@@ -133,9 +133,9 @@ pip install -r platform/admin/requirements.txt
 python3 platform/admin/server.py        # → http://127.0.0.1:8123
 ```
 
-能干啥：
+功能：
 
-- **左栏过滤 + 顶部全文搜**：类型 / 客户 / 媒体 / needs-review 一点即筛；FTS5 搜标题 + 正文
+- **左栏过滤 + 顶部全文搜**：类型 / 客户 / 媒体 / needs-review 一键筛选；FTS5 搜标题 + 正文
 - **点 slide → 抽屉**：iframe 预览实际渲染 + 标签 inline 编辑保存
 - **购物车拼 deck**：勾若干 slide → 加入某份 deck（后台调 `deck-splice` 的 `insert.py`，
   自动处理类名隔离 / 素材拷贝 / 视频物化 / 重新入库）
