@@ -68,6 +68,19 @@
       ],
       "cwd": "platform/admin",
       "port": 8123
+    },
+    {
+      "name": "aiorg-icloud",
+      "autoPort": false,
+      "runtimeExecutable": "python3",
+      "runtimeArgs": [
+        "-m",
+        "http.server",
+        "8769",
+        "--directory",
+        "/tmp/aiorg-icloud-deck"
+      ],
+      "port": 8769
     }
   ]
 }
