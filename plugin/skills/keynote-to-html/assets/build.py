@@ -1207,14 +1207,19 @@ def _sweep_orphans(output_dir: Path, deck: dict) -> None:
 
     Removes:
       · `.cache/` — per-build .key extraction cache (recreated on next run).
-      · `extract.tsv` / `deck.json.bak` — build intermediates.
+      · `deck.json.bak` — build intermediate.
       · Files under `assets/` that no slide HTML (or `index.html`) references.
+
+    KEEPS `extract.tsv` — the slow AppleScript extract. Keeping it lets you
+    re-run JUST build.py (1-2s) after a build-side fix instead of the full
+    ~20-min Keynote re-extraction. It's a gitignored intermediate under
+    imports/, so the cost is a few hundred KB.
 
     Doesn't touch `_renderer/`, `serve.sh`, `history.json`, `warnings.txt`,
     or `deck.json` — those are part of the shippable deck.
     """
     # 1. Easy wins: drop build artifacts wholesale.
-    for trash in (".cache", "extract.tsv", "deck.json.bak"):
+    for trash in (".cache", "deck.json.bak"):
         p = output_dir / trash
         if p.is_dir():
             shutil.rmtree(p, ignore_errors=True)
