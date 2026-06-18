@@ -2157,6 +2157,29 @@ def compose_slide_html(slide: Slide, resolver: AssetResolver,
             # background AND signal "this shape is filled" for radius.
             iwa_sf = iwa_fill_for_idx.get(idx)
 
+            # IMAGE FILL on a shape — a picture painted as a shape's fill
+            # (not a standalone TSD.ImageArchive). p32's WriteSonic/Frase/
+            # Jasper product screenshots are stored this way; without this
+            # branch they're dropped (the shape has no color/gradient, so it
+            # rendered as nothing). Resolve the fill's Data/ file, copy it,
+            # and emit an <img> at the shape's bbox.
+            if iwa_sf is not None and getattr(iwa_sf, "image_fill_filename", ""):
+                fill_src = resolver.resolve(iwa_sf.image_fill_filename, el.w, el.h)
+                if fill_src is not None:
+                    png_path = resolver.to_png(fill_src, slide_assets_dir)
+                    rel = f"{slide_assets_subdir}/{png_path.name}"
+                    r_css = ""
+                    if iwa_sf.corner_radius_frac and iwa_sf.corner_radius_frac > 0:
+                        rr = min(iwa_sf.corner_radius_frac * el.h,
+                                 min(el.w, el.h) / 2.0)
+                        r_css = f"border-radius:{rr:.1f}px;"
+                    parts.append(
+                        f'<img class="el" src="{html_lib.escape(rel)}" '
+                        f'style="left:{el.x}px;top:{el.y}px;width:{el.w}px;'
+                        f'height:{el.h}px;object-fit:cover;{r_css}">'
+                    )
+                    continue
+
             # Bezier-path SVG render: when IWA gave us an explicit path
             # (custom Keynote shapes — not named pointPath types), emit
             # the path verbatim. Catches organic blobs, callouts, hand-

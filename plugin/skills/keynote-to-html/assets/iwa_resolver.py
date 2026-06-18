@@ -261,6 +261,11 @@ class _ShapeFill:
     # 0.0 means "no rounded-rect radius extracted" — build.py falls back to its
     # heuristic (ovals, etc.). This replaces the old "pill if short" guess.
     corner_radius_frac: float = 0.0
+    # On-disk Data/ filename when this shape is painted with an IMAGE FILL
+    # (a picture used as a shape's fill, not a standalone TSD.ImageArchive).
+    # build.py renders it as an <img> at the shape's bbox. "" = no image fill.
+    # This recovers e.g. p32's WriteSonic/Frase/Jasper screenshots.
+    image_fill_filename: str = ""
 
 
 # Map TSWP TextAlignmentType enum (TATvalue0..4) to CSS-friendly strings.
@@ -674,7 +679,8 @@ class IWAAssetMap:
                 if not sid or sid in seen or sid not in shape_style_raw:
                     return {"kind": None, "color": None, "gradient_css": "",
                             "opacity": 1.0, "stroke_color": None,
-                            "stroke_width": 0.0, "stroke_dash": ""}
+                            "stroke_width": 0.0, "stroke_dash": "",
+                            "image_fill": None}
                 seen.add(sid)
                 raw = shape_style_raw[sid]
                 parent = _resolve_shape_style(raw["parent"], seen)
@@ -685,6 +691,7 @@ class IWAAssetMap:
                 stroke_color = parent["stroke_color"]
                 stroke_width = parent["stroke_width"]
                 stroke_dash = parent["stroke_dash"]
+                image_fill = parent["image_fill"]  # data-id of an image fill
                 # Walk own → base properties (own overrides base overrides parent)
                 for src in (raw["base"], raw["own"]):
                     if not isinstance(src, dict): continue
@@ -696,14 +703,30 @@ class IWAAssetMap:
                         # parent's e.g. white default leaks through. Treat
                         # empty as "explicit transparent / no fill".
                         if not fill:
-                            kind, color, grad = None, None, ""
+                            kind, color, grad, image_fill = None, None, "", None
                         elif isinstance(fill, dict):
                             # Gradient (linear)
                             gradient = fill.get("gradient")
+                            img = fill.get("image")
                             if isinstance(gradient, dict) and gradient.get("stops"):
                                 css = _gradient_to_css(gradient)
                                 if css:
                                     kind, color, grad = "gradient", None, css
+                            elif isinstance(img, dict) and (
+                                    img.get("imagedata") or img.get("imageData")
+                                    or img.get("data")):
+                                # IMAGE FILL on a shape — e.g. a product
+                                # screenshot painted as a rounded-rect's fill
+                                # rather than a standalone TSD.ImageArchive.
+                                # The data-id key is `imagedata` (lowercase);
+                                # capture it so build.py can emit an <img>. This
+                                # is how p32's WriteSonic/Frase/Jasper shots are
+                                # stored — they were dropped before this.
+                                ref = (img.get("imagedata") or img.get("imageData")
+                                       or img.get("data") or {})
+                                did = ref.get("identifier") if isinstance(ref, dict) else None
+                                if did:
+                                    kind, color, grad, image_fill = "image", None, "", did
                             else:
                                 c = fill.get("color")
                                 if isinstance(c, dict) and "r" in c:
@@ -748,7 +771,8 @@ class IWAAssetMap:
                         op = float(src["opacity"])
                 return {"kind": kind, "color": color, "gradient_css": grad,
                         "opacity": op, "stroke_color": stroke_color,
-                        "stroke_width": stroke_width, "stroke_dash": stroke_dash}
+                        "stroke_width": stroke_width, "stroke_dash": stroke_dash,
+                        "image_fill": image_fill}
 
             # 3b. Per-slide pass: collect image/movie drawables AND text-shape
             # alignments. For each slide:
@@ -1143,8 +1167,24 @@ class IWAAssetMap:
                                                           f"{int(round(sc[1]*255))},"
                                                           f"{int(round(sc[2]*255))},"
                                                           f"{sa:.3f})")
-                                    # 3 paths: gradient fill, color fill, stroke-only.
-                                    if rs.get("kind") == "gradient":
+                                    # 4 paths: image fill, gradient, color, stroke-only.
+                                    if rs.get("kind") == "image":
+                                        did = rs.get("image_fill")
+                                        fn = (data_id_to_filename.get(did)
+                                              if did else None)
+                                        if fn:
+                                            shape_fills.append(_ShapeFill(
+                                                slide_no=slide_no,
+                                                x=px, y=py, w=w, h=h,
+                                                r=0, g=0, b=0, alpha=op,
+                                                has_text=has_text,
+                                                shape_kind=shape_kind,
+                                                angle=shape_angle,
+                                                bezier_path=bezier_tuple,
+                                                corner_radius_frac=corner_radius_frac,
+                                                image_fill_filename=fn,
+                                            ))
+                                    elif rs.get("kind") == "gradient":
                                         css = rs.get("gradient_css") or ""
                                         if css and op > 0.02:
                                             shape_fills.append(_ShapeFill(
