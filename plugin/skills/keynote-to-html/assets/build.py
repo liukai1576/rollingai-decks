@@ -1242,28 +1242,26 @@ def _sweep_orphans(output_dir: Path, deck: dict) -> None:
     if idx.is_file():
         referenced |= _collect_refs(idx.read_text(encoding="utf-8", errors="ignore"))
 
-    # 3. Anything under assets/ that isn't referenced → orphan.
+    # 3. Unreferenced assets are KEPT, not deleted.
+    #
+    # Project rule: never auto-delete files — only the `slim-deck` skill or an
+    # explicit user request may delete. This used to `unlink()` every file under
+    # assets/ not referenced by a slide, which silently destroyed hand-dropped
+    # files (e.g. a background image a user copied into assets/ before it was
+    # wired into the HTML — exactly what happened to `kid & robot.png`). A
+    # slightly larger deck dir is an acceptable cost; losing user content is not.
+    # Reclaim space deliberately with slim-deck.
     assets_root = output_dir / "assets"
     if not assets_root.is_dir():
         return
-    deleted_files = 0
-    bytes_freed = 0
-    for p in assets_root.rglob("*"):
-        if not p.is_file():
-            continue
-        rel = os.path.normpath(str(p.relative_to(output_dir)))
-        if rel in referenced:
-            continue
-        try:
-            sz = p.stat().st_size
-            p.unlink()
-            deleted_files += 1
-            bytes_freed += sz
-        except OSError:
-            pass
-    if deleted_files:
-        print(f"    swept {deleted_files} orphan asset(s), "
-              f"freed {bytes_freed / 1024 / 1024:.1f} MB")
+    orphans = [
+        p for p in assets_root.rglob("*")
+        if p.is_file()
+        and os.path.normpath(str(p.relative_to(output_dir))) not in referenced
+    ]
+    if orphans:
+        print(f"    {len(orphans)} unreferenced asset(s) kept "
+              f"(not deleted — run slim-deck to reclaim space)")
 
     # 4. Cross-slide dedup. Many slides reuse the SAME source asset (e.g.
     # the Rolling AI brand video, master backdrops, repeated UI mockups) —
