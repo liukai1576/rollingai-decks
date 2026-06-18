@@ -644,6 +644,29 @@
                   <button class="stale-fix" @click="reingestDeck(d.deck_id)">重新入库</button>
                 </div>
               </template>
+              <template x-if="d.is_rolling_target">
+                <div class="hidden-row" @click.stop style="margin-top:8px;">
+                  <button class="stale-fix" @click="toggleHidden(d.deck_id)"
+                          style="border-color:#5a521f;color:#ffd479;">
+                    🙈 隐藏页<span x-show="hiddenOpen===d.deck_id"> ▲</span><span x-show="hiddenOpen!==d.deck_id"> ▼</span>
+                  </button>
+                  <template x-if="hiddenOpen===d.deck_id">
+                    <div style="margin-top:8px;font-size:12px;">
+                      <template x-if="!(hiddenByDeck[d.deck_id] || []).length">
+                        <span style="color:var(--text-faint);">（没有隐藏的页）</span>
+                      </template>
+                      <template x-for="h in (hiddenByDeck[d.deck_id] || [])" :key="h.slide_key">
+                        <div style="display:flex;justify-content:space-between;align-items:center;gap:10px;padding:4px 0;border-bottom:1px solid #23262e;">
+                          <span x-text="h.screen_label || h.slide_key"
+                                style="color:var(--text-dim);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;"></span>
+                          <button class="stale-fix" style="flex:none;border-color:#2b6d4a;color:#7fe0a4;"
+                                  @click="unhideSlide(d.deck_id, h.slide_key)">取消隐藏</button>
+                        </div>
+                      </template>
+                    </div>
+                  </template>
+                </div>
+              </template>
             </div>
           </div>
         </template>
@@ -871,6 +894,15 @@
                   插入 <b x-text="t.payload.items.length"></b> 张到第
                   <b x-text="t.payload.after_page"></b> 页之后
                 </span>
+              </template>
+              <template x-if="t.kind === 'delete-slides' && t.payload && t.payload.slide_keys">
+                <span>删除 <b x-text="t.payload.slide_keys.length"></b> 张</span>
+              </template>
+              <template x-if="t.kind === 'hide-slides' && t.payload && t.payload.slide_keys">
+                <span>隐藏 <b x-text="t.payload.slide_keys.length"></b> 张</span>
+              </template>
+              <template x-if="t.kind === 'unhide-slides' && t.payload && t.payload.slide_keys">
+                <span>恢复 <b x-text="t.payload.slide_keys.length"></b> 张</span>
               </template>
               <template x-if="t.kind === 'reingest'">
                 <span>重新入库（deck.json → DB → 缩略图）</span>
@@ -1215,6 +1247,26 @@
             </span>
           </template>
         </div>
+
+        <div class="danger-zone" x-show="canDeleteSlide()"
+             style="margin-top:28px;padding-top:16px;border-top:1px solid #2a2f3a;
+                    display:flex;gap:10px;flex-wrap:wrap;align-items:center;">
+          <button @click="hideSlide()"
+                  style="background:#2b2a1a;border:1px solid #5a521f;color:#ffd479;
+                         padding:8px 14px;border-radius:8px;cursor:pointer;font-size:13px;">
+            🙈 隐藏此页（可恢复）
+          </button>
+          <button @click="deleteSlide()"
+                  style="background:#3a1f25;border:1px solid #5a2733;color:#ff9aa8;
+                         padding:8px 14px;border-radius:8px;cursor:pointer;font-size:13px;">
+            🗑 删除此页
+          </button>
+          <div style="flex-basis:100%;color:var(--text-faint);font-size:11px;margin-top:2px;line-height:1.5;">
+            <b>隐藏</b>：从放映和列表移除，但保留在 HTML，可在 Deck 卡片「🙈 隐藏页」里一键恢复。
+            <b>删除</b>：移除该段 HTML（删前自动快照 <code>.bak-*</code>，可回滚）。
+            两者都仅 rolling-deck 可用、封面页不可操作。
+          </div>
+        </div>
       </div>
     </div>
   </template>
@@ -1256,6 +1308,8 @@ function app() {
       afterPage: null, submitting: false,
     },
     rollingTargets: [],     // decks usable as insert targets
+    hiddenOpen: null,       // deck_id whose 隐藏页 panel is expanded
+    hiddenByDeck: {},       // deck_id → [{slide_key, screen_label}]
     // ---- tasks ----
     tasks: [],
     expandedTask: null,
@@ -1317,6 +1371,79 @@ function app() {
         return;
       }
       this.view = 'tasks';
+    },
+
+    canDeleteSlide() {
+      if (!this.detail || this.detail.page_no <= 1) return false;  // no cover
+      return (this.rollingTargets || []).some(
+        x => x.deck_id === this.detail.deck_id);
+    },
+
+    async deleteSlide() {
+      const d = this.detail;
+      if (!d) return;
+      if (!confirm(`确定从 Deck「${d.deck_id}」中删除第 ${d.page_no} 页`
+                   + `「${d.title || d.slide_key}」？\n\n会改动 index.html 并重新`
+                   + `入库；删前自动快照，可回滚。`)) return;
+      const r = await fetch(
+        '/api/decks/' + encodeURIComponent(d.deck_id) + '/delete-slides',
+        { method: 'POST', headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ slide_keys: [d.slide_key] }) });
+      if (!r.ok) {
+        const e = await r.json().catch(() => ({}));
+        alert('创建删除任务失败：' + (e.detail || r.status));
+        return;
+      }
+      this.detail = null;
+      this.view = 'tasks';
+      this.loadTasks();
+    },
+
+    async hideSlide() {
+      const d = this.detail;
+      if (!d) return;
+      if (!confirm(`隐藏第 ${d.page_no} 页「${d.title || d.slide_key}」？\n\n`
+                   + `它会从放映和列表移除，但保留在 HTML 里，之后可在 Deck `
+                   + `卡片的「🙈 隐藏页」处一键恢复。`)) return;
+      const r = await fetch(
+        '/api/decks/' + encodeURIComponent(d.deck_id) + '/hide-slides',
+        { method: 'POST', headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ slide_keys: [d.slide_key] }) });
+      if (!r.ok) {
+        const e = await r.json().catch(() => ({}));
+        alert('创建隐藏任务失败：' + (e.detail || r.status));
+        return;
+      }
+      this.detail = null;
+      this.view = 'tasks';
+      this.loadTasks();
+    },
+
+    async toggleHidden(deckId) {
+      if (this.hiddenOpen === deckId) { this.hiddenOpen = null; return; }
+      this.hiddenOpen = deckId;
+      try {
+        const r = await fetch('/api/decks/' + encodeURIComponent(deckId) + '/hidden-slides');
+        const d = await r.json();
+        this.hiddenByDeck[deckId] = d.hidden || [];
+      } catch (e) { this.hiddenByDeck[deckId] = []; }
+    },
+
+    async unhideSlide(deckId, slideKey) {
+      const r = await fetch(
+        '/api/decks/' + encodeURIComponent(deckId) + '/unhide-slides',
+        { method: 'POST', headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ slide_keys: [slideKey] }) });
+      if (!r.ok) {
+        const e = await r.json().catch(() => ({}));
+        alert('创建恢复任务失败：' + (e.detail || r.status));
+        return;
+      }
+      // Optimistically drop it from the open panel; the task does the real work.
+      this.hiddenByDeck[deckId] = (this.hiddenByDeck[deckId] || [])
+        .filter(h => h.slide_key !== slideKey);
+      this.view = 'tasks';
+      this.loadTasks();
     },
 
     async loadSlides() {
@@ -1387,6 +1514,15 @@ function app() {
     async openSlide(id) {
       const r = await fetch('/api/slides/' + id);
       this.detail = await r.json();
+      // Lazy-load which decks are rolling-deck hosts, so the drawer can show
+      // the delete action (delete only works on rolling-deck decks).
+      if (!(this.rollingTargets && this.rollingTargets.length)) {
+        try {
+          const dr = await fetch('/api/decks');
+          const dd = await dr.json();
+          this.rollingTargets = (dd.decks || []).filter(x => x.is_rolling_target);
+        } catch (e) { /* backend still guards the delete endpoint */ }
+      }
       this.editBuf = {
         title: this.detail.title,
         type_tag: this.detail.type_tag || '',

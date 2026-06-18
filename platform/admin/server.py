@@ -25,6 +25,7 @@ platform/admin/server.py — Slide & Story 管理后端 (FastAPI)
 from __future__ import annotations
 
 import json
+import re
 import sqlite3
 import sys
 from datetime import datetime, timezone
@@ -152,6 +153,10 @@ class InsertItem(BaseModel):
 class InsertSlidesRequest(BaseModel):
     after_page: int          # 0 = insert before page 1
     items: list[InsertItem]
+
+
+class DeleteSlidesRequest(BaseModel):
+    slide_keys: list[str]    # data-slide-key of the pages to remove
 
 
 # ---- API: slides ----
@@ -526,6 +531,8 @@ import threading
 import time as _time
 
 INSERT_RUNNER = REPO / "plugin" / "skills" / "deck-splice" / "assets" / "insert.py"
+DELETE_RUNNER = REPO / "plugin" / "skills" / "deck-splice" / "assets" / "delete.py"
+HIDE_RUNNER = REPO / "plugin" / "skills" / "deck-splice" / "assets" / "hide.py"
 TASK_TIMEOUT_S = 1800
 _LIVE_LOGS: dict[str, list[str]] = {}
 _worker_started = threading.Event()
@@ -598,6 +605,14 @@ def _run_one_task(task_id: str, kind: str, payload: str) -> None:
         if kind == "insert-slides":
             rc = _stream_subprocess(
                 [sys.executable, str(INSERT_RUNNER), "--spec", "-"],
+                lines, stdin_data=payload)
+        elif kind == "delete-slides":
+            rc = _stream_subprocess(
+                [sys.executable, str(DELETE_RUNNER), "--spec", "-"],
+                lines, stdin_data=payload)
+        elif kind in ("hide-slides", "unhide-slides"):
+            rc = _stream_subprocess(
+                [sys.executable, str(HIDE_RUNNER), "--spec", "-"],
                 lines, stdin_data=payload)
         elif kind == "reingest":
             rc = _run_reingest(json.loads(payload), lines)
@@ -692,6 +707,133 @@ def create_insert_task(deck_id: str, body: InsertSlidesRequest):
     conn.commit()
     conn.close()
     return {"task_id": task_id, "status": "queued"}
+
+
+@app.post("/api/decks/{deck_id:path}/delete-slides")
+def create_delete_task(deck_id: str, body: DeleteSlidesRequest):
+    keys = list(dict.fromkeys(body.slide_keys))  # de-dup, keep order
+    if not keys:
+        raise HTTPException(400, "slide_keys is empty")
+    if not _is_rolling_deck(deck_id):
+        raise HTTPException(409,
+            f"deck '{deck_id}' is not a rolling-deck host — delete only "
+            f"supports rolling-deck decks (feishu-deck-h5 decks render their "
+            f"index.html from deck.json and would be overwritten)")
+    conn = db()
+    rows = conn.execute(
+        "SELECT slide_key, page_no FROM slides WHERE deck_id=?",
+        (deck_id,)).fetchall()
+    page_by_key = {r["slide_key"]: r["page_no"] for r in rows}
+    conn_total = len(rows)
+    missing = [k for k in keys if k not in page_by_key]
+    if missing:
+        conn.close()
+        raise HTTPException(404, f"slides not in deck: {', '.join(missing)}")
+    # Cover protection: page 1 is the cover-hero a rolling-deck must open on.
+    cover = [k for k in keys if page_by_key.get(k) == 1]
+    if cover:
+        conn.close()
+        raise HTTPException(400,
+            f"refusing to delete the cover page (page 1): {', '.join(cover)}")
+    if len(keys) >= conn_total:
+        conn.close()
+        raise HTTPException(400, "refusing to delete every slide in the deck")
+
+    task_id = (f"task-{datetime.now(timezone.utc):%Y%m%d-%H%M%S}-"
+               f"{secrets.token_hex(2)}")
+    spec = {"target_deck_id": deck_id, "slide_keys": keys}
+    conn.execute(
+        "INSERT INTO tasks (id, kind, status, payload, created_at) "
+        "VALUES (?, 'delete-slides', 'queued', ?, ?)",
+        (task_id, json.dumps(spec, ensure_ascii=False), now_iso()))
+    conn.commit()
+    conn.close()
+    return {"task_id": task_id, "status": "queued"}
+
+
+_HIDDEN_SEC_RE = re.compile(
+    r'<section\b[^>]*\bdata-slide-key="([^"]+)"[^>]*\bdata-hidden="1"[^>]*>',
+    re.IGNORECASE)
+_SCREEN_LABEL_RE = re.compile(r'data-screen-label="([^"]*)"')
+
+
+def _hidden_sections(deck_id: str) -> list[dict]:
+    """Parse the deck's index.html for sections marked data-hidden="1".
+    Hidden pages live only in the HTML (they're excluded from deck.json/DB),
+    so this is the source of truth for the '已隐藏' panel."""
+    base = DECK_PATHS.get(deck_id)
+    if not base:
+        return []
+    idx = base / "index.html"
+    if not idx.is_file():
+        return []
+    html = idx.read_text(encoding="utf-8")
+    out = []
+    for m in _HIDDEN_SEC_RE.finditer(html):
+        key = m.group(1)
+        lbl = _SCREEN_LABEL_RE.search(m.group(0))
+        out.append({"slide_key": key,
+                    "screen_label": lbl.group(1) if lbl else ""})
+    return out
+
+
+@app.get("/api/decks/{deck_id:path}/hidden-slides")
+def list_hidden_slides(deck_id: str):
+    if deck_id not in DECK_PATHS:
+        raise HTTPException(404, f"no mount for deck '{deck_id}'")
+    items = _hidden_sections(deck_id)
+    return {"deck_id": deck_id, "count": len(items), "hidden": items}
+
+
+def _queue_hide_task(deck_id: str, action: str, keys: list[str]) -> dict:
+    keys = list(dict.fromkeys(keys))
+    if not keys:
+        raise HTTPException(400, "slide_keys is empty")
+    if not _is_rolling_deck(deck_id):
+        raise HTTPException(409,
+            f"deck '{deck_id}' is not a rolling-deck host — {action} only "
+            f"supports rolling-deck decks")
+    kind = "hide-slides" if action == "hide" else "unhide-slides"
+    task_id = (f"task-{datetime.now(timezone.utc):%Y%m%d-%H%M%S}-"
+               f"{secrets.token_hex(2)}")
+    spec = {"action": action, "target_deck_id": deck_id, "slide_keys": keys}
+    conn = db()
+    conn.execute(
+        "INSERT INTO tasks (id, kind, status, payload, created_at) "
+        "VALUES (?, ?, 'queued', ?, ?)",
+        (task_id, kind, json.dumps(spec, ensure_ascii=False), now_iso()))
+    conn.commit()
+    conn.close()
+    return {"task_id": task_id, "status": "queued"}
+
+
+@app.post("/api/decks/{deck_id:path}/hide-slides")
+def create_hide_task(deck_id: str, body: DeleteSlidesRequest):
+    # Cover protection lives in the runner; validate keys exist & not cover here.
+    conn = db()
+    rows = conn.execute(
+        "SELECT slide_key, page_no FROM slides WHERE deck_id=?",
+        (deck_id,)).fetchall()
+    conn.close()
+    page_by_key = {r["slide_key"]: r["page_no"] for r in rows}
+    missing = [k for k in body.slide_keys if k not in page_by_key]
+    if missing:
+        raise HTTPException(404, f"slides not in deck: {', '.join(missing)}")
+    cover = [k for k in body.slide_keys if page_by_key.get(k) == 1]
+    if cover:
+        raise HTTPException(400,
+            f"refusing to hide the cover page (page 1): {', '.join(cover)}")
+    return _queue_hide_task(deck_id, "hide", body.slide_keys)
+
+
+@app.post("/api/decks/{deck_id:path}/unhide-slides")
+def create_unhide_task(deck_id: str, body: DeleteSlidesRequest):
+    # Unhide targets are hidden pages — they live in the HTML, not the DB.
+    hidden = {h["slide_key"] for h in _hidden_sections(deck_id)}
+    missing = [k for k in body.slide_keys if k not in hidden]
+    if missing:
+        raise HTTPException(404, f"not hidden in deck: {', '.join(missing)}")
+    return _queue_hide_task(deck_id, "unhide", body.slide_keys)
 
 
 @app.post("/api/decks/{deck_id:path}/reingest")
