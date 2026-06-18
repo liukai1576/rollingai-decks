@@ -1491,7 +1491,14 @@ def _render_named_shape_svg(kind: str, x: float, y: float, w: float, h: float,
     # applying transform on the inner <g>: translate to center, rotate, then
     # translate back. Simpler: rotate via CSS transform on the wrapper.
     op_css = f"opacity:{opacity:.3f};" if opacity < 0.999 else ""
-    rot_css = f"transform:rotate({angle:.3f}deg);" if abs(angle) > 0.01 else ""
+    # Keynote geometry.angle is counter-clockwise-positive; CSS rotate() is
+    # clockwise-positive — so negate. And emit `!important`: without it the
+    # anti-flash rule `.slide > * { transform: none !important }` kills the
+    # rotation and the shape renders in its base orientation (this is why
+    # p17's up-arrows — kTSDRightSingleArrow at angle=90 — showed pointing
+    # RIGHT). The image-rotation path already had this fix; shapes were missed.
+    rot_css = (f"transform:rotate({(360.0 - angle) % 360.0:.3f}deg) !important;"
+               if abs(angle) > 0.01 else "")
     return (
         f'<svg class="el" xmlns="http://www.w3.org/2000/svg" '
         f'viewBox="0 0 100 100" preserveAspectRatio="none" '
