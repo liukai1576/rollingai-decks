@@ -2270,24 +2270,30 @@ def compose_slide_html(slide: Slide, resolver: AssetResolver,
                 is_overlay_mask = (el.is_translucent
                                    and (el.w > 1500 or el.h > 800))
                 if has_any_fill and not is_overlay_mask:
-                    ratio = el.w / el.h if el.h else 1
-                    if 0.97 < ratio < 1.03 and el.h > 30:
-                        # Perfectly square (within 3%) → circle. Keynote's
-                        # default oval drawn at no aspect-skew lands here, at
-                        # any size. We don't cap upper size because diagram
-                        # ovals (p74 Mengniu Venn diagram) go up to 530+ px.
+                    sk = ((iwa_sf.shape_kind or "") if iwa_sf is not None else "")
+                    frac = (iwa_sf.corner_radius_frac if iwa_sf is not None else 0.0)
+                    if frac and frac > 0:
+                        # REAL rounded-rect radius from IWA (Keynote's
+                        # scalarPathSource.scalar, stored as a fraction of the
+                        # shape's natural height). Scale to the rendered height,
+                        # clamp to a true pill at most. This replaces the old
+                        # "pill if short, else 16/24px box" guess that gave the
+                        # same table different corner radii per cell.
+                        r = min(frac * el.h, min(el.w, el.h) / 2.0)
+                        radius_css = f"border-radius:{r:.1f}px"
+                    elif "Oval" in sk:
+                        # Keynote oval/ellipse → real circle/ellipse.
                         radius_css = "border-radius:50%"
-                    elif 0.92 < ratio < 1.08 and 30 < el.h < 360:
-                        # Nearly-square (within 8%) but not perfect → could be
-                        # either a rounded card or a slightly-skewed oval.
-                        # Cap at 360 to avoid converting big cards into circles.
-                        radius_css = "border-radius:50%"
-                    elif 1.5 < ratio < 6 and el.h < 200:
-                        radius_css = f"border-radius:{int(el.h/2)}px"  # pill
-                    elif 0.7 < ratio < 1.4 and el.h < 200:
-                        radius_css = "border-radius:24px"  # rounded card
-                    else:
-                        radius_css = "border-radius:16px"
+                    elif iwa_sf is None:
+                        # AppleScript-only fill (no IWA shape data to read a
+                        # real radius from). Keep ONLY the square→circle guess;
+                        # the old pill/card/16px guesses are dropped — they were
+                        # the source of the inconsistent corner radii.
+                        ratio = el.w / el.h if el.h else 1
+                        if 0.95 < ratio < 1.05 and el.h > 30:
+                            radius_css = "border-radius:50%"
+                    # else: IWA-known shape that is neither rounded-rect nor oval
+                    # → sharp corners (faithful to Keynote plain rectangles).
 
                 style_parts = [
                     f"left:{el.x}px", f"top:{el.y}px",

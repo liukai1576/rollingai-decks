@@ -255,6 +255,12 @@ class _ShapeFill:
     stroke_color: str = ""    # "rgba(r,g,b,a)" or "" when no stroke
     stroke_width: float = 0.0
     stroke_dash: str = ""     # "" / "dashed" / "dotted"
+    # Real corner radius for rounded-rectangle shapes (kTSDRoundedRect /
+    # *.scalarPathSource). Stored as a FRACTION of the shape's natural HEIGHT
+    # so build.py can scale it to the rendered bbox: rendered_px = frac * h.
+    # 0.0 means "no rounded-rect radius extracted" — build.py falls back to its
+    # heuristic (ovals, etc.). This replaces the old "pill if short" guess.
+    corner_radius_frac: float = 0.0
 
 
 # Map TSWP TextAlignmentType enum (TATvalue0..4) to CSS-friendly strings.
@@ -1075,6 +1081,25 @@ class IWAAssetMap:
                                 pps = psrc.get("pointPathSource") or {}
                                 if isinstance(pps, dict):
                                     shape_kind = pps.get("type") or ""
+                                # Real corner radius for rounded rectangles.
+                                # Keynote stores it on
+                                #   super.pathsource.scalarPathSource.scalar
+                                # as the radius in the shape's natural-coordinate
+                                # frame (alongside naturalSize). We normalise to
+                                # a fraction of natural height so build.py can
+                                # scale it to the rendered bbox. This is the
+                                # REAL value — replaces the "pill if short" guess.
+                                corner_radius_frac = 0.0
+                                sps = psrc.get("scalarPathSource") or {}
+                                if isinstance(sps, dict):
+                                    sc = sps.get("scalar")
+                                    nat = sps.get("naturalSize") or {}
+                                    try:
+                                        nh = float(nat.get("height") or 0)
+                                        if sc is not None and nh > 0:
+                                            corner_radius_frac = float(sc) / nh
+                                    except (TypeError, ValueError):
+                                        corner_radius_frac = 0.0
                                 # geometry.angle for rotation-aware rendering.
                                 shape_angle = float(geo.get("angle", 0) or 0)
                                 # Bezier path (custom-drawn shapes). Falls back
@@ -1135,6 +1160,8 @@ class IWAAssetMap:
                                                 stroke_width=sw if stroke_css else 0.0,
                                                 stroke_dash=sd if stroke_css else "",
                                                 bezier_path=bezier_tuple,
+
+                                                corner_radius_frac=corner_radius_frac,
                                             ))
                                     elif rs.get("kind") == "color":
                                         color = rs.get("color")
@@ -1156,6 +1183,8 @@ class IWAAssetMap:
                                                     stroke_width=sw if stroke_css else 0.0,
                                                     stroke_dash=sd if stroke_css else "",
                                                     bezier_path=bezier_tuple,
+
+                                                    corner_radius_frac=corner_radius_frac,
                                                 ))
                                     elif stroke_css and w > 1 and h > 1:
                                         # Stroke-only shape — no fill but has a
@@ -1181,6 +1210,8 @@ class IWAAssetMap:
                                             stroke_width=sw,
                                             stroke_dash=sd,
                                             bezier_path=bezier_tuple,
+
+                                            corner_radius_frac=corner_radius_frac,
                                         ))
             # === Slide backgrounds (KN.SlideStyleArchive → fill) ===
             # Every slide carries a `style: {identifier}` reference. Resolving
