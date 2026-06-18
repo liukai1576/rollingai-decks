@@ -3,7 +3,7 @@ name: keynote-to-html
 display_name: Keynote 转 HTML
 author: liukai
 kind: [创建]
-version: "0.21"
+version: "0.22"
 input:  Apple .key file (path)
 output: deck output dir (deck.json + index.html + assets/ + history.json)
 triggers:
@@ -189,9 +189,19 @@ After a run, do these by hand:
 
 ## Known limitations (v0.13)
 
-  - Rich text runs: shape/text items with mixed-style runs (e.g. one colored
-    word inside a paragraph, mixed bold) collapse to the primary font / size /
-    color. Inline run formatting is lost.
+  - Rich text runs: **SUPPORTED since v0.16** (this note used to say runs
+    collapse — that's no longer true). `extractTextRuns` in
+    extract.applescript walks the text character-by-character and emits a
+    `RUN` record whenever font / size / color changes; build.py renders each
+    run as its own inline `<span>` (per-run font / size / color / weight). So a
+    single box like "1.5亿" (96px "1.5" + 64px "亿") or "节省 90%" keeps each
+    run's styling. Residual caveat: the scan is AppleScript-driven (per-char
+    `font/size/color of character i`), which is reliable for common fonts but
+    can occasionally misread per-char style for unusual custom fonts. The
+    deterministic hardening is to read the run structure from the IWA archive
+    (TSWP CharacterStyle) the same way iwa_resolver reads images — not yet
+    wired, do it if a real deck shows wrong per-run styling. Paragraph
+    alignment is already IWA-sourced (iwa_resolver `text_aligns`).
   - Shape corner radius: AppleScript doesn't expose Keynote's corner-radius
     property cleanly. We apply a heuristic (pill if h<200 & 1.5<aspect<6;
     rounded box otherwise) — covers most cases but not bespoke radii.
