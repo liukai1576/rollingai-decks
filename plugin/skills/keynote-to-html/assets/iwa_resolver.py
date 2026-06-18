@@ -484,8 +484,13 @@ class IWAAssetMap:
 
     @classmethod
     def from_key(cls, key_path: Path) -> "IWAAssetMap":
-        """Build the map by parsing a .key bundle (single-file zip OR
-        directory bundle — both forms have an `Index/` tree of .iwa files).
+        """Build the map by parsing a .key bundle. Three on-disk forms, all
+        exposing the same `Index/<...>.iwa` entries:
+          1. single-file zip                       → read Index/* from the zip
+          2. directory bundle with unpacked Index/ → read Index/* from disk
+          3. directory bundle with nested Index.zip → read Index/* from that
+             zip (Keynote Creator Studio 15+ on iCloud stores the index
+             zipped even when the bundle itself is a directory)
         """
         try:
             from keynote_parser.codec import IWAFile
@@ -495,12 +500,23 @@ class IWAAssetMap:
                 "Install with: pip install keynote-parser"
             ) from e
 
-        # Open as either zip or directory bundle. Directory case left for
-        # forward compatibility — we exercise the zip path on Keynote 14.5+.
+        # Open as single-file zip OR directory bundle.
         if key_path.is_file() and zipfile.is_zipfile(key_path):
             opener = _ZipOpener(key_path)
         elif key_path.is_dir():
-            opener = _DirOpener(key_path)
+            # Directory bundle: prefer an unpacked Index/ tree; otherwise fall
+            # back to a nested Index.zip. The zip's entries already carry the
+            # `Index/` prefix, so _ZipOpener serves them under the exact names
+            # the rest of from_key reads — no path translation needed.
+            index_zip = key_path / "Index.zip"
+            if (key_path / "Index").is_dir():
+                opener = _DirOpener(key_path)
+            elif index_zip.is_file() and zipfile.is_zipfile(index_zip):
+                opener = _ZipOpener(index_zip)
+            else:
+                raise RuntimeError(
+                    f"directory bundle has neither Index/ nor Index.zip: {key_path}"
+                )
         else:
             raise RuntimeError(f"not a .key file or bundle: {key_path}")
 
