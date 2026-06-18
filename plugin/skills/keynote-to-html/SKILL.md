@@ -3,7 +3,7 @@ name: keynote-to-html
 display_name: Keynote 转 HTML
 author: liukai
 kind: [创建]
-version: "0.22"
+version: "0.23"
 input:  Apple .key file (path)
 output: deck output dir (deck.json + index.html + assets/ + history.json)
 triggers:

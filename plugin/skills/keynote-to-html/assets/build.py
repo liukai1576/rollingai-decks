@@ -2901,6 +2901,13 @@ def main() -> int:
         sys.executable, str(render_script),
         str(deck_path), str(args.output_dir),
         "--skip-validate-html", "--skip-texts", "--skip-copy-assets",
+        # build.py already composed the final, correct title text INTO the raw
+        # HTML. Letting render-deck.py re-sync slides[].title back over the
+        # data-role="title" element is at best a no-op and at worst destructive:
+        # pick_title can mark a multi-paragraph block as the title and truncate
+        # slides[].title to its first line, so the sync would replace the whole
+        # block's body with that one line (nuked 10/73 slides on the 海正 deck).
+        "--skip-raw-title-sync",
         # We re-localize the HTML's renderer refs ourselves below — the
         # renderer's own copy-assets.py is feishu-deck-h5-specific (hardcoded
         # `skills/feishu-deck-h5/` regex + requires `runs/<ts>/output/`

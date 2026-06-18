@@ -1290,6 +1290,17 @@ def _sync_raw_title(html_str: str, title: str) -> str:
     return _TITLE_ROLE_RE.sub(repl, html_str, count=1)
 
 
+# Set by main() from --skip-raw-title-sync. When True, _enrich_raw does NOT
+# rewrite the data-role="title" element from slides[].title. keynote-to-html
+# sets this: build.py already composed the final, correct title text into the
+# raw HTML, and slides[].title can be a truncated first-line of a mis-tagged
+# multi-paragraph element — syncing it would replace the whole element's body
+# with that short title and destroy the rest (saw this nuke 10/73 slides on
+# the 海正 import). Other callers (admin title edits, rolling-deck) leave this
+# False so genuine title edits still propagate.
+_SKIP_RAW_TITLE_SYNC = False
+
+
 def _enrich_raw(ctx, slide):
     # Verbatim html — template uses {{{ html }}}, no processing.
     # `_orig_layout` lets a raw slide claim a layout name so the framework
@@ -1301,7 +1312,7 @@ def _enrich_raw(ctx, slide):
     # v2: sync slides[].title into the data-role="title" element so any
     # skill that edits only the title field gets it through to render.
     title = slide.get("title") or ""
-    if title and "html" in ctx:
+    if title and "html" in ctx and not _SKIP_RAW_TITLE_SYNC:
         ctx["html"] = _sync_raw_title(ctx["html"], title)
 
 
@@ -1395,6 +1406,12 @@ def main(argv=None) -> int:
                     help="skip post-render HTML validator (NOT recommended)")
     ap.add_argument("--skip-texts", action="store_true",
                     help="skip texts.md sidecar generation (NOT recommended)")
+    ap.add_argument("--skip-raw-title-sync", action="store_true",
+                    help="don't rewrite raw slides' data-role=\"title\" element "
+                         "from slides[].title. Use when the raw HTML already "
+                         "carries the final title text (keynote-to-html) — "
+                         "prevents a truncated title from nuking a mis-tagged "
+                         "multi-paragraph element's body.")
     ap.add_argument("--skip-copy-assets", action="store_true",
                     help="skip copy-assets step — output will reference skill-relative paths "
                          "(works only while output sits in <repo>/runs/<ts>/output/)")
@@ -1408,6 +1425,9 @@ def main(argv=None) -> int:
                          "R-VIS-OVERLAP / R-VIS-TIER / R-VIS-LABEL-FLOOR). Adds ~5-10s. "
                          "Requires `pip install playwright && python -m playwright install chromium`.")
     args = ap.parse_args(argv)
+
+    global _SKIP_RAW_TITLE_SYNC
+    _SKIP_RAW_TITLE_SYNC = args.skip_raw_title_sync
 
     if args.inline and not args.skip_copy_assets:
         # --inline supersedes copy-assets
