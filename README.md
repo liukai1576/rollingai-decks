@@ -168,24 +168,32 @@ deck 在磁盘上的约定位置：`imports/<deck-id>/render-output-full/`，目
 
 ---
 
-## 6. 架构枢纽：`deck.json`
+## 6. deck.json 扮演什么（两条相反的流向）
+
+`deck.json` 是各部分之间的**交换格式**，但它**不是统一的"单一可信源"**——
+谁是"源"取决于走哪条路，两类流程的流向正好相反。
+
+**结构化 / 导入路**（feishu-deck-h5、Keynote 导入）——deck.json 在**上游**，渲染成 HTML：
 
 ```
-                    ┌────────────────────────────┐
-                    │   feishu-deck-h5 / 渲染器  │  ← 渲染 + 设计系统
-                    │   deck.json → index.html   │
-                    └─────────────▲──────────────┘
-                                  │ deck.json
-        ┌──────────────┬──────────┼──────────┬──────────────┐
-        │              │          │          │              │
-  keynote-to-html  slide-design  deck-     slide-       deck-ingest
-  .key → deck.json  新 slide      splice    redesign     → slides.db
-                                 旧页搬运    改单页        → 缩略图
+keynote-to-html / slide-design ──写──▶ deck.json ──render-deck.py──▶ index.html
+   (.key / 大纲 → 结构化字段)           (源)                           (成品)
 ```
 
-| 原则 | 意思 |
+**rolling-deck 路**（默认对客流程，rolling-deck / v2）——index.html 是**源**，deck.json 是**派生**：
+
+```
+手填 template.html ─▶ index.html ─build-deckjson.py─▶ deck.json ─ingest─▶ slides.db
+   (源)               (成品)        (派生的检索/拼接索引)
+```
+
+rolling-deck 的 deck.json 只是把成品 HTML 切片塞进 JSON 壳（每页 `layout:"raw"`、
+`data.html` = 整段 markup），**给入库 / 检索 / 拼接用，不拿来渲染**。
+
+| 实际原则 | 意思 |
 |---|---|
-| **单一可信源 = `deck.json`** | 所有 skill 读 / 写它；渲染器是最终消费者 |
+| **deck.json 是交换格式，不是唯一源** | 导入路它在上游（→ HTML）；rolling-deck 路它在下游（HTML →，只当库索引） |
+| **渲染器按 pack 分发，两套互不通用** | `_player/render.py` 读 `layout_pack` → 调对应 pack 的 `render_entry`。feishu 是结构化渲染（字段→fragment），rolling-deck 是 raw 套壳（HTML→壳），各认各的 deck.json 方言 |
 | **运行时零耦合** | 每个 skill 自带 assets，只通过磁盘上的 `deck.json` 通信，可独立 CLI 运行 |
 | **AI 辅助 + 人工拍板** | 导入后 Claude 提建议，UI 上人工确认；不做端到端全自动 |
 | **小故事 = 4-5 页** | 复用粒度是叙事单位，不是单张版面 |
