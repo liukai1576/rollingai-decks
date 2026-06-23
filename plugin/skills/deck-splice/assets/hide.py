@@ -60,6 +60,7 @@ DB_PATH = REPO_ROOT / "library" / "db" / "data" / "slides.db"
 
 sys.path.insert(0, str(ASSETS_DIR))
 import insert  # noqa: E402  (reuse find_sections / renumber / build_deckjson)
+import feishu_ops  # noqa: E402  (div-based path for feishu-deck-h5 / keynote)
 
 HIDE_CSS = (".slide-hidden{display:none !important}"
             "  /* hide-slide: hidden pages, see deck-splice/hide.py */")
@@ -137,19 +138,6 @@ def _inject_hide_css(html: str) -> str:
     return html[:idx] + "\n  " + HIDE_CSS + "\n  " + html[idx:]
 
 
-def _prune_rows(deck_id: str, keys: list[str]) -> None:
-    """DELETE the now-hidden slides from the active list (ingest only upserts).
-    The thumbnail FILE is kept so unhide can reuse it. FTS trigger +
-    slide_assets cascade follow the row delete."""
-    conn = sqlite3.connect(DB_PATH)
-    conn.execute("PRAGMA foreign_keys = ON")
-    for key in keys:
-        conn.execute("DELETE FROM slides WHERE id = ?", (f"{deck_id}/{key}",))
-    conn.commit()
-    conn.close()
-    log(f"db: hid {len(keys)} row(s) from the active list")
-
-
 def main() -> int:
     ap = argparse.ArgumentParser(prog="deck-splice/hide")
     ap.add_argument("--spec", required=True, help="spec JSON path, or '-' for stdin")
@@ -173,10 +161,20 @@ def main() -> int:
     if not index_path.is_file():
         sys.exit(f"target deck not found: {index_path}")
     html = index_path.read_text(encoding="utf-8")
-    if '<main class="deck" id="deck">' not in html:
-        sys.exit("target is not a rolling-deck deck; hide only supports rolling-deck")
+    is_rolling = '<main class="deck" id="deck">' in html
+    is_feishu = feishu_ops.is_feishu_deck(html)
+    if not (is_rolling or is_feishu):
+        sys.exit("target is neither a rolling-deck nor a feishu-deck-h5 deck; "
+                 "hide unsupported for this pack")
 
-    sections = find_all_sections(html)  # includes hidden, so unhide finds them
+    # Unified [{key, start, end}] over the element we flip — <section> for
+    # rolling, <div class="slide-frame"> for feishu. Both finders include
+    # already-hidden items so unhide can locate them.
+    if is_rolling:
+        sections = find_all_sections(html)
+    else:
+        sections = [{"key": f["key"], "start": f["frame_start"],
+                     "end": f["frame_end"]} for f in feishu_ops.find_frames(html)]
     by_key = {s["key"]: s for s in sections}
     missing = [k for k in want if k not in by_key]
     if missing:
@@ -209,26 +207,36 @@ def main() -> int:
     log(f"snapshot: {backup.name}")
 
     # 2. flip open tags, back-to-front so offsets stay valid
-    flip = _flip_to_hidden if action == "hide" else _flip_to_visible
+    if is_rolling:
+        flip = _flip_to_hidden if action == "hide" else _flip_to_visible
+    else:
+        flip = lambda tag: feishu_ops.flip_frame_open_tag(
+            tag, hide=(action == "hide"))
     for k in sorted(actionable, key=lambda k: by_key[k]["start"], reverse=True):
         s, e, tag = _open_tag(html, by_key[k])
         html = html[:s] + flip(tag) + html[e:]
 
     if action == "hide":
-        html = _inject_hide_css(html)
-    html = insert.renumber_screen_labels(html)
+        html = _inject_hide_css(html) if is_rolling else feishu_ops.inject_hide_css(html)
+    html = (insert.renumber_screen_labels(html) if is_rolling
+            else feishu_ops.renumber_labels(html))
     index_path.write_text(html, encoding="utf-8")
-    log(f"sections flipped to {'hidden' if action == 'hide' else 'visible'} · "
+    log(f"slides flipped to {'hidden' if action == 'hide' else 'visible'} · "
         f"labels renumbered")
 
-    # 3. rebuild deck.json (hidden sections fall out via build-deckjson's
-    #    standalone-`slide`-token rule)
-    deck = insert.build_deckjson.build(index_path)
+    # 3. rebuild deck.json — hidden slides STAY in it, flagged hidden:true, so
+    #    they remain in the deck + the admin list (just display:none in the
+    #    presentation).
+    deck = (insert.build_deckjson.build(index_path) if is_rolling
+            else feishu_ops.build_deckjson(index_path))
     (target_dir / "deck.json").write_text(
         json.dumps(deck, ensure_ascii=False, indent=2), encoding="utf-8")
-    log(f"deck.json rebuilt: {len(deck['slides'])} visible slides")
+    n_hidden = sum(1 for s in deck["slides"] if s.get("hidden"))
+    log(f"deck.json rebuilt: {len(deck['slides'])} slides ({n_hidden} hidden)")
 
-    # 4. re-ingest
+    # 4. re-ingest — sets each row's hidden flag from deck.json. No pruning:
+    #    hidden pages stay in the DB (and thus the admin list), thumbnails
+    #    intact (we never deleted them).
     rc = subprocess.run(
         [sys.executable, str(REPO_ROOT / "library" / "db" / "ingest_deck.py"),
          deck_id, str(target_dir / "deck.json")]).returncode
@@ -237,20 +245,13 @@ def main() -> int:
         shutil.copy2(backup, index_path)
         return 1
 
-    # 5. settle DB / thumbnails
-    if action == "hide":
-        _prune_rows(deck_id, actionable)   # drop hidden pages from active list
-    else:
-        # restored pages need their thumbnails back (gen skips existing files)
-        subprocess.run(
-            [sys.executable, str(REPO_ROOT / "library" / "db" / "gen_thumbnails.py"),
-             "--deck", deck_id])
-
-    # 6. verify
-    rc = subprocess.run(["bash", str(ASSETS_DIR / "verify.sh"), str(target_dir)]).returncode
-    if rc != 0:
-        log("WARNING: verify.sh reported problems — inspect the deck")
-        return 1
+    # 6. verify (rolling-only — verify.sh checks <section class="slide"> + splice
+    #    markers, which don't exist in feishu's div structure)
+    if is_rolling:
+        rc = subprocess.run(["bash", str(ASSETS_DIR / "verify.sh"), str(target_dir)]).returncode
+        if rc != 0:
+            log("WARNING: verify.sh reported problems — inspect the deck")
+            return 1
 
     log(f"done: {action} {len(actionable)} slide(s) in {deck_id}")
     return 0

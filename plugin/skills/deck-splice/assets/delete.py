@@ -50,6 +50,7 @@ DB_PATH = REPO_ROOT / "library" / "db" / "data" / "slides.db"
 # runs function/constant defs, not main().
 sys.path.insert(0, str(ASSETS_DIR))
 import insert  # noqa: E402
+import feishu_ops  # noqa: E402  (div-based path for feishu-deck-h5 / keynote)
 
 
 def log(msg: str) -> None:
@@ -119,29 +120,39 @@ def main() -> int:
 
     html = index_path.read_text(encoding="utf-8")
 
-    # Guard: rolling-deck hosts only. The feishu-deck-h5 pack renders
-    # index.html from deck.json, so editing its HTML would be overwritten.
-    if '<main class="deck" id="deck">' not in html:
-        sys.exit("target is not a rolling-deck deck (no <main class=\"deck\">); "
-                 "delete only supports rolling-deck decks")
+    # Two supported pack shapes:
+    #   · rolling-deck  → <section class="slide …"> inside <main class="deck">
+    #   · feishu-deck-h5 (keynote products) → <div class="slide-frame"> wrappers
+    # Both edit index.html directly + rebuild deck.json; nothing re-renders the
+    # HTML from deck.json, so the edits stick.
+    is_rolling = '<main class="deck" id="deck">' in html
+    is_feishu = feishu_ops.is_feishu_deck(html)
+    if not (is_rolling or is_feishu):
+        sys.exit("target is neither a rolling-deck nor a feishu-deck-h5 deck — "
+                 "delete unsupported for this pack")
 
-    sections = insert.find_sections(html)
-    if not sections:
+    if is_rolling:
+        units = insert.find_sections(html)        # [{key, start, end, …}]
+    else:
+        units = [{"key": f["key"], "start": f["frame_start"],
+                  "end": f["frame_end"]} for f in feishu_ops.find_frames(html)]
+    if not units:
         sys.exit("target has no slide sections")
-    by_key = {s["key"]: s for s in sections}
+    by_key = {u["key"]: u for u in units}
 
     missing = [k for k in want if k not in by_key]
     if missing:
         sys.exit(f"slide_keys not found in deck: {', '.join(missing)}")
-    # Refuse deleting the cover (first DOM section) — a rolling-deck must open
-    # on its cover-hero.
-    if sections[0]["key"] in want:
+    # Refuse deleting the cover (first DOM slide) — a deck must open on its
+    # cover-hero.
+    if units[0]["key"] in want:
         sys.exit(f"refusing to delete the cover page (first slide "
-                 f"'{sections[0]['key']}')")
-    if len(want) >= len(sections):
+                 f"'{units[0]['key']}')")
+    if len(want) >= len(units):
         sys.exit("refusing to delete every slide in the deck")
 
-    log(f"target: {target_deck_id} ({len(sections)} pages) · "
+    log(f"target: {target_deck_id} ({len(units)} pages, "
+        f"{'feishu' if is_feishu else 'rolling'}) · "
         f"deleting {len(want)} slide(s): {', '.join(want)}")
 
     # 1. snapshot
@@ -164,12 +175,14 @@ def main() -> int:
         html = html[:cut_start] + html[s["end"]:]
 
     # 3. renumber screen labels on what remains
-    html = insert.renumber_screen_labels(html)
+    html = (insert.renumber_screen_labels(html) if is_rolling
+            else feishu_ops.renumber_labels(html))
     index_path.write_text(html, encoding="utf-8")
-    log("sections removed · screen labels renumbered")
+    log("slides removed · screen labels renumbered")
 
     # 4. rebuild deck.json
-    deck = insert.build_deckjson.build(index_path)
+    deck = (insert.build_deckjson.build(index_path) if is_rolling
+            else feishu_ops.build_deckjson(index_path))
     deck_json_path = target_dir / "deck.json"
     deck_json_path.write_text(json.dumps(deck, ensure_ascii=False, indent=2),
                               encoding="utf-8")
@@ -189,13 +202,15 @@ def main() -> int:
     # 6. prune the removed rows + their thumbnails (ingest never deletes)
     _remove_rows_and_thumbs(target_deck_id, want)
 
-    # 7. verify
-    rc = subprocess.run(
-        ["bash", str(ASSETS_DIR / "verify.sh"), str(target_dir)],
-    ).returncode
-    if rc != 0:
-        log("WARNING: verify.sh reported problems — inspect the deck")
-        return 1
+    # 7. verify (verify.sh's checks key off rolling's <section class="slide">
+    #    + splice markers — not applicable to feishu's div structure)
+    if is_rolling:
+        rc = subprocess.run(
+            ["bash", str(ASSETS_DIR / "verify.sh"), str(target_dir)],
+        ).returncode
+        if rc != 0:
+            log("WARNING: verify.sh reported problems — inspect the deck")
+            return 1
 
     log(f"done: removed {len(want)} slide(s) from {target_deck_id}")
     return 0

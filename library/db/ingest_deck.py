@@ -218,6 +218,12 @@ def open_db() -> sqlite3.Connection:
     conn = sqlite3.connect(DB_PATH)
     conn.execute("PRAGMA foreign_keys = ON")
     conn.executescript(SCHEMA.read_text(encoding="utf-8"))
+    # Idempotent migration: CREATE TABLE IF NOT EXISTS can't add a column to an
+    # already-existing table.
+    have = {r[1] for r in conn.execute("PRAGMA table_info(slides)").fetchall()}
+    if "hidden" not in have:
+        conn.execute("ALTER TABLE slides ADD COLUMN hidden INTEGER NOT NULL DEFAULT 0")
+        conn.commit()
     return conn
 
 
@@ -237,12 +243,14 @@ def upsert_slide(conn: sqlite3.Connection, row: dict, *, retag: bool = False) ->
     cols = ["id", "deck_id", "slide_key", "page_no", "title", "title_source",
             "thumbnail_path", "body_text",
             "type_tag", "subtype_tag", "customer_tag", "media_tag",
-            "free_tags", "notes",
+            "free_tags", "hidden", "notes",
             "created_at", "updated_at"]
     placeholders = ", ".join(["?"] * len(cols))
 
+    # hidden always refreshes: deck.json (rebuilt from index.html) is the
+    # source of truth for hidden state.
     ALWAYS_REFRESH = {"deck_id", "slide_key", "page_no", "title",
-                      "title_source", "body_text", "updated_at"}
+                      "title_source", "body_text", "hidden", "updated_at"}
     PRESERVE_UNLESS_RETAG = {"type_tag", "subtype_tag", "customer_tag",
                              "media_tag", "free_tags"}
     # nullable payload: only overwrite when the new value is non-null
@@ -334,6 +342,9 @@ def main():
             "customer_tag": cust,
             "media_tag": media,
             "free_tags": "[]",
+            # v2: slides[].hidden marks pages that are display:none in the
+            # presentation but still listed here. v1: always visible.
+            "hidden": 1 if (is_v2 and s.get("hidden")) else 0,
             # v2: pull notes from slides[].notes (transformer skills may have
             # added editorial context). v1: stays NULL.
             "notes": (s.get("notes") or None) if is_v2 else None,

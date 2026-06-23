@@ -54,6 +54,7 @@ DB_PATH = REPO_ROOT / "library" / "db" / "data" / "slides.db"
 
 sys.path.insert(0, str(ASSETS_DIR))
 import splice  # noqa: E402  (same skill: splice.py)
+import feishu_ops  # noqa: E402  (div-based host: feishu-deck-h5 / keynote)
 
 
 def _load_module(path: Path, name: str):
@@ -185,6 +186,38 @@ def copy_tags_to_new_rows(target_deck_id: str, mapping: list[tuple[str, dict]]) 
     conn.close()
 
 
+def copy_source_thumbnails(target_deck_id: str, target_dir: Path,
+                           mapping: list[tuple[str, dict]]) -> None:
+    """Copy each source slide's existing thumbnail to the spliced slide's
+    thumbnail slot + set thumbnail_path. Splice copies the slide verbatim, so
+    the source thumbnail is already correct — copying it is faster and more
+    reliable than re-screenshotting the new page (which needs a live server)."""
+    sys.path.insert(0, str(REPO_ROOT / "library" / "db"))
+    from deck_mounts import discover_mounts
+    mounts = discover_mounts(REPO_ROOT)
+    tgt_thumbs = target_dir / ".thumbs"
+    tgt_thumbs.mkdir(exist_ok=True)
+    conn = sqlite3.connect(DB_PATH)
+    now = time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime())
+    copied = 0
+    for outer_key, meta in mapping:
+        src_dir = mounts.get(meta["source_deck_id"])
+        if not src_dir:
+            continue
+        src_thumb = src_dir / ".thumbs" / f"{meta['source_slide_key']}.jpg"
+        if not src_thumb.is_file():
+            continue
+        shutil.copy2(src_thumb, tgt_thumbs / f"{outer_key}.jpg")
+        conn.execute(
+            "UPDATE slides SET thumbnail_path=?, updated_at=? WHERE id=?",
+            (f"decks/{target_deck_id}/.thumbs/{outer_key}.jpg", now,
+             f"{target_deck_id}/{outer_key}"))
+        copied += 1
+    conn.commit()
+    conn.close()
+    log(f"thumbnails copied from source: {copied}/{len(mapping)}")
+
+
 # ── main ──────────────────────────────────────────────────────────────────
 
 def main() -> int:
@@ -215,19 +248,29 @@ def main() -> int:
 
     html = index_path.read_text(encoding="utf-8")
 
-    # Guard: rolling-deck hosts only (v1). The feishu-deck-h5 pack renders
-    # index.html from deck.json — mutating its HTML would be overwritten.
-    if '<main class="deck" id="deck">' not in html:
-        sys.exit("target is not a rolling-deck deck (no <main class=\"deck\">); "
-                 "v1 only supports rolling-deck targets")
+    # Two supported host packs (the spliced .src-slide is self-contained —
+    # own 1920×1080 canvas + class-isolated CSS — so it renders the same in
+    # either; only the placeholder WRAPPER differs):
+    #   · rolling-deck     → <section class="slide is-splice">
+    #   · feishu-deck-h5   → <div class="slide-frame"><div class="slide is-splice">
+    is_rolling = '<main class="deck" id="deck">' in html
+    is_feishu = feishu_ops.is_feishu_deck(html)
+    if not (is_rolling or is_feishu):
+        sys.exit("target is neither a rolling-deck nor a feishu-deck-h5 deck — "
+                 "insert unsupported for this pack")
 
-    sections = find_sections(html)
-    if not sections:
+    if is_rolling:
+        units = find_sections(html)               # [{key, start, end, …}]
+    else:
+        units = [{"key": f["key"], "start": f["frame_start"],
+                  "end": f["frame_end"]} for f in feishu_ops.find_frames(html)]
+    if not units:
         sys.exit("target has no slide sections")
-    if not (0 <= after_page <= len(sections)):
-        sys.exit(f"after_page {after_page} out of range (deck has {len(sections)} pages)")
+    if not (0 <= after_page <= len(units)):
+        sys.exit(f"after_page {after_page} out of range (deck has {len(units)} pages)")
 
-    log(f"target: {target_deck_id} ({len(sections)} pages) · insert after page {after_page} "
+    log(f"target: {target_deck_id} ({len(units)} pages, "
+        f"{'feishu' if is_feishu else 'rolling'}) · insert after page {after_page} "
         f"· {len(items)} slide(s)")
 
     # 1. snapshot
@@ -236,9 +279,10 @@ def main() -> int:
     shutil.copy2(index_path, backup)
     log(f"snapshot: {backup.name}")
 
-    # 2. build placeholders
+    # 2. build placeholders (per-host wrapper; both carry the is-splice marker
+    #    + outer key/label so splice.py + renumber + build_deckjson find them)
     metas = fetch_source_meta(items)
-    taken = {s["key"] for s in sections}
+    taken = {u["key"] for u in units}
     placeholders = []
     mapping: list[tuple[str, dict]] = []
     for pos, meta in enumerate(metas, start=1):
@@ -246,14 +290,23 @@ def main() -> int:
         taken.add(outer_key)
         label_title = (meta["title"] or meta["source_slide_key"])[:40]
         page_guess = after_page + pos
-        placeholders.append(
-            f'      <section class="slide is-splice" data-slide-key="{outer_key}" '
-            f'data-screen-label="{page_guess:02d} {label_title}"></section>\n'
-        )
+        if is_rolling:
+            placeholders.append(
+                f'      <section class="slide is-splice" data-slide-key="{outer_key}" '
+                f'data-screen-label="{page_guess:02d} {label_title}"></section>\n'
+            )
+        else:
+            placeholders.append(
+                f'    <div class="slide-frame">\n'
+                f'      <div class="slide is-splice" data-layout="raw" '
+                f'data-screen-label="{page_guess:02d} {label_title}" '
+                f'data-slide-key="{outer_key}"></div>\n'
+                f'    </div>\n'
+            )
         mapping.append((outer_key, meta))
 
-    insert_at = (sections[after_page - 1]["end"] if after_page > 0
-                 else sections[0]["start"])
+    insert_at = (units[after_page - 1]["end"] if after_page > 0
+                 else units[0]["start"])
     block = "\n" + "".join(placeholders)
     html = html[:insert_at] + block + html[insert_at:]
     index_path.write_text(html, encoding="utf-8")
@@ -285,7 +338,7 @@ def main() -> int:
         return e
 
     manifest = {
-        "host_pack": "rolling-deck",
+        "host_pack": "rolling-deck" if is_rolling else "feishu-deck-h5",
         "splices": [_splice_entry(k, m) for k, m in mapping],
     }
     manifest_path = target_dir / f".insert-manifest-{ts}.json"
@@ -303,12 +356,14 @@ def main() -> int:
 
     # 4. renumber screen labels
     html = index_path.read_text(encoding="utf-8")
-    html = renumber_screen_labels(html)
+    html = (renumber_screen_labels(html) if is_rolling
+            else feishu_ops.renumber_labels(html))
     index_path.write_text(html, encoding="utf-8")
     log("screen labels renumbered")
 
     # 5. rebuild deck.json
-    deck = build_deckjson.build(index_path)
+    deck = (build_deckjson.build(index_path) if is_rolling
+            else feishu_ops.build_deckjson(index_path))
     deck_json_path = target_dir / "deck.json"
     deck_json_path.write_text(json.dumps(deck, ensure_ascii=False, indent=2),
                               encoding="utf-8")
@@ -327,7 +382,12 @@ def main() -> int:
     copy_tags_to_new_rows(target_deck_id, mapping)
     log("source tags copied to new slides")
 
-    # 8. thumbnails for new slides (gen_thumbnails skips existing files)
+    # 7b. copy the source slides' thumbnails onto the new rows (verbatim splice
+    #     → source thumbnail is already correct; no re-screenshot needed)
+    copy_source_thumbnails(target_deck_id, target_dir, mapping)
+
+    # 8. fallback for any spliced slide whose source had no thumbnail —
+    #    gen_thumbnails skips the ones we just copied (their files exist).
     rc = subprocess.run(
         [sys.executable, str(REPO_ROOT / "library" / "db" / "gen_thumbnails.py"),
          "--deck", target_deck_id],
@@ -336,13 +396,15 @@ def main() -> int:
         log("WARNING: thumbnail generation failed (deck content is fine; "
             "re-run gen_thumbnails.py manually)")
 
-    # 9. verify
-    rc = subprocess.run(
-        ["bash", str(ASSETS_DIR / "verify.sh"), str(target_dir)],
-    ).returncode
-    if rc != 0:
-        log("WARNING: verify.sh reported problems — inspect the deck")
-        return 1
+    # 9. verify (verify.sh's checks key off rolling's <section class="slide">
+    #    + splice markers — not applicable to feishu's div structure)
+    if is_rolling:
+        rc = subprocess.run(
+            ["bash", str(ASSETS_DIR / "verify.sh"), str(target_dir)],
+        ).returncode
+        if rc != 0:
+            log("WARNING: verify.sh reported problems — inspect the deck")
+            return 1
 
     log(f"done: {len(mapping)} slide(s) inserted into {target_deck_id} "
         f"after page {after_page}")

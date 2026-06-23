@@ -267,26 +267,22 @@ def warn_collisions(div: Tag, source_deck_id: str, source_slide_key: str) -> Non
 
 def fill_placeholder(target_html: str, outer_key: str, inlined_markup: str,
                      native: bool = False) -> tuple[str, bool]:
-    """Find <section class="slide is-splice" data-slide-key="<outer_key>"…></section>
-    in target_html and replace its inner contents with inlined_markup. Returns
-    (new_html, was_filled). native=True marks the section is-splice-native
+    """Find the empty is-splice placeholder carrying data-slide-key=<outer_key>
+    and replace its inner contents with inlined_markup. The placeholder is a
+    <section> (rolling-deck host) or a <div class="slide is-splice"> nested in a
+    .slide-frame (feishu-deck-h5 host) — both are matched, attrs in any order.
+    Returns (new_html, was_filled). native=True marks it is-splice-native
     instead (same-pack copy: keep normal slide padding/behaviour)."""
-    pat = re.compile(
-        r'(<section\b[^>]*class="[^"]*\bis-splice\b[^"]*"[^>]*'
-        rf'data-slide-key="{re.escape(outer_key)}"[^>]*>)'
-        r'(.*?)'
-        r'(</section>)',
-        re.DOTALL
-    )
-    m = pat.search(target_html)
-    if not m:
-        # Also accept the section with attributes in a different order.
+    m = None
+    for tag in ("section", "div"):
         pat = re.compile(
-            rf'(<section\b[^>]*data-slide-key="{re.escape(outer_key)}"[^>]*'
-            r'class="[^"]*\bis-splice\b[^"]*"[^>]*>)(.*?)(</section>)',
-            re.DOTALL
-        )
+            rf'(<{tag}\b(?=[^>]*\bis-splice\b)'
+            rf'(?=[^>]*data-slide-key="{re.escape(outer_key)}")[^>]*>)'
+            rf'(.*?)(</{tag}>)',
+            re.DOTALL)
         m = pat.search(target_html)
+        if m:
+            break
     if not m:
         return target_html, False
     open_tag = m.group(1)
@@ -447,6 +443,12 @@ def main() -> int:
     target_html = target_html_path.read_text(encoding="utf-8")
 
     manifest = load_manifest(args.manifest)
+    # The feishu-deck-h5 host ships its OWN lazy-video runtime (plays
+    # video.lazy-video[data-src] on the current slide). Materializing
+    # (data-src → src) would hide the video from that player, so on a feishu
+    # host we KEEP the lazy-video as-is (path already rewritten to _borrowed).
+    # Rolling hosts have no such player, so we still materialize there.
+    is_feishu_host = manifest.get("host_pack") == "feishu-deck-h5"
     filled = []
     missing_placeholder = []
     needs_slide_anim = False
@@ -466,7 +468,8 @@ def main() -> int:
             continue
 
         rewrite_asset_paths(div, src_deck_id, target_dir)
-        materialize_lazy_media(div)
+        if not is_feishu_host:
+            materialize_lazy_media(div)
         # Optional per-splice sound OVERRIDE (manifest "sound": true/false —
         # insert.py sets it from the source slide's 有声视频 / 静音视频
         # free_tags). Absent → markup-derived default from

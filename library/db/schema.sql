@@ -32,6 +32,11 @@ CREATE TABLE IF NOT EXISTS slides (
   -- Free-form tags as JSON array (e.g. ["金句页","内部使用"])
   free_tags       TEXT DEFAULT '[]',
 
+  -- 1 = page is hidden (still in the deck + this list, but display:none in the
+  -- presentation HTML). 0 = visible. Hidden pages stay inline here, just
+  -- flagged — there is no separate "hidden pages" list.
+  hidden          INTEGER NOT NULL DEFAULT 0,
+
   notes           TEXT,
   created_at      TEXT NOT NULL,
   updated_at      TEXT NOT NULL,

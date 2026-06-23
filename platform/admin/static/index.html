@@ -121,8 +121,33 @@
     position: sticky; top: 0; background: var(--bg); z-index: 1;
   }
   .slide-table tr:hover { background: var(--panel); cursor: pointer; }
+  /* Per-row hide/delete actions — revealed on row hover to avoid mis-clicks. */
+  .ops-head { width: 72px; }
+  .ops-cell { width: 72px; padding: 4px 8px; }
+  .row-actions { display: flex; gap: 4px; opacity: 0; transition: opacity .12s; }
+  .slide-table tr:hover .row-actions { opacity: 1; }
+  .row-act {
+    display: inline-flex; align-items: center; justify-content: center;
+    width: 28px; height: 28px; padding: 0; border-radius: 7px; cursor: pointer;
+    background: transparent; border: 1px solid transparent; color: var(--text-dim);
+  }
+  .row-act:hover { border-color: #5a521f; color: #ffd479; background: #2b2a1a; }
+  .row-act.del:hover { border-color: #5a2733; color: #ff9aa8; background: #3a1f25; }
+  .row-act.unhide:hover { border-color: #2b6d4a; color: #7fe0a4; background: #16291f; }
+  /* Hidden pages: dimmed, flagged, but always visible in the list. */
+  .slide-table tr.row-hidden > td:not(.ops-cell) { opacity: .45; }
+  .slide-table tr.row-hidden .row-actions { opacity: 1; }  /* keep unhide reachable */
+  .hidden-badge {
+    display: inline-block; margin-left: 6px; padding: 1px 6px; border-radius: 6px;
+    font-size: 10px; line-height: 1.5; vertical-align: middle;
+    background: #2b2a1a; border: 1px solid #5a521f; color: #ffd479;
+  }
   .slide-table .page-no { color: var(--text-faint); font-variant-numeric: tabular-nums; width: 50px; }
   .slide-table .title-cell { max-width: 380px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .slide-table .title-cell .deck-attr {
+    display: block; font-size: 11px; color: var(--text-faint);
+    overflow: hidden; text-overflow: ellipsis; white-space: nowrap; margin-top: 2px;
+  }
   .slide-table .thumb-cell { width: 96px; padding: 6px 8px; }
   .slide-table .thumb-cell img {
     width: 96px; aspect-ratio: 16/9; object-fit: cover;
@@ -644,29 +669,6 @@
                   <button class="stale-fix" @click="reingestDeck(d.deck_id)">重新入库</button>
                 </div>
               </template>
-              <template x-if="d.is_rolling_target">
-                <div class="hidden-row" @click.stop style="margin-top:8px;">
-                  <button class="stale-fix" @click="toggleHidden(d.deck_id)"
-                          style="border-color:#5a521f;color:#ffd479;">
-                    🙈 隐藏页<span x-show="hiddenOpen===d.deck_id"> ▲</span><span x-show="hiddenOpen!==d.deck_id"> ▼</span>
-                  </button>
-                  <template x-if="hiddenOpen===d.deck_id">
-                    <div style="margin-top:8px;font-size:12px;">
-                      <template x-if="!(hiddenByDeck[d.deck_id] || []).length">
-                        <span style="color:var(--text-faint);">（没有隐藏的页）</span>
-                      </template>
-                      <template x-for="h in (hiddenByDeck[d.deck_id] || [])" :key="h.slide_key">
-                        <div style="display:flex;justify-content:space-between;align-items:center;gap:10px;padding:4px 0;border-bottom:1px solid #23262e;">
-                          <span x-text="h.screen_label || h.slide_key"
-                                style="color:var(--text-dim);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;"></span>
-                          <button class="stale-fix" style="flex:none;border-color:#2b6d4a;color:#7fe0a4;"
-                                  @click="unhideSlide(d.deck_id, h.slide_key)">取消隐藏</button>
-                        </div>
-                      </template>
-                    </div>
-                  </template>
-                </div>
-              </template>
             </div>
           </div>
         </template>
@@ -707,17 +709,23 @@
             <th>客户</th>
             <th>媒体</th>
             <th>自由标签</th>
+            <th class="ops-head"></th>
           </tr>
         </thead>
         <tbody>
           <template x-for="s in slides" :key="s.id">
-            <tr @click="openSlide(s.id)">
+            <tr @click="openSlide(s.id)" :class="{ 'row-hidden': s.hidden }">
               <td class="check-cell" @click.stop>
                 <input type="checkbox" class="cart-check"
                        :checked="inCart(s.id)"
                        @change="toggleCart(s)">
               </td>
-              <td class="page-no" x-text="s.page_no"></td>
+              <td class="page-no">
+                <span x-text="s.page_no"></span>
+                <template x-if="s.hidden">
+                  <span class="hidden-badge" title="此页已隐藏：仍在 deck 里，但放映时不显示">隐藏</span>
+                </template>
+              </td>
               <td class="thumb-cell">
                 <template x-if="s.thumbnail_path">
                   <img :src="'/' + s.thumbnail_path" loading="lazy" alt="">
@@ -741,6 +749,11 @@
                          @keydown.escape.prevent="cancelEditTitle()"
                          @blur="commitEditTitle(s)">
                 </template>
+                <!-- Deck attribution — shown in global/search view so identical
+                     pages from different decks are distinguishable. -->
+                <template x-if="!filters.deck_id">
+                  <span class="deck-attr" x-text="s.deck_name || s.deck_id"></span>
+                </template>
               </td>
               <td><span class="chip" :class="'type-' + s.type_tag" x-text="s.type_tag || '·'"></span></td>
               <td x-text="s.subtype_tag || '·'"></td>
@@ -754,6 +767,45 @@
               <td>
                 <template x-for="ft in s.free_tags" :key="ft">
                   <span class="chip free" :class="ft" x-text="ft"></span>
+                </template>
+              </td>
+              <td class="ops-cell" @click.stop>
+                <template x-if="canOpsSlide(s)">
+                  <div class="row-actions">
+                    <!-- visible page → hide (eye-off) -->
+                    <template x-if="!s.hidden">
+                      <button class="row-act hide" title="隐藏此页（放映时不显示，仍留在 deck 里）"
+                              @click="hideSlide(s)" aria-label="隐藏">
+                        <svg viewBox="0 0 24 24" width="16" height="16" fill="none"
+                             stroke="currentColor" stroke-width="2"
+                             stroke-linecap="round" stroke-linejoin="round">
+                          <path d="M17.94 17.94A10.07 10.07 0 0 1 12 20C5 20 1 12 1 12a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24"/>
+                          <line x1="1" y1="1" x2="23" y2="23"/>
+                        </svg>
+                      </button>
+                    </template>
+                    <!-- hidden page → unhide (eye) -->
+                    <template x-if="s.hidden">
+                      <button class="row-act unhide" title="取消隐藏（放映时重新显示）"
+                              @click="unhideSlide(s)" aria-label="取消隐藏">
+                        <svg viewBox="0 0 24 24" width="16" height="16" fill="none"
+                             stroke="currentColor" stroke-width="2"
+                             stroke-linecap="round" stroke-linejoin="round">
+                          <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/>
+                          <circle cx="12" cy="12" r="3"/>
+                        </svg>
+                      </button>
+                    </template>
+                    <button class="row-act del" title="删除此页（删前自动快照）"
+                            @click="deleteSlide(s)" aria-label="删除">
+                      <svg viewBox="0 0 24 24" width="16" height="16" fill="none"
+                           stroke="currentColor" stroke-width="2"
+                           stroke-linecap="round" stroke-linejoin="round">
+                        <polyline points="3 6 5 6 21 6"/>
+                        <path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/>
+                      </svg>
+                    </button>
+                  </div>
                 </template>
               </td>
             </tr>
@@ -965,7 +1017,7 @@
                 style="background:var(--panel-2);color:var(--text);border:1px solid var(--hairline);
                        border-radius:8px;padding:8px 12px;font-size:13px;min-width:320px;">
           <option value="" disabled>选择目标 Deck…</option>
-          <template x-for="d in rollingTargets" :key="d.deck_id">
+          <template x-for="d in opsTargets" :key="d.deck_id">
             <option :value="d.deck_id"
                     x-text="(d.display_name || d.deck_id) + ' (' + d.slide_count + ' 页)'"></option>
           </template>
@@ -1251,10 +1303,26 @@
         <div class="danger-zone" x-show="canDeleteSlide()"
              style="margin-top:28px;padding-top:16px;border-top:1px solid #2a2f3a;
                     display:flex;gap:10px;flex-wrap:wrap;align-items:center;">
-          <button @click="hideSlide()"
+          <button x-show="!detail.hidden" @click="hideSlide()"
                   style="background:#2b2a1a;border:1px solid #5a521f;color:#ffd479;
-                         padding:8px 14px;border-radius:8px;cursor:pointer;font-size:13px;">
-            🙈 隐藏此页（可恢复）
+                         padding:8px 14px;border-radius:8px;cursor:pointer;font-size:13px;
+                         display:inline-flex;align-items:center;gap:6px;">
+            <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor"
+                 stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M17.94 17.94A10.07 10.07 0 0 1 12 20C5 20 1 12 1 12a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24"/>
+              <line x1="1" y1="1" x2="23" y2="23"/>
+            </svg>
+            隐藏此页（放映时不显示）
+          </button>
+          <button x-show="detail.hidden" @click="unhideSlide(detail)"
+                  style="background:#16291f;border:1px solid #2b6d4a;color:#7fe0a4;
+                         padding:8px 14px;border-radius:8px;cursor:pointer;font-size:13px;
+                         display:inline-flex;align-items:center;gap:6px;">
+            <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor"
+                 stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/>
+            </svg>
+            取消隐藏（放映时重新显示）
           </button>
           <button @click="deleteSlide()"
                   style="background:#3a1f25;border:1px solid #5a2733;color:#ff9aa8;
@@ -1262,9 +1330,9 @@
             🗑 删除此页
           </button>
           <div style="flex-basis:100%;color:var(--text-faint);font-size:11px;margin-top:2px;line-height:1.5;">
-            <b>隐藏</b>：从放映和列表移除，但保留在 HTML，可在 Deck 卡片「🙈 隐藏页」里一键恢复。
-            <b>删除</b>：移除该段 HTML（删前自动快照 <code>.bak-*</code>，可回滚）。
-            两者都仅 rolling-deck 可用、封面页不可操作。
+            <b>隐藏</b>：放映时不显示，但仍留在 deck 与此列表中（标「隐藏」），可随时一键取消隐藏。
+            <b>删除</b>：从 DB 与 HTML 一并移除（删前自动快照 <code>.bak-*</code>，可回滚）。
+            rolling-deck 与 Keynote（feishu）deck 都可用；封面页不可操作。
           </div>
         </div>
       </div>
@@ -1307,9 +1375,8 @@ function app() {
       open: false, targetDeck: '', pages: [],
       afterPage: null, submitting: false,
     },
-    rollingTargets: [],     // decks usable as insert targets
-    hiddenOpen: null,       // deck_id whose 隐藏页 panel is expanded
-    hiddenByDeck: {},       // deck_id → [{slide_key, screen_label}]
+    rollingTargets: [],     // decks usable as insert targets (splice)
+    opsTargets: [],         // decks that support hide/delete (rolling OR feishu)
     // ---- tasks ----
     tasks: [],
     expandedTask: null,
@@ -1373,14 +1440,18 @@ function app() {
       this.view = 'tasks';
     },
 
-    canDeleteSlide() {
-      if (!this.detail || this.detail.page_no <= 1) return false;  // no cover
-      return (this.rollingTargets || []).some(
-        x => x.deck_id === this.detail.deck_id);
+    // A slide supports hide/delete when it's not the cover (page 1) and its
+    // deck is a hide/delete-capable host (rolling-deck OR feishu-deck-h5).
+    canOpsSlide(s) {
+      if (!s || s.page_no <= 1) return false;
+      return (this.opsTargets || []).some(x => x.deck_id === s.deck_id);
     },
+    canDeleteSlide() { return this.canOpsSlide(this.detail); },
 
-    async deleteSlide() {
-      const d = this.detail;
+    // Both actions work from a list row (pass `s`) or the detail drawer
+    // (pass nothing → uses this.detail).
+    async deleteSlide(s = null) {
+      const d = s || this.detail;
       if (!d) return;
       if (!confirm(`确定从 Deck「${d.deck_id}」中删除第 ${d.page_no} 页`
                    + `「${d.title || d.slide_key}」？\n\n会改动 index.html 并重新`
@@ -1394,17 +1465,17 @@ function app() {
         alert('创建删除任务失败：' + (e.detail || r.status));
         return;
       }
-      this.detail = null;
+      if (!s) this.detail = null;
       this.view = 'tasks';
       this.loadTasks();
     },
 
-    async hideSlide() {
-      const d = this.detail;
+    async hideSlide(s = null) {
+      const d = s || this.detail;
       if (!d) return;
       if (!confirm(`隐藏第 ${d.page_no} 页「${d.title || d.slide_key}」？\n\n`
                    + `它会从放映和列表移除，但保留在 HTML 里，之后可在 Deck `
-                   + `卡片的「🙈 隐藏页」处一键恢复。`)) return;
+                   + `卡片的「隐藏页」处一键恢复。`)) return;
       const r = await fetch(
         '/api/decks/' + encodeURIComponent(d.deck_id) + '/hide-slides',
         { method: 'POST', headers: { 'Content-Type': 'application/json' },
@@ -1414,34 +1485,24 @@ function app() {
         alert('创建隐藏任务失败：' + (e.detail || r.status));
         return;
       }
-      this.detail = null;
+      if (!s) this.detail = null;
       this.view = 'tasks';
       this.loadTasks();
     },
 
-    async toggleHidden(deckId) {
-      if (this.hiddenOpen === deckId) { this.hiddenOpen = null; return; }
-      this.hiddenOpen = deckId;
-      try {
-        const r = await fetch('/api/decks/' + encodeURIComponent(deckId) + '/hidden-slides');
-        const d = await r.json();
-        this.hiddenByDeck[deckId] = d.hidden || [];
-      } catch (e) { this.hiddenByDeck[deckId] = []; }
-    },
-
-    async unhideSlide(deckId, slideKey) {
+    // Unhide a hidden page from its row (it stays inline in the list, just
+    // flagged — there is no separate hidden-pages panel anymore).
+    async unhideSlide(s) {
+      if (!s) return;
       const r = await fetch(
-        '/api/decks/' + encodeURIComponent(deckId) + '/unhide-slides',
+        '/api/decks/' + encodeURIComponent(s.deck_id) + '/unhide-slides',
         { method: 'POST', headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ slide_keys: [slideKey] }) });
+          body: JSON.stringify({ slide_keys: [s.slide_key] }) });
       if (!r.ok) {
         const e = await r.json().catch(() => ({}));
         alert('创建恢复任务失败：' + (e.detail || r.status));
         return;
       }
-      // Optimistically drop it from the open panel; the task does the real work.
-      this.hiddenByDeck[deckId] = (this.hiddenByDeck[deckId] || [])
-        .filter(h => h.slide_key !== slideKey);
       this.view = 'tasks';
       this.loadTasks();
     },
@@ -1454,6 +1515,13 @@ function app() {
       const r = await fetch('/api/slides?' + params);
       const d = await r.json();
       this.slides = d.slides;
+      // Which decks support hide/delete — needed by the per-row action buttons.
+      if (!(this.opsTargets && this.opsTargets.length)) {
+        try {
+          const dd = await (await fetch('/api/decks')).json();
+          this.opsTargets = (dd.decks || []).filter(x => x.supports_slide_ops);
+        } catch (e) { /* backend still guards the endpoints */ }
+      }
     },
 
     async loadStories() {
@@ -1514,14 +1582,15 @@ function app() {
     async openSlide(id) {
       const r = await fetch('/api/slides/' + id);
       this.detail = await r.json();
-      // Lazy-load which decks are rolling-deck hosts, so the drawer can show
-      // the delete action (delete only works on rolling-deck decks).
-      if (!(this.rollingTargets && this.rollingTargets.length)) {
+      // Lazy-load which decks support hide/delete (rolling OR feishu), so the
+      // drawer can show those actions.
+      if (!(this.opsTargets && this.opsTargets.length)) {
         try {
           const dr = await fetch('/api/decks');
           const dd = await dr.json();
           this.rollingTargets = (dd.decks || []).filter(x => x.is_rolling_target);
-        } catch (e) { /* backend still guards the delete endpoint */ }
+          this.opsTargets = (dd.decks || []).filter(x => x.supports_slide_ops);
+        } catch (e) { /* backend still guards the endpoints */ }
       }
       this.editBuf = {
         title: this.detail.title,
@@ -1652,12 +1721,14 @@ function app() {
 
     // ---- Insert modal ----
     async openInsertModal() {
-      // Refresh target list: only mounted rolling-deck hosts qualify.
+      // Refresh target list: any HTML-surgery host (rolling-deck OR feishu /
+      // Keynote) can receive spliced slides — the .src-slide is self-contained.
       const r = await fetch('/api/decks');
       const d = await r.json();
       this.rollingTargets = (d.decks || []).filter(x => x.is_rolling_target);
-      if (!this.rollingTargets.length) {
-        alert('没有可用的目标 Deck（需要 rolling-deck 壳且已挂载）');
+      this.opsTargets = (d.decks || []).filter(x => x.supports_slide_ops);
+      if (!this.opsTargets.length) {
+        alert('没有可用的目标 Deck（需要已挂载的 rolling-deck 或 Keynote deck）');
         return;
       }
       this.insertModal = {

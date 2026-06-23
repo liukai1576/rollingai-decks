@@ -38,13 +38,20 @@ def _slide_token(classes: str) -> bool:
     return bool(re.search(r'(?<![\w-])slide(?![\w-])', classes))
 
 
+def _hidden_token(classes: str) -> bool:
+    # hide.py flips the standalone `slide` token to `slide-hidden`.
+    return bool(re.search(r'(?<![\w-])slide-hidden(?![\w-])', classes))
+
+
 def extract_sections(html: str) -> list[dict]:
-    """Return [{key, classes, block, screen_label, label_title}] for every
-    outer <section> whose class list contains the standalone token `slide`."""
+    """Return [{key, classes, block, screen_label, label_title, hidden}] for
+    every outer <section> that is a slide — visible (`slide`) OR hidden
+    (`slide-hidden`). Hidden ones stay in deck.json flagged so they remain in
+    the deck + the admin list, just display:none in the presentation."""
     out = []
     for m in SECTION_OPEN_RE.finditer(html):
         classes, key = m.group(1), m.group(2)
-        if not _slide_token(classes):
+        if not (_slide_token(classes) or _hidden_token(classes)):
             continue
         # depth-count to the matching </section>
         depth, pos = 1, m.end()
@@ -64,6 +71,7 @@ def extract_sections(html: str) -> list[dict]:
             "block": block,
             "screen_label": sl.group(1) if sl else "",
             "label_title": (sl.group(2).strip() if sl else ""),
+            "hidden": _hidden_token(classes),
         })
     return out
 
@@ -93,6 +101,7 @@ def build(index_path: Path, title: str | None = None) -> dict:
             "title": pick_title(s["block"], s["label_title"] or s["key"]),
             "notes": "",
             "layout": "raw",
+            "hidden": s.get("hidden", False),
             "screen_label": s["screen_label"] or f"{i:02d}",
             "data": {"html": s["block"]},
         })

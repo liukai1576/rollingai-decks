@@ -204,6 +204,11 @@ def list_slides(
     params.append(limit)
     rows = [row_to_dict(r) for r in conn.execute(sql, params)]
     conn.close()
+    # Deck attribution — so identical-looking pages from different decks (a
+    # spliced copy vs its source) are distinguishable in the global / search
+    # list and you can't act on the wrong one.
+    for r in rows:
+        r["deck_name"] = deck_display_name(r["deck_id"])
     return {"count": len(rows), "slides": rows}
 
 
@@ -390,6 +395,7 @@ def list_decks(search: Optional[str] = None):
         d["display_name"] = deck_display_name(d["deck_id"])
         d["has_mount"] = d["deck_id"] in DECK_PATHS and DECK_PATHS[d["deck_id"]].is_dir()
         d["is_rolling_target"] = _is_rolling_deck(d["deck_id"])
+        d["supports_slide_ops"] = _supports_slide_ops(d["deck_id"])
         d["stale"] = _is_stale(conn, d["deck_id"])
         if needle and needle not in d["deck_id"].lower() and needle not in (d["display_name"] or "").lower():
             continue
@@ -450,6 +456,37 @@ def _is_rolling_deck(deck_id: str) -> bool:
         ok = False
     _ROLLING_CACHE[deck_id] = (mtime, ok)
     return ok
+
+
+# mtime-keyed cache: deck_id → (index mtime, is feishu-deck-h5 host)
+_FEISHU_CACHE: dict[str, tuple[float, bool]] = {}
+
+def _is_feishu_deck(deck_id: str) -> bool:
+    """True if the deck's index.html is a feishu-deck-h5 host (Keynote→HTML
+    product). Marker: data-layout-pack="feishu-deck-h5" on the deck shell."""
+    base = DECK_PATHS.get(deck_id)
+    if not base:
+        return False
+    index = base / "index.html"
+    if not index.is_file():
+        return False
+    mtime = index.stat().st_mtime
+    cached = _FEISHU_CACHE.get(deck_id)
+    if cached and cached[0] == mtime:
+        return cached[1]
+    try:
+        ok = 'data-layout-pack="feishu-deck-h5"' in index.read_text(encoding="utf-8")
+    except OSError:
+        ok = False
+    _FEISHU_CACHE[deck_id] = (mtime, ok)
+    return ok
+
+
+def _supports_slide_ops(deck_id: str) -> bool:
+    """Hide / delete edit index.html in place + rebuild deck.json. Both the
+    rolling-deck and feishu-deck-h5 packs are supported (different parsers,
+    same outcome)."""
+    return _is_rolling_deck(deck_id) or _is_feishu_deck(deck_id)
 
 
 # ---- API: skills ----
@@ -585,9 +622,18 @@ def _run_reingest(spec: dict, lines: list[str]) -> int:
              str(base / "index.html")], lines)
         if rc != 0:
             return rc
+    elif _is_feishu_deck(deck_id):
+        # Keynote products: index.html is the truth — rebuild deck.json from it
+        # so manual HTML edits (logos, text, etc.) reach the search/tag index.
+        rc = _stream_subprocess(
+            [sys.executable,
+             str(REPO / "plugin/skills/deck-splice/assets/feishu_ops.py"),
+             str(base / "index.html")], lines)
+        if rc != 0:
+            return rc
     if not deck_json.is_file():
-        raise RuntimeError(f"{deck_json} missing (non-rolling deck without "
-                           f"deck.json cannot be re-ingested)")
+        raise RuntimeError(f"{deck_json} missing (deck without deck.json "
+                           f"cannot be re-ingested)")
     rc = _stream_subprocess(
         [sys.executable, str(REPO / "library/db/ingest_deck.py"),
          deck_id, str(deck_json)], lines)
@@ -670,11 +716,10 @@ def _start_worker() -> None:
 def create_insert_task(deck_id: str, body: InsertSlidesRequest):
     if not body.items:
         raise HTTPException(400, "items is empty")
-    if not _is_rolling_deck(deck_id):
+    if not _supports_slide_ops(deck_id):
         raise HTTPException(409,
-            f"deck '{deck_id}' is not a rolling-deck host — v1 only supports "
-            f"rolling-deck targets (feishu-deck-h5 decks would be overwritten "
-            f"on next render)")
+            f"deck '{deck_id}' is neither a rolling-deck nor a feishu-deck-h5 "
+            f"host — insert is unsupported for this pack")
     # Validate page bound against the DB's view of the deck.
     conn = db()
     page_count = conn.execute(
@@ -714,11 +759,10 @@ def create_delete_task(deck_id: str, body: DeleteSlidesRequest):
     keys = list(dict.fromkeys(body.slide_keys))  # de-dup, keep order
     if not keys:
         raise HTTPException(400, "slide_keys is empty")
-    if not _is_rolling_deck(deck_id):
+    if not _supports_slide_ops(deck_id):
         raise HTTPException(409,
-            f"deck '{deck_id}' is not a rolling-deck host — delete only "
-            f"supports rolling-deck decks (feishu-deck-h5 decks render their "
-            f"index.html from deck.json and would be overwritten)")
+            f"deck '{deck_id}' is neither a rolling-deck nor a feishu-deck-h5 "
+            f"host — delete is unsupported for this pack")
     conn = db()
     rows = conn.execute(
         "SELECT slide_key, page_no FROM slides WHERE deck_id=?",
@@ -768,6 +812,14 @@ def _hidden_sections(deck_id: str) -> list[dict]:
     if not idx.is_file():
         return []
     html = idx.read_text(encoding="utf-8")
+    # feishu-deck-h5: hidden state lives on the <div class="slide-frame-hidden">
+    # wrapper (key/label on the inner .slide) — reuse the runner's parser.
+    if _is_feishu_deck(deck_id):
+        import importlib
+        sys.path.insert(0, str(REPO / "plugin/skills/deck-splice/assets"))
+        feishu_ops = importlib.import_module("feishu_ops")
+        return [{"slide_key": f["key"], "screen_label": f["screen_label"]}
+                for f in feishu_ops.find_frames(html) if f["hidden"]]
     out = []
     for m in _HIDDEN_SEC_RE.finditer(html):
         key = m.group(1)
@@ -789,10 +841,10 @@ def _queue_hide_task(deck_id: str, action: str, keys: list[str]) -> dict:
     keys = list(dict.fromkeys(keys))
     if not keys:
         raise HTTPException(400, "slide_keys is empty")
-    if not _is_rolling_deck(deck_id):
+    if not _supports_slide_ops(deck_id):
         raise HTTPException(409,
-            f"deck '{deck_id}' is not a rolling-deck host — {action} only "
-            f"supports rolling-deck decks")
+            f"deck '{deck_id}' is neither a rolling-deck nor a feishu-deck-h5 "
+            f"host — {action} is unsupported for this pack")
     kind = "hide-slides" if action == "hide" else "unhide-slides"
     task_id = (f"task-{datetime.now(timezone.utc):%Y%m%d-%H%M%S}-"
                f"{secrets.token_hex(2)}")

@@ -3,7 +3,7 @@ name: keynote-to-html
 display_name: Keynote 转 HTML
 author: liukai
 kind: [创建]
-version: "0.28"
+version: "0.29"
 input:  Apple .key file (path)
 output: deck output dir (deck.json + index.html + assets/ + history.json)
 triggers:
@@ -241,6 +241,15 @@ Known issues (v0.13; under active development):
     fill type`) doesn't expose reliably via AppleScript. Master iWork
     items (images, shapes, text) ARE extracted; placeholder text (e.g.
     "幻灯片标题" / "正文级别 1") is filtered out.
+  - Connection lines (Keynote 连接线 / elbow connectors that link a phone
+    mockup to bullet text, etc.) render as a CLOSED bordered rectangle =
+    their bounding box, not as the actual line — looks like an empty box
+    sitting on top of the text. The real shape is an open polyline (横线进
+    竖括号 "⊣", or 横折向下 "¬"). Seen on 海正药业 deck pages 49/50 —
+    hand-fixed there by swapping each `<div class="el shape">` box for an
+    inline `<svg><path>` elbow. Proper fix: parse the connector's path
+    points from the .key IWA archive (geometry not exposed via AppleScript)
+    and emit an SVG polyline instead of a bordered div.
 
 Known fixed in v0.13:
   - Opacity not applying on first slide (the renderer's `.deck:not(
