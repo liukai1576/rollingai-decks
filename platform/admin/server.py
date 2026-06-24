@@ -59,26 +59,41 @@ from deck_mounts import discover_mounts  # noqa: E402
 
 DECK_PATHS: dict[str, Path] = discover_mounts(REPO)
 
-_DECK_TITLE_CACHE: dict[str, str] = {}
+
+def deck_base(deck_id: str):
+    """Return the mounted dir for deck_id, re-scanning imports/ on a miss so
+    decks created AFTER server startup (clone, keynote import, …) are picked up
+    without a restart. discover_mounts is just a dir listing — cheap."""
+    base = DECK_PATHS.get(deck_id)
+    if base is None or not base.is_dir():
+        DECK_PATHS.update(discover_mounts(REPO))   # mutate in place — all refs see it
+        base = DECK_PATHS.get(deck_id)
+    return base
+
+
+# mtime-keyed: refresh when deck.json changes (e.g. a deck gets renamed), so
+# the admin never shows a stale name after a rebuild/re-ingest.
+_DECK_TITLE_CACHE: dict[str, tuple[float, str]] = {}
 
 def deck_display_name(deck_id: str) -> str:
     """Return the original deck title (from deck.json) or the slug as fallback.
     We do NOT invent English names — show whatever the source file was called."""
-    if deck_id in _DECK_TITLE_CACHE:
-        return _DECK_TITLE_CACHE[deck_id]
+    base = deck_base(deck_id)
+    deck_json = (base / "deck.json") if base else None
+    mtime = deck_json.stat().st_mtime if (deck_json and deck_json.is_file()) else 0.0
+    cached = _DECK_TITLE_CACHE.get(deck_id)
+    if cached and cached[0] == mtime:
+        return cached[1]
     name = deck_id
-    base = DECK_PATHS.get(deck_id)
-    if base and base.is_dir():
-        deck_json = base / "deck.json"
-        if deck_json.is_file():
-            try:
-                d = json.loads(deck_json.read_text("utf-8"))
-                t = d.get("deck", {}).get("title") or d.get("title")
-                if t:
-                    name = t
-            except Exception:
-                pass
-    _DECK_TITLE_CACHE[deck_id] = name
+    if deck_json and deck_json.is_file():
+        try:
+            d = json.loads(deck_json.read_text("utf-8"))
+            t = d.get("deck", {}).get("title") or d.get("title")
+            if t:
+                name = t
+        except Exception:
+            pass
+    _DECK_TITLE_CACHE[deck_id] = (mtime, name)
     return name
 
 
@@ -409,7 +424,7 @@ def _is_stale(conn, deck_id: str) -> bool:
     ingest — i.e. someone edited the deck but the DB (page_no, titles,
     body_text, search index) still reflects the old content. Surfaced as
     a '需重新入库' badge in the UI instead of silently drifting."""
-    base = DECK_PATHS.get(deck_id)
+    base = deck_base(deck_id)
     if not base:
         return False
     index = base / "index.html"
@@ -440,7 +455,7 @@ def _is_rolling_deck(deck_id: str) -> bool:
     """True if the mounted deck's index.html is a rolling-deck host —
     i.e. a valid insert-slides target. The marker is the pack's
     <main class="deck" id="deck"> shell element."""
-    base = DECK_PATHS.get(deck_id)
+    base = deck_base(deck_id)
     if not base:
         return False
     index = base / "index.html"
@@ -464,7 +479,7 @@ _FEISHU_CACHE: dict[str, tuple[float, bool]] = {}
 def _is_feishu_deck(deck_id: str) -> bool:
     """True if the deck's index.html is a feishu-deck-h5 host (Keynote→HTML
     product). Marker: data-layout-pack="feishu-deck-h5" on the deck shell."""
-    base = DECK_PATHS.get(deck_id)
+    base = deck_base(deck_id)
     if not base:
         return False
     index = base / "index.html"
@@ -611,7 +626,7 @@ def _run_reingest(spec: dict, lines: list[str]) -> int:
     from index.html → ingest (tags preserved) → thumbnails for new/changed
     slides. Mirrors the manual three-step ritual in CLAUDE.md."""
     deck_id = spec["target_deck_id"]
-    base = DECK_PATHS.get(deck_id)
+    base = deck_base(deck_id)
     if not base:
         raise RuntimeError(f"no mount for deck '{deck_id}'")
     deck_json = base / "deck.json"
@@ -805,7 +820,7 @@ def _hidden_sections(deck_id: str) -> list[dict]:
     """Parse the deck's index.html for sections marked data-hidden="1".
     Hidden pages live only in the HTML (they're excluded from deck.json/DB),
     so this is the source of truth for the '已隐藏' panel."""
-    base = DECK_PATHS.get(deck_id)
+    base = deck_base(deck_id)
     if not base:
         return []
     idx = base / "index.html"
@@ -975,7 +990,7 @@ def export_story_to_deck(story_id: str):
 def deck_file(deck_id: str, path: str):
     """Serve files under DECK_PATHS[deck_id]/{path}. Read-only. Used by the
     preview iframe in the UI to show a slide's actual rendered HTML."""
-    base = DECK_PATHS.get(deck_id)
+    base = deck_base(deck_id)
     if not base or not base.is_dir():
         raise HTTPException(404, f"No deck mounted for {deck_id}")
     target = (base / path).resolve()

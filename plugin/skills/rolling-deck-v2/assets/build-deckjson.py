@@ -97,8 +97,19 @@ def build(index_path: Path, title: str | None = None) -> dict:
             "data": {"html": s["block"]},
         })
     if not title:
-        m = TITLE_TAG_RE.search(html)
-        title = m.group(1).strip() if m else index_path.parent.name
+        # A rebuild must NOT clobber a user-set deck name: prefer the EXISTING
+        # deck.json's title, then the <title> tag (often still the template's
+        # default), then the dir name.
+        dj = index_path.parent / "deck.json"
+        if dj.is_file():
+            try:
+                title = (json.loads(dj.read_text("utf-8"))
+                         .get("deck", {}).get("title")) or None
+            except (OSError, ValueError):
+                title = None
+        if not title:
+            m = TITLE_TAG_RE.search(html)
+            title = m.group(1).strip() if m else index_path.parent.name
     return {
         "version": "2",
         "deck": {

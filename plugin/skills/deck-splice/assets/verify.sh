@@ -83,6 +83,10 @@ fi
 python3 - "$DECK" "$HTML" <<'PY'
 import re, sys, os
 deck_dir = sys.argv[1]; html = open(sys.argv[2], encoding="utf-8").read()
+# Strip HTML comments first — commented-out template hints (e.g. the
+# rolling-deck cover's optional co-brand <img src="assets/<client>-logo.svg">)
+# are NOT real references; counting them produced false "missing asset" fails.
+html = re.sub(r'<!--.*?-->', '', html, flags=re.DOTALL)
 seen = set()
 for m in re.finditer(r'(?:src|href|poster)="(assets/[^"]+)"', html):
     seen.add(m.group(1))

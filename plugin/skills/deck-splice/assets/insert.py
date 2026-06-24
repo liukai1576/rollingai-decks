@@ -397,14 +397,19 @@ def main() -> int:
             "re-run gen_thumbnails.py manually)")
 
     # 9. verify (verify.sh's checks key off rolling's <section class="slide">
-    #    + splice markers — not applicable to feishu's div structure)
+    #    + splice markers — not applicable to feishu's div structure).
+    #    NOTE: verify runs AFTER every mutation is already committed (HTML,
+    #    deck.json, DB, thumbnails) with no rollback path, so a verify failure
+    #    must NOT mark the whole task failed — the insert already happened.
+    #    It's advisory: log loudly, but still exit 0 so the UI reflects the
+    #    real (successful) state instead of a misleading "failed".
     if is_rolling:
         rc = subprocess.run(
             ["bash", str(ASSETS_DIR / "verify.sh"), str(target_dir)],
         ).returncode
         if rc != 0:
-            log("WARNING: verify.sh reported problems — inspect the deck")
-            return 1
+            log("WARNING: verify.sh reported problems — slides ARE inserted; "
+                "inspect the deck (this does not undo the insert)")
 
     log(f"done: {len(mapping)} slide(s) inserted into {target_deck_id} "
         f"after page {after_page}")
