@@ -13,6 +13,7 @@ skill 体系，不要裸写 HTML。**
 | 让它动起来 / 数字滚动 / 加动画 | `/deck-animate`（slide-anim；rolling-deck 已内置勿重装）|
 | 入库 / 进管理平台 / 出缩略图 / 打标签 | `/deck-ingest`（ingest→tags→thumbs 三连）|
 | 这页改一下 / 重新设计这页 | slide-redesign skill |
+| 把这些照片拼成一张 / 做个照片墙 / 九宫格 / 十二宫格 | photo-wall skill（`plugin/skills/photo-wall/SKILL.md`）|
 | 系统都能干啥 | `/deck-help` |
 
 用户的说法对不上表里的任何一条、但明显和 deck 有关 → 先跑
