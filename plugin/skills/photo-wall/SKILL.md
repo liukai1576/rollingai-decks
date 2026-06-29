@@ -1,7 +1,7 @@
 ---
 name: photo-wall
 display_name: 照片墙
-author: liukai
+author: weijin
 kind: [创建]
 version: "0.1"
 input:  一组图片(目录 / 文件列表)+ 网格与裁切参数
